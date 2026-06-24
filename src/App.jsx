@@ -12,7 +12,6 @@ export default function App() {
   const [state, setState] = useState(() => readStore() || mkSeed());
   const [selectedContainerId, setSelectedContainerId] = useState(null);
   const [openLogContainerId, setOpenLogContainerId] = useState(null);
-  const [justSealedId, setJustSealedId] = useState(null);
 
   useEffect(() => {
     writeStore(state);
@@ -26,13 +25,9 @@ export default function App() {
         if (v.id !== s.activeVoyageId) return v;
         return {
           ...v,
-          containers: v.containers.map((c) => {
-            if (c.id !== containerId) return c;
-            if (patch.sealed === true && c.sealed === false) {
-              setJustSealedId(containerId);
-            }
-            return { ...c, ...patch };
-          }),
+          containers: v.containers.map((c) =>
+            c.id === containerId ? { ...c, ...patch } : c
+          ),
         };
       });
       return { ...s, voyages };
@@ -139,8 +134,6 @@ export default function App() {
       selectedContainerId={selectedContainerId}
       onSelectContainer={setSelectedContainerId}
       onOpenLog={setOpenLogContainerId}
-      justSealedId={justSealedId}
-      onAckBurst={() => setJustSealedId(null)}
       onExportXlsx={exportXlsx}
     />
   );

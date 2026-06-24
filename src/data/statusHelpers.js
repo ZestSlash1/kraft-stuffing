@@ -9,11 +9,11 @@ export const TOKENS = {
 };
 
 export const CONTAINER_COLORS = {
-  EMPTY: { hull: "#1e3040", emissive: "#000000", label: "#475569" },
-  STUFFING: { hull: "#5a3010", emissive: "#201000", label: "#f5a623" },
-  FULL: { hull: "#7a3500", emissive: "#301000", label: "#f59e0b" },
-  OVER: { hull: "#7a0000", emissive: "#300000", label: "#ef4444" },
-  SEALED: { hull: "#0d3a1a", emissive: "#001008", label: "#22c55e" },
+  EMPTY: { hull: "#2a3441", stripe: "#323e4d", accent: "#64748b", text: "#e2e8f0" },
+  STUFFING: { hull: "#8a5a1c", stripe: "#9c6a24", accent: "#ffc861", text: "#1a1206" },
+  FULL: { hull: "#9c4a12", stripe: "#ad551a", accent: "#ffb066", text: "#1a0e04" },
+  OVER: { hull: "#8c1c1c", stripe: "#9e2424", accent: "#ff7a7a", text: "#1a0606" },
+  SEALED: { hull: "#14532d", stripe: "#196336", accent: "#4ade80", text: "#06170c" },
 };
 
 export const CARGO_COLORS = {
