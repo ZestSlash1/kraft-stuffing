@@ -1,0 +1,30 @@
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+}
+
+body {
+  margin: 0;
+  background: #07090e;
+  color: #e2e8f0;
+  font-family: ui-monospace, "Cascadia Code", Menlo, Consolas, monospace;
+  overflow: hidden;
+}
+
+canvas {
+  display: block;
+  touch-action: none;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1c2d42;
+  border-radius: 4px;
+}
