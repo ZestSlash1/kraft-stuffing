@@ -2,11 +2,16 @@ import { useRef, useEffect } from "react";
 import { gsap } from "gsap";
 import { TOKENS, containerStatus, containerFillPct } from "../data/statusHelpers";
 
+const reducedMotion = () =>
+  typeof window !== "undefined" &&
+  window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
 export default function ContainerInfoOverlay({ container, onClose, onSelectLine }) {
   const ref = useRef();
 
   useEffect(() => {
     if (!ref.current) return;
+    if (reducedMotion()) return;
     gsap.fromTo(
       ref.current,
       { y: 60, opacity: 0 },
@@ -23,10 +28,23 @@ export default function ContainerInfoOverlay({ container, onClose, onSelectLine 
     (a, l) => a + Number(l.qty || 0) * Number(l.unitWeightKg || 0),
     0
   );
+  const grossKg = totalKg + Number(container.tareWeightKg || 0);
+
+  const dataGrid = [
+    ["SEAL NO", container.sealNo || "—"],
+    ["CONDITION", container.condition || "Clean"],
+    ["TARE", container.tareWeightKg ? `${container.tareWeightKg} kg` : "—"],
+    ["VGM", `${(grossKg / 1000).toFixed(2)} MT`],
+    ["NET WT", `${(totalKg / 1000).toFixed(2)} MT`],
+    ["GROSS WT", `${(grossKg / 1000).toFixed(2)} MT`],
+    ["CML", container.cmlKg ? `${(container.cmlKg / 1000).toFixed(2)} MT` : "—"],
+    ["STATUS", status],
+  ];
 
   return (
     <div
       ref={ref}
+      className="mono"
       style={{
         position: "absolute",
         left: 0,
@@ -34,63 +52,92 @@ export default function ContainerInfoOverlay({ container, onClose, onSelectLine 
         bottom: 0,
         background: TOKENS.surface,
         borderTop: `1px solid ${TOKENS.border}`,
-        padding: "16px 20px",
-        fontFamily: TOKENS.mono,
         color: "#e2e8f0",
-        maxHeight: "45%",
+        maxHeight: "55%",
         overflowY: "auto",
       }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ fontSize: 16, fontWeight: 600 }}>
+      <div
+        style={{
+          height: 48,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          padding: "0 20px",
+          borderBottom: `1px solid ${TOKENS.border}`,
+          flexShrink: 0,
+        }}
+      >
+        <div className="condensed" style={{ fontSize: 22, fontWeight: 800 }}>
           {container.number || "Unassigned"}{" "}
-          <span style={{ color: "#64748b", fontSize: 12 }}>· {container.size}ft</span>
+          <span className="label-xs" style={{ fontWeight: 400 }}>
+            · {container.size}ft · {fillPct}% FULL · {totalBags}/{container.capacityBags}
+          </span>
         </div>
         <button
           onClick={onClose}
+          className="mono label-xs"
           style={{
             background: "none",
             border: `1px solid ${TOKENS.border}`,
-            color: "#94a3b8",
-            borderRadius: 4,
-            padding: "4px 10px",
+            color: TOKENS.steel,
+            borderRadius: 0,
+            padding: "5px 12px",
             cursor: "pointer",
-            fontFamily: TOKENS.mono,
           }}
         >
           close
         </button>
       </div>
 
-      <div style={{ display: "flex", gap: 16, marginTop: 8, fontSize: 12, color: "#94a3b8" }}>
-        <span>status: <b style={{ color: "#e2e8f0" }}>{status}</b></span>
-        <span>fill: <b style={{ color: "#e2e8f0" }}>{fillPct}%</b></span>
-        <span>bags: <b style={{ color: "#e2e8f0" }}>{totalBags}/{container.capacityBags}</b></span>
-        <span>kg: <b style={{ color: "#e2e8f0" }}>{totalKg.toLocaleString()}</b></span>
-        <span>seal: <b style={{ color: "#e2e8f0" }}>{container.sealNo || "—"}</b></span>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: "8px 24px",
+          padding: "16px 20px",
+          borderBottom: `1px solid ${TOKENS.border}`,
+        }}
+      >
+        {dataGrid.map(([label, value]) => (
+          <div key={label} style={{ display: "flex", justifyContent: "space-between" }}>
+            <span className="label-xs">{label}</span>
+            <span style={{ fontSize: 13, color: "#e2e8f0" }}>{value}</span>
+          </div>
+        ))}
       </div>
 
-      <div style={{ marginTop: 12 }}>
+      <div style={{ padding: "12px 20px" }}>
         {container.lines.length === 0 && (
-          <div style={{ color: "#64748b", fontSize: 12 }}>No lines yet.</div>
+          <div className="label-xs">No lines yet.</div>
         )}
         {container.lines.map((l) => (
           <div
             key={l.id}
             onClick={() => onSelectLine && onSelectLine(l.id)}
             style={{
-              display: "flex",
-              gap: 12,
-              fontSize: 12,
-              padding: "6px 0",
+              padding: "10px 0",
               borderBottom: `1px solid ${TOKENS.border}`,
               cursor: onSelectLine ? "pointer" : "default",
             }}
           >
-            <span style={{ width: 80 }}>{l.cargo}</span>
-            <span style={{ width: 60 }}>{l.qty} bags</span>
-            <span style={{ width: 90 }}>{l.truckNo}</span>
-            <span style={{ flex: 1, color: "#64748b" }}>{l.shipper} → {l.consignee}</span>
+            <div style={{ fontSize: 13 }}>
+              <span style={{ fontWeight: 600 }}>{l.cargo}</span>
+              {" — "}
+              {l.qty} {l.unit || "Bags"}
+              {" — "}
+              <span style={{ color: TOKENS.steel }}>{l.truckNo || "—"}</span>
+            </div>
+            <div style={{ marginLeft: 14, marginTop: 2, fontSize: 11, color: TOKENS.steel }}>
+              {l.shipper} → {l.consignee}
+            </div>
+            {(l.invoiceNos?.length > 0 || l.hsCode) && (
+              <div style={{ marginLeft: 14, marginTop: 1, fontSize: 11, color: TOKENS.steel }}>
+                {l.invoiceNos?.length > 0 && `inv: ${l.invoiceNos.join(", ")}`}
+                {l.invoiceNos?.length > 0 && l.hsCode && " — "}
+                {l.hsCode && `HS: ${l.hsCode}`}
+              </div>
+            )}
           </div>
         ))}
       </div>

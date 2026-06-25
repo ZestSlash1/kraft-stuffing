@@ -1,11 +1,13 @@
 export const TOKENS = {
-  bg: "#07090e",
-  surface: "#0d1520",
-  border: "#1c2d42",
-  amber: "#f5a623",
-  green: "#22c55e",
+  bg: "var(--void, #030508)",
+  surface: "var(--surface, #0a1020)",
+  border: "var(--border, #102030)",
+  amber: "var(--amber, #e8930a)",
+  green: "var(--green, #0b6b50)",
   red: "#ef4444",
-  mono: `ui-monospace, 'Cascadia Code', Menlo, Consolas, monospace`,
+  steel: "var(--steel, #8a9aaa)",
+  mono: "var(--font-mono, 'JetBrains Mono', ui-monospace, monospace)",
+  condensed: "var(--font-condensed, 'Barlow Condensed', system-ui, sans-serif)",
 };
 
 export const CONTAINER_COLORS = {

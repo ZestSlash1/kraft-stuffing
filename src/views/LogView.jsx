@@ -1,15 +1,20 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { gsap } from "gsap";
 import ContainerCard from "../components/ContainerCard";
 import AddForm from "../components/AddForm";
 import LineCard from "../components/LineCard";
 import SealConfirmDialog from "../components/SealConfirmDialog";
 import { TOKENS, containerStatus, containerFillPct } from "../data/statusHelpers";
 
+const reducedMotion = () =>
+  typeof window !== "undefined" &&
+  window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
 const inputStyle = {
   background: TOKENS.bg,
   border: `1px solid ${TOKENS.border}`,
   color: "#e2e8f0",
-  borderRadius: 4,
+  borderRadius: 0,
   padding: "6px 10px",
   fontFamily: TOKENS.mono,
   fontSize: 12,
@@ -31,6 +36,8 @@ export default function LogView({
   onSeal,
 }) {
   const [sealing, setSealing] = useState(false);
+  const bagCountRef = useRef();
+  const prevBagsRef = useRef(null);
 
   // Tell other users (via presence) which container this user is actively logging.
   useEffect(() => {
@@ -50,11 +57,24 @@ export default function LogView({
     return () => document.removeEventListener("keydown", onKey);
   }, [onBack, sealing]);
 
+  const totalBags = container?.lines.reduce((a, l) => a + Number(l.qty || 0), 0) || 0;
+
+  // GSAP "drop into place" pulse on the bag-count readout whenever a line is added.
+  useEffect(() => {
+    if (prevBagsRef.current !== null && totalBags !== prevBagsRef.current && bagCountRef.current && !reducedMotion()) {
+      gsap.fromTo(
+        bagCountRef.current,
+        { y: -10, opacity: 0.3 },
+        { y: 0, opacity: 1, duration: 0.4, ease: "bounce.out" }
+      );
+    }
+    prevBagsRef.current = totalBags;
+  }, [totalBags]);
+
   if (!container) return null;
 
   const status = containerStatus(container);
   const fillPct = Math.round(containerFillPct(container) * 100);
-  const totalBags = container.lines.reduce((a, l) => a + Number(l.qty || 0), 0);
 
   const confirmSeal = ({ sealNo, sealNo2 }) => {
     onSeal({ sealNo, sealNo2 });
@@ -68,7 +88,9 @@ export default function LogView({
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          padding: "14px 20px",
+          height: 120,
+          flexShrink: 0,
+          padding: "0 20px",
           fontFamily: TOKENS.mono,
           color: "#e2e8f0",
           borderBottom: `1px solid ${TOKENS.border}`,
@@ -76,26 +98,35 @@ export default function LogView({
           gap: 10,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
           <button
             onClick={onBack}
             style={{
               background: "none",
               border: `1px solid ${TOKENS.border}`,
               color: "#e2e8f0",
-              borderRadius: 4,
+              borderRadius: 0,
               padding: "6px 12px",
               cursor: "pointer",
               fontFamily: TOKENS.mono,
+              flexShrink: 0,
             }}
           >
             ← back
           </button>
-          <div style={{ fontSize: 16, fontWeight: 600 }}>
-            {container.number || "Unassigned"}
+          <div>
+            <div
+              className="condensed"
+              style={{ fontSize: 64, fontWeight: 800, lineHeight: 1, letterSpacing: "0.01em" }}
+            >
+              {container.number || "UNASSIGNED"}
+            </div>
+            <div className="label-xs" style={{ marginTop: 2 }}>
+              {status} · {fillPct}% FULL
+            </div>
           </div>
-          <span style={{ fontSize: 12, color: "#64748b" }}>
-            {status} · {fillPct}% · {totalBags}/{container.capacityBags} {container.capacityUnit || "Bags"}
+          <span ref={bagCountRef} className="mono" style={{ fontSize: 13, color: TOKENS.steel }}>
+            {totalBags}/{container.capacityBags} {container.capacityUnit || "Bags"}
           </span>
         </div>
 
@@ -145,12 +176,11 @@ export default function LogView({
           />
           {container.sealed ? (
             <span
+              className="label-xs"
               style={{
-                fontSize: 11,
                 color: TOKENS.green,
                 border: `1px solid ${TOKENS.green}`,
-                borderRadius: 4,
-                padding: "5px 10px",
+                padding: "6px 10px",
               }}
             >
               SEALED
@@ -158,14 +188,14 @@ export default function LogView({
           ) : (
             <button
               onClick={() => setSealing(true)}
+              className="mono label-xs"
               style={{
                 background: TOKENS.green,
-                color: "#07090e",
+                color: "#030508",
                 border: "none",
-                borderRadius: 4,
-                padding: "6px 12px",
-                fontFamily: TOKENS.mono,
-                fontWeight: 600,
+                borderRadius: 0,
+                padding: "7px 12px",
+                fontWeight: 700,
                 cursor: "pointer",
               }}
             >

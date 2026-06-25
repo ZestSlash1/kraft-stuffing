@@ -35,7 +35,9 @@ import { readStore, writeStore } from "./data/store";
 import { mkSeed } from "./seed";
 import { containerStatus } from "./data/statusHelpers";
 import { appReducer, initialState } from "./data/appReducer";
-import AuthView from "./views/AuthView";
+// AuthView (email OTP) is disabled for now — re-enable by restoring the
+// checkingAuth/session gate below. Kept around so it's a one-line revert.
+// import AuthView from "./views/AuthView";
 import VoyageView from "./views/VoyageView";
 import LogView from "./views/LogView";
 import OfflineBanner from "./components/OfflineBanner";
@@ -128,10 +130,23 @@ async function bootstrapSeed(userId) {
   }
 }
 
+// OTP login is disabled for now (see App() below) — every device gets a
+// stable local identity so loggedBy/sealedBy/presence keep working without a
+// real Supabase auth session. Swap back to session.user once OTP returns.
+const LOCAL_USER_ID_KEY = "kraft-local-user-id";
+function getLocalUser() {
+  let id = localStorage.getItem(LOCAL_USER_ID_KEY);
+  if (!id) {
+    id = uid();
+    localStorage.setItem(LOCAL_USER_ID_KEY, id);
+  }
+  return { id, email: "dock-staff" };
+}
+
 export default function App() {
-  // ── Auth ──────────────────────────────────────────────────────────────────
-  const [session, setSession] = useState(null);
-  const [checkingAuth, setCheckingAuth] = useState(true);
+  // ── Auth (OTP disabled for now — see import comment above) ─────────────────
+  const [localUser] = useState(getLocalUser);
+  const session = { user: localUser };
 
   // ── App data ────────────────────────────────────────────────────────────────
   const [state, dispatch] = useReducer(appReducer, initialState);
@@ -145,51 +160,31 @@ export default function App() {
   const [pending, setPending] = useState(0);
   const loadedForUser = useRef(null);
 
-  // Existing session check + auth subscription
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setCheckingAuth(false);
-    });
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      setSession(newSession);
-      setCheckingAuth(false);
-    });
-    return () => subscription.unsubscribe();
-  }, []);
-
   // Load data once we have a user (falls back to local seed if Supabase is
   // unreachable or not yet seeded — keeps the app usable offline).
   useEffect(() => {
-    const user = session?.user;
-    if (!user) {
-      loadedForUser.current = null;
-      return;
-    }
+    const user = localUser;
     if (loadedForUser.current === user.id) return;
     loadedForUser.current = user.id;
 
-    let cancelled = false;
+    // Note: no cancellation flag here — `loadedForUser` above already ensures
+    // this body runs at most once per user, so React 18 StrictMode's
+    // mount→cleanup→remount dev cycle can't race against itself.
     (async () => {
       dispatch({ type: "SET_LOADING", loading: true });
       await ensureProfile(user);
       try {
         let voyages = await loadVoyageTree(KRAFT_ORG_ID);
-        if (cancelled) return;
         // Fresh project: seed Supabase once, then read back the canonical tree.
         if (!voyages.length) {
           await bootstrapSeed(user.id);
           voyages = await loadVoyageTree(KRAFT_ORG_ID);
         }
-        if (cancelled) return;
         if (!voyages.length) throw new Error("no remote voyages");
         dispatch({ type: "SET_VOYAGES", voyages });
 
         const { data: shippers } = await fetchShippers(KRAFT_ORG_ID);
         const { data: consignees } = await fetchConsignees(KRAFT_ORG_ID);
-        if (cancelled) return;
         dispatch({ type: "SET_SHIPPERS", shippers: (shippers || []).map(fromDbShipper) });
         dispatch({
           type: "SET_CONSIGNEES",
@@ -199,21 +194,16 @@ export default function App() {
         // Supabase empty/unreachable → use the last local snapshot or the seed.
         console.warn("[load] falling back to local store:", err.message);
         const local = readStore() || mkSeed();
-        if (cancelled) return;
         dispatch({
           type: "SET_VOYAGES",
           voyages: local.voyages,
           activeVoyageId: local.activeVoyageId,
         });
       } finally {
-        if (!cancelled) dispatch({ type: "SET_LOADING", loading: false });
+        dispatch({ type: "SET_LOADING", loading: false });
       }
     })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [session]);
+  }, [localUser]);
 
   // Mirror state to localStorage so an offline reload has something to show.
   useEffect(() => {
@@ -370,9 +360,6 @@ export default function App() {
   };
 
   // ── Render ──────────────────────────────────────────────────────────────────
-  if (checkingAuth) return null;
-  if (!session) return <AuthView />;
-
   const banner = offline ? <OfflineBanner pending={pending} /> : null;
 
   if (state.loading) {

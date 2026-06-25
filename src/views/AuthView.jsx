@@ -3,13 +3,13 @@ import { supabase } from "../lib/supabase";
 import { ensureProfile } from "../lib/db";
 
 // Design tokens straight from CLAUDE.md (industrial: square corners, amber accent)
-const VOID = "#030508";
-const SURFACE = "#0a1020";
-const BORDER = "#102030";
-const AMBER = "#e8930a";
-const STEEL = "#8a9aaa";
-const MONO = `'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace`;
-const CONDENSED = `'Barlow Condensed', system-ui, sans-serif`;
+const VOID = "var(--void, #030508)";
+const SURFACE = "var(--surface, #0a1020)";
+const BORDER = "var(--border, #102030)";
+const AMBER = "var(--amber, #e8930a)";
+const STEEL = "var(--steel, #8a9aaa)";
+const MONO = "var(--font-mono, 'JetBrains Mono', ui-monospace, monospace)";
+const CONDENSED = "var(--font-condensed, 'Barlow Condensed', system-ui, sans-serif)";
 
 const inputStyle = {
   width: "100%",

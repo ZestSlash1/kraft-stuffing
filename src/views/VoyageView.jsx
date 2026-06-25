@@ -1,29 +1,29 @@
-import { useRef } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import ContainerCard from "../components/ContainerCard";
+import ManifestTable from "../components/ManifestTable";
 import ContainerInfoOverlay from "../components/ContainerInfoOverlay";
 import { TOKENS } from "../data/statusHelpers";
-
-const CARD_WIDTH = 320;
-const GAP = 18;
 
 export default function VoyageView({
   voyages,
   activeVoyageId,
-  presenceMap,
   onSelectVoyage,
   selectedContainerId,
   onSelectContainer,
   onOpenLog,
   onExportXlsx,
 }) {
-  const trackRef = useRef();
   const voyage = voyages.find((v) => v.id === activeVoyageId) || voyages[0];
   const selectedContainer = voyage?.containers.find((c) => c.id === selectedContainerId);
 
-  const scrollBy = (dir) => {
-    trackRef.current?.scrollBy({ left: dir * (CARD_WIDTH + GAP), behavior: "smooth" });
-  };
+  const containers = voyage?.containers || [];
+  const stats = containers.reduce(
+    (acc, c) => {
+      acc.bags += c.lines.reduce((a, l) => a + Number(l.qty || 0), 0);
+      acc.mt += c.lines.reduce((a, l) => a + Number(l.qty || 0) * Number(l.unitWeightKg || 0), 0) / 1000;
+      acc.sealed += c.sealed ? 1 : 0;
+      return acc;
+    },
+    { bags: 0, mt: 0, sealed: 0 }
+  );
 
   return (
     <div
@@ -37,140 +37,96 @@ export default function VoyageView({
     >
       <div
         style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          padding: "14px 20px",
-          fontFamily: TOKENS.mono,
-          color: "#e2e8f0",
+          padding: "18px 20px 14px",
+          borderBottom: `1px solid ${TOKENS.border}`,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <select
-            value={voyage?.id}
-            onChange={(e) => onSelectVoyage(e.target.value)}
-            style={{
-              background: TOKENS.surface,
-              border: `1px solid ${TOKENS.border}`,
-              color: "#e2e8f0",
-              borderRadius: 4,
-              padding: "6px 10px",
-              fontFamily: TOKENS.mono,
-            }}
-          >
-            {voyages.map((v) => (
-              <option key={v.id} value={v.id}>
-                {v.vessel} · {v.voyageNo}
-              </option>
-            ))}
-          </select>
-          <span style={{ fontSize: 12, color: "#64748b" }}>{voyage?.date}</span>
-        </div>
-        <button
-          onClick={onExportXlsx}
-          style={{
-            background: "none",
-            border: `1px solid ${TOKENS.border}`,
-            color: "#e2e8f0",
-            borderRadius: 4,
-            padding: "6px 14px",
-            fontFamily: TOKENS.mono,
-            cursor: "pointer",
-          }}
-        >
-          export xlsx
-        </button>
-      </div>
-
-      <div
-        style={{
-          flex: 1,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          position: "relative",
-          minHeight: 0,
-        }}
-      >
-        <div style={{ width: "100%", maxWidth: 980, position: "relative" }}>
-          <button
-            onClick={() => scrollBy(-1)}
-            aria-label="scroll left"
-            style={{
-              position: "absolute",
-              left: -6,
-              top: "50%",
-              transform: "translateY(-50%)",
-              zIndex: 4,
-              background: TOKENS.surface,
-              border: `1px solid ${TOKENS.border}`,
-              color: "#e2e8f0",
-              borderRadius: "50%",
-              width: 36,
-              height: 36,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              cursor: "pointer",
-            }}
-          >
-            <ChevronLeft size={18} />
-          </button>
-
-          <div
-            ref={trackRef}
-            style={{
-              display: "flex",
-              gap: GAP,
-              overflowX: "auto",
-              scrollSnapType: "x mandatory",
-              padding: "8px 60px",
-              scrollbarWidth: "none",
-            }}
-          >
-            {voyage?.containers.map((c, i) => (
-              <div
-                key={c.id}
-                style={{ width: CARD_WIDTH, flexShrink: 0, scrollSnapAlign: "center" }}
-              >
-                <ContainerCard
-                  container={c}
-                  index={i}
-                  selected={selectedContainerId === c.id}
-                  presenceMap={presenceMap}
-                  showVgm
-                  onClick={() =>
-                    onSelectContainer(selectedContainerId === c.id ? null : c.id)
-                  }
-                />
-              </div>
-            ))}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
+          <div>
+            <div
+              className="condensed"
+              style={{
+                fontSize: 30,
+                fontWeight: 800,
+                letterSpacing: "0.03em",
+                lineHeight: 1,
+                color: "#e2e8f0",
+                textShadow: `0 0 18px ${TOKENS.amber}33`,
+              }}
+            >
+              STUFFING LOG
+            </div>
+            <div className="label-xs" style={{ marginTop: 4 }}>
+              KRAFT SHIPPING &amp; LOGISTICS
+            </div>
           </div>
 
-          <button
-            onClick={() => scrollBy(1)}
-            aria-label="scroll right"
-            style={{
-              position: "absolute",
-              right: -6,
-              top: "50%",
-              transform: "translateY(-50%)",
-              zIndex: 4,
-              background: TOKENS.surface,
-              border: `1px solid ${TOKENS.border}`,
-              color: "#e2e8f0",
-              borderRadius: "50%",
-              width: 36,
-              height: 36,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              cursor: "pointer",
-            }}
-          >
-            <ChevronRight size={18} />
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <select
+              value={voyage?.id}
+              onChange={(e) => onSelectVoyage(e.target.value)}
+              className="mono"
+              style={{
+                background: TOKENS.surface,
+                border: `1px solid ${TOKENS.border}`,
+                color: "#e2e8f0",
+                borderRadius: 0,
+                padding: "6px 10px",
+              }}
+            >
+              {voyages.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.vessel} · {v.voyageNo}
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={onExportXlsx}
+              className="mono"
+              style={{
+                background: "none",
+                border: `1px solid ${TOKENS.border}`,
+                color: "#e2e8f0",
+                borderRadius: 0,
+                padding: "6px 14px",
+                cursor: "pointer",
+              }}
+            >
+              export xlsx
+            </button>
+          </div>
         </div>
+
+        <div style={{ display: "flex", gap: 0, marginTop: 16, flexWrap: "wrap" }}>
+          {[
+            ["CONTAINERS", containers.length],
+            ["BAGS", stats.bags],
+            ["NET MT", stats.mt.toFixed(2)],
+            ["SEALED", `${stats.sealed}/${containers.length}`],
+          ].map(([label, value], i) => (
+            <div
+              key={label}
+              style={{
+                padding: "0 22px",
+                borderLeft: i === 0 ? "none" : `1px solid ${TOKENS.border}`,
+              }}
+            >
+              <div className="label-xs">{label}</div>
+              <div className="condensed" style={{ fontSize: 24, fontWeight: 700, color: "#e2e8f0" }}>
+                {value}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
+        <ManifestTable
+          containers={containers}
+          selectedContainerId={selectedContainerId}
+          onSelectContainer={onSelectContainer}
+          onOpenLog={onOpenLog}
+        />
       </div>
 
       {selectedContainer && (
