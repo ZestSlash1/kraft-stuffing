@@ -8,8 +8,27 @@ const reducedMotion = () =>
   typeof window !== "undefined" &&
   window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
+export function ManifestSkeleton() {
+  return (
+    <div className="manifest-table">
+      {[0, 1, 2].map((i) => (
+        <div
+          key={i}
+          style={{
+            height: 48,
+            margin: "10px 16px",
+            background: "#0d1828",
+            animation: "shimmer 1.4s ease-in-out infinite",
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
 export default function ManifestTable({
   containers,
+  voyageNo,
   selectedContainerId,
   onSelectContainer,
   onOpenLog,
@@ -57,6 +76,31 @@ export default function ManifestTable({
     },
     { bags: 0, mt: 0 }
   );
+
+  if (containers.length === 0) {
+    return (
+      <div
+        style={{
+          height: "100%",
+          minHeight: 280,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 10,
+          textAlign: "center",
+          padding: "0 20px",
+        }}
+      >
+        <div className="condensed" style={{ fontSize: 32, fontWeight: 800, color: "#1c2d42" }}>
+          NO CONTAINERS LOGGED
+        </div>
+        <div className="mono" style={{ fontSize: 12, color: TOKENS.steel }}>
+          Tap + to start logging for {voyageNo || "this voyage"}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="manifest-table mono" style={{ color: "#e2e8f0" }}>
@@ -137,7 +181,12 @@ export default function ManifestTable({
 
             <span
               className="manifest-cell"
-              style={{ justifyContent: "flex-end" }}
+              style={{
+                justifyContent: "flex-end",
+                alignItems: "center",
+                minHeight: 44,
+                minWidth: 44,
+              }}
               onClick={(e) => {
                 e.stopPropagation();
                 onOpenLog(c.id);

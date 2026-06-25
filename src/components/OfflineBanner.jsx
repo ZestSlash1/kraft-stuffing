@@ -1,15 +1,15 @@
 // Subtle top-of-screen banner shown while the device is offline. Pending writes
 // are queued locally and flushed automatically on reconnect (see lib/db.js).
-export default function OfflineBanner({ pending = 0 }) {
+export default function OfflineBanner({ pending = 0, top = 0 }) {
   return (
     <div
       style={{
         position: "fixed",
-        top: 0,
+        top,
         left: 0,
         right: 0,
         zIndex: 50,
-        background: "#3a2008",
+        background: "#030508",
         color: "#e8930a",
         fontFamily: `'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace`,
         fontSize: 11,
@@ -19,7 +19,7 @@ export default function OfflineBanner({ pending = 0 }) {
         borderBottom: "1px solid #102030",
       }}
     >
-      ● Offline — changes saved locally
+      <span style={{ color: "#e8930a" }}>●</span> Offline — changes saved locally
       {pending > 0 ? ` (${pending} pending)` : ""}
     </div>
   );

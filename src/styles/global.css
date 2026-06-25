@@ -104,6 +104,11 @@ canvas {
   display: none;
 }
 
+@keyframes shimmer {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
+}
+
 @media (max-width: 640px) {
   .manifest-header {
     display: none;

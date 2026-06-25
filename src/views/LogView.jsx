@@ -107,6 +107,7 @@ export default function LogView({
               color: "#e2e8f0",
               borderRadius: 0,
               padding: "6px 12px",
+              minHeight: 44,
               cursor: "pointer",
               fontFamily: TOKENS.mono,
               flexShrink: 0,
@@ -195,6 +196,7 @@ export default function LogView({
                 border: "none",
                 borderRadius: 0,
                 padding: "7px 12px",
+                minHeight: 44,
                 fontWeight: 700,
                 cursor: "pointer",
               }}

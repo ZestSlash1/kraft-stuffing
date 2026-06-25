@@ -82,6 +82,7 @@ export default function SealConfirmDialog({ containerNumber, onConfirm, onCancel
               color: "#94a3b8",
               borderRadius: 4,
               padding: "8px 14px",
+              minHeight: 44,
               fontFamily: TOKENS.mono,
               cursor: "pointer",
             }}
@@ -97,6 +98,7 @@ export default function SealConfirmDialog({ containerNumber, onConfirm, onCancel
               color: sealNo.trim() ? "#07090e" : "#64748b",
               borderRadius: 4,
               padding: "8px 14px",
+              minHeight: 44,
               fontFamily: TOKENS.mono,
               fontWeight: 600,
               cursor: sealNo.trim() ? "pointer" : "not-allowed",

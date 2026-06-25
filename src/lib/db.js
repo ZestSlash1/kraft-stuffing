@@ -168,6 +168,13 @@ const VOYAGE_KEYMAP = {
 export const toDbContainerPatch = (patch) => mapKeys(patch, CONTAINER_KEYMAP);
 export const toDbVoyagePatch = (patch) => mapKeys(patch, VOYAGE_KEYMAP);
 
+export const fromDbProfile = (r) => ({
+  id: r.id,
+  orgId: r.org_id,
+  displayName: r.display_name || "",
+  role: r.role || "staff",
+});
+
 export const fromDbShipper = (r) => ({
   id: r.id,
   orgId: r.org_id,
@@ -384,6 +391,35 @@ export async function fetchConsignees(orgId) {
     .order("name", { ascending: true });
   return { data, error };
 }
+
+export async function fetchProfiles(orgId) {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("org_id", orgId);
+  return { data, error };
+}
+
+export async function fetchAuditLog(rowIds) {
+  if (!rowIds?.length) return { data: [], error: null };
+  const { data, error } = await supabase
+    .from("audit_log")
+    .select("*")
+    .in("row_id", rowIds)
+    .order("changed_at", { ascending: false });
+  return { data, error };
+}
+
+export const fromDbAuditEntry = (r) => ({
+  id: r.id,
+  tableName: r.table_name,
+  rowId: r.row_id,
+  action: r.action,
+  changedBy: r.changed_by,
+  changedAt: r.changed_at,
+  oldData: r.old_data,
+  newData: r.new_data,
+});
 
 // ── Writes (offline-aware) ────────────────────────────────────────────────────
 // `voyage`, `container`, `line` args are DB-shaped rows (use the toDb* mappers).

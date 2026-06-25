@@ -1,5 +1,6 @@
-import ManifestTable from "../components/ManifestTable";
+import ManifestTable, { ManifestSkeleton } from "../components/ManifestTable";
 import ContainerInfoOverlay from "../components/ContainerInfoOverlay";
+import ExportMenu from "../components/ExportMenu";
 import { TOKENS } from "../data/statusHelpers";
 
 export default function VoyageView({
@@ -10,6 +11,9 @@ export default function VoyageView({
   onSelectContainer,
   onOpenLog,
   onExportXlsx,
+  onExportPdf,
+  profilesById,
+  loading = false,
 }) {
   const voyage = voyages.find((v) => v.id === activeVoyageId) || voyages[0];
   const selectedContainer = voyage?.containers.find((c) => c.id === selectedContainerId);
@@ -80,20 +84,7 @@ export default function VoyageView({
                 </option>
               ))}
             </select>
-            <button
-              onClick={onExportXlsx}
-              className="mono"
-              style={{
-                background: "none",
-                border: `1px solid ${TOKENS.border}`,
-                color: "#e2e8f0",
-                borderRadius: 0,
-                padding: "6px 14px",
-                cursor: "pointer",
-              }}
-            >
-              export xlsx
-            </button>
+            <ExportMenu onExportXlsx={onExportXlsx} onExportPdf={onExportPdf} />
           </div>
         </div>
 
@@ -121,12 +112,17 @@ export default function VoyageView({
       </div>
 
       <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
-        <ManifestTable
-          containers={containers}
-          selectedContainerId={selectedContainerId}
-          onSelectContainer={onSelectContainer}
-          onOpenLog={onOpenLog}
-        />
+        {loading ? (
+          <ManifestSkeleton />
+        ) : (
+          <ManifestTable
+            containers={containers}
+            voyageNo={voyage?.voyageNo}
+            selectedContainerId={selectedContainerId}
+            onSelectContainer={onSelectContainer}
+            onOpenLog={onOpenLog}
+          />
+        )}
       </div>
 
       {selectedContainer && (
@@ -134,6 +130,7 @@ export default function VoyageView({
           container={selectedContainer}
           onClose={() => onSelectContainer(null)}
           onSelectLine={() => onOpenLog(selectedContainer.id)}
+          profilesById={profilesById}
         />
       )}
     </div>

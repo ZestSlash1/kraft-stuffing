@@ -1,13 +1,82 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import { gsap } from "gsap";
-import { TOKENS, containerStatus, containerFillPct } from "../data/statusHelpers";
+import { TOKENS, containerStatus, containerFillPct, formatIST } from "../data/statusHelpers";
+import { fetchAuditLog, fromDbAuditEntry } from "../lib/db";
 
 const reducedMotion = () =>
   typeof window !== "undefined" &&
   window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
-export default function ContainerInfoOverlay({ container, onClose, onSelectLine }) {
+function diffFields(oldData, newData) {
+  if (!oldData || !newData) return [];
+  const keys = new Set([...Object.keys(oldData), ...Object.keys(newData)]);
+  const out = [];
+  for (const k of keys) {
+    const before = oldData[k];
+    const after = newData[k];
+    if (JSON.stringify(before) !== JSON.stringify(after)) {
+      out.push([k, before ?? "—", after ?? "—"]);
+    }
+  }
+  return out;
+}
+
+function AuditTab({ container, profilesById }) {
+  const [entries, setEntries] = useState(null);
+
+  useEffect(() => {
+    if (!container) return;
+    const rowIds = [container.id, ...container.lines.map((l) => l.id)];
+    let cancelled = false;
+    fetchAuditLog(rowIds).then(({ data, error }) => {
+      if (cancelled) return;
+      if (error) {
+        console.warn("[audit] fetch failed:", error.message);
+        setEntries([]);
+        return;
+      }
+      setEntries((data || []).map(fromDbAuditEntry));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [container?.id]);
+
+  if (entries === null) return <div className="label-xs">loading…</div>;
+  if (entries.length === 0) return <div className="label-xs">No audit entries yet.</div>;
+
+  return (
+    <div>
+      {entries.map((e) => {
+        const who = (profilesById && profilesById[e.changedBy]) || e.changedBy?.slice(0, 8) || "—";
+        const diffs = e.action === "UPDATE" ? diffFields(e.oldData, e.newData) : [];
+        return (
+          <div
+            key={e.id}
+            style={{ padding: "10px 0", borderBottom: `1px solid ${TOKENS.border}` }}
+          >
+            <div style={{ fontSize: 12 }}>
+              {e.action} by {who} — {formatIST(e.changedAt)}
+            </div>
+            {diffs.length > 0 && (
+              <div style={{ marginLeft: 14, marginTop: 4, display: "flex", flexDirection: "column", gap: 2 }}>
+                {diffs.map(([k, before, after]) => (
+                  <span key={k} style={{ fontSize: 11, color: TOKENS.steel }}>
+                    {k}: {String(before)} → {String(after)}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+export default function ContainerInfoOverlay({ container, onClose, onSelectLine, profilesById }) {
   const ref = useRef();
+  const [tab, setTab] = useState("entries");
 
   useEffect(() => {
     if (!ref.current) return;
@@ -17,6 +86,18 @@ export default function ContainerInfoOverlay({ container, onClose, onSelectLine 
       { y: 60, opacity: 0 },
       { y: 0, opacity: 1, duration: 0.5, ease: "power3.out" }
     );
+  }, [container?.id]);
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "Escape") onClose?.();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  useEffect(() => {
+    setTab("entries");
   }, [container?.id]);
 
   if (!container) return null;
@@ -83,6 +164,8 @@ export default function ContainerInfoOverlay({ container, onClose, onSelectLine 
             color: TOKENS.steel,
             borderRadius: 0,
             padding: "5px 12px",
+            minWidth: 44,
+            minHeight: 44,
             cursor: "pointer",
           }}
         >
@@ -107,39 +190,79 @@ export default function ContainerInfoOverlay({ container, onClose, onSelectLine 
         ))}
       </div>
 
-      <div style={{ padding: "12px 20px" }}>
-        {container.lines.length === 0 && (
-          <div className="label-xs">No lines yet.</div>
-        )}
-        {container.lines.map((l) => (
-          <div
-            key={l.id}
-            onClick={() => onSelectLine && onSelectLine(l.id)}
+      <div
+        style={{
+          display: "flex",
+          gap: 18,
+          padding: "10px 20px 0",
+          borderBottom: `1px solid ${TOKENS.border}`,
+        }}
+      >
+        {["entries", "audit"].map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className="mono"
             style={{
-              padding: "10px 0",
-              borderBottom: `1px solid ${TOKENS.border}`,
-              cursor: onSelectLine ? "pointer" : "default",
+              background: "none",
+              border: "none",
+              color: tab === t ? "#e2e8f0" : TOKENS.steel,
+              fontFamily: TOKENS.condensed,
+              fontWeight: 700,
+              fontSize: 10,
+              letterSpacing: "0.1em",
+              textTransform: "uppercase",
+              padding: "0 0 10px",
+              minHeight: 44,
+              cursor: "pointer",
+              borderBottom: tab === t ? `2px solid ${TOKENS.amber}` : "2px solid transparent",
             }}
           >
-            <div style={{ fontSize: 13 }}>
-              <span style={{ fontWeight: 600 }}>{l.cargo}</span>
-              {" — "}
-              {l.qty} {l.unit || "Bags"}
-              {" — "}
-              <span style={{ color: TOKENS.steel }}>{l.truckNo || "—"}</span>
-            </div>
-            <div style={{ marginLeft: 14, marginTop: 2, fontSize: 11, color: TOKENS.steel }}>
-              {l.shipper} → {l.consignee}
-            </div>
-            {(l.invoiceNos?.length > 0 || l.hsCode) && (
-              <div style={{ marginLeft: 14, marginTop: 1, fontSize: 11, color: TOKENS.steel }}>
-                {l.invoiceNos?.length > 0 && `inv: ${l.invoiceNos.join(", ")}`}
-                {l.invoiceNos?.length > 0 && l.hsCode && " — "}
-                {l.hsCode && `HS: ${l.hsCode}`}
-              </div>
-            )}
-          </div>
+            {t === "entries" ? "Entries" : "Audit"}
+          </button>
         ))}
+      </div>
+
+      <div style={{ padding: "12px 20px" }}>
+        {tab === "audit" ? (
+          <AuditTab container={container} profilesById={profilesById} />
+        ) : (
+          <>
+            {container.lines.length === 0 && (
+              <div className="label-xs">No lines yet.</div>
+            )}
+            {container.lines.map((l) => (
+              <div
+                key={l.id}
+                onClick={() => onSelectLine && onSelectLine(l.id)}
+                style={{
+                  padding: "10px 0",
+                  minHeight: 44,
+                  borderBottom: `1px solid ${TOKENS.border}`,
+                  cursor: onSelectLine ? "pointer" : "default",
+                }}
+              >
+                <div style={{ fontSize: 13 }}>
+                  <span style={{ fontWeight: 600 }}>{l.cargo}</span>
+                  {" — "}
+                  {l.qty} {l.unit || "Bags"}
+                  {" — "}
+                  <span style={{ color: TOKENS.steel }}>{l.truckNo || "—"}</span>
+                </div>
+                <div style={{ marginLeft: 14, marginTop: 2, fontSize: 11, color: TOKENS.steel }}>
+                  {l.shipper} → {l.consignee}
+                </div>
+                {(l.invoiceNos?.length > 0 || l.hsCode) && (
+                  <div style={{ marginLeft: 14, marginTop: 1, fontSize: 11, color: TOKENS.steel }}>
+                    {l.invoiceNos?.length > 0 && `inv: ${l.invoiceNos.join(", ")}`}
+                    {l.invoiceNos?.length > 0 && l.hsCode && " — "}
+                    {l.hsCode && `HS: ${l.hsCode}`}
+                  </div>
+                )}
+              </div>
+            ))}
+          </>
+        )}
       </div>
     </div>
   );

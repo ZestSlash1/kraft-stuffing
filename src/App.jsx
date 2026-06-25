@@ -1,6 +1,7 @@
 import { useEffect, useReducer, useRef, useState } from "react";
-import * as XLSX from "xlsx";
 import { supabase } from "./lib/supabase";
+import { exportVoyageXlsx } from "./lib/exportXlsx";
+import { generatePackingList } from "./lib/exportPdf";
 import { useVoyageRealtime } from "./lib/realtime";
 import {
   KRAFT_ORG_ID,
@@ -10,6 +11,7 @@ import {
   fetchLines,
   fetchShippers,
   fetchConsignees,
+  fetchProfiles,
   createVoyage,
   createContainer,
   createLine,
@@ -24,6 +26,7 @@ import {
   fromDbLine,
   fromDbShipper,
   fromDbConsignee,
+  fromDbProfile,
   toDbVoyage,
   toDbContainer,
   toDbLine,
@@ -33,7 +36,6 @@ import {
 } from "./lib/db";
 import { readStore, writeStore } from "./data/store";
 import { mkSeed } from "./seed";
-import { containerStatus } from "./data/statusHelpers";
 import { appReducer, initialState } from "./data/appReducer";
 // AuthView (email OTP) is disabled for now — re-enable by restoring the
 // checkingAuth/session gate below. Kept around so it's a one-line revert.
@@ -41,19 +43,12 @@ import { appReducer, initialState } from "./data/appReducer";
 import VoyageView from "./views/VoyageView";
 import LogView from "./views/LogView";
 import OfflineBanner from "./components/OfflineBanner";
+import SyncErrorBanner from "./components/SyncErrorBanner";
 
 const uid = () =>
   typeof crypto !== "undefined" && crypto.randomUUID
     ? crypto.randomUUID()
     : Math.random().toString(36).slice(2, 10);
-
-// Fire-and-forget Supabase sync. The reducer has already updated the UI, so we
-// only log failures here — offline failures are queued inside db.js.
-const sync = (promise) => {
-  Promise.resolve(promise).then((res) => {
-    if (res?.error) console.warn("[sync] write failed:", res.error.message);
-  });
-};
 
 // Pull the whole voyage tree out of Supabase and shape it for the UI.
 async function loadVoyageTree(orgId) {
@@ -159,6 +154,25 @@ export default function App() {
   );
   const [pending, setPending] = useState(0);
   const loadedForUser = useRef(null);
+  const [syncError, setSyncError] = useState(null);
+
+  // Fire-and-forget Supabase sync. The reducer has already updated the UI, so
+  // a failure only needs to surface a retry banner — offline failures are
+  // already queued inside db.js and don't reach the `error` branch.
+  const sync = (thunk) => {
+    Promise.resolve(thunk()).then((res) => {
+      if (res?.error) {
+        console.warn("[sync] write failed:", res.error.message);
+        setSyncError({ thunk });
+      } else {
+        setSyncError(null);
+      }
+    });
+  };
+
+  const retrySync = () => {
+    if (syncError?.thunk) sync(syncError.thunk);
+  };
 
   // Load data once we have a user (falls back to local seed if Supabase is
   // unreachable or not yet seeded — keeps the app usable offline).
@@ -185,11 +199,13 @@ export default function App() {
 
         const { data: shippers } = await fetchShippers(KRAFT_ORG_ID);
         const { data: consignees } = await fetchConsignees(KRAFT_ORG_ID);
+        const { data: profiles } = await fetchProfiles(KRAFT_ORG_ID);
         dispatch({ type: "SET_SHIPPERS", shippers: (shippers || []).map(fromDbShipper) });
         dispatch({
           type: "SET_CONSIGNEES",
           consignees: (consignees || []).map(fromDbConsignee),
         });
+        dispatch({ type: "SET_PROFILES", profiles: (profiles || []).map(fromDbProfile) });
       } catch (err) {
         // Supabase empty/unreachable → use the last local snapshot or the seed.
         console.warn("[load] falling back to local store:", err.message);
@@ -247,7 +263,7 @@ export default function App() {
       containerId,
       patch,
     });
-    sync(dbUpdateContainer(containerId, toDbContainerPatch(patch)));
+    sync(() => dbUpdateContainer(containerId, toDbContainerPatch(patch)));
     setPending(pendingCount());
   };
 
@@ -259,7 +275,7 @@ export default function App() {
       containerId,
       line: newLine,
     });
-    sync(createLine(toDbLine(newLine)));
+    sync(() => createLine(toDbLine(newLine)));
     setPending(pendingCount());
   };
 
@@ -311,74 +327,40 @@ export default function App() {
       containerId,
       lineId,
     });
-    sync(dbDeleteLine(lineId));
+    sync(() => dbDeleteLine(lineId));
     setPending(pendingCount());
   };
 
-  const exportXlsx = () => {
-    if (!voyage) return;
-    const rows = [];
-    voyage.containers.forEach((c) => {
-      const status = containerStatus(c);
-      if (c.lines.length === 0) {
-        rows.push({
-          Container: c.number || "Unassigned",
-          Size: c.size,
-          Status: status,
-          Seal: c.sealNo,
-          Cargo: "",
-          Bags: "",
-          UnitKg: "",
-          TotalKg: "",
-          Shipper: "",
-          Consignee: "",
-          Truck: "",
-        });
-        return;
-      }
-      c.lines.forEach((l) => {
-        rows.push({
-          Container: c.number || "Unassigned",
-          Size: c.size,
-          Status: status,
-          Seal: c.sealNo,
-          Cargo: l.cargo,
-          Bags: l.qty,
-          UnitKg: l.unitWeightKg,
-          TotalKg: Number(l.qty || 0) * Number(l.unitWeightKg || 0),
-          Shipper: l.shipper,
-          Consignee: l.consignee,
-          Truck: l.truckNo,
-        });
-      });
-    });
+  const profilesById = state.profiles.reduce((acc, p) => {
+    acc[p.id] = p.displayName || p.id;
+    return acc;
+  }, {});
 
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Stuffing Log");
-    XLSX.writeFile(wb, `${voyage.voyageNo || "voyage"}-stuffing-log.xlsx`);
-  };
+  const exportXlsx = () => exportVoyageXlsx(voyage, profilesById);
+  const exportPdf = () => voyage && generatePackingList(voyage, voyage.containers);
 
   // ── Render ──────────────────────────────────────────────────────────────────
-  const banner = offline ? <OfflineBanner pending={pending} /> : null;
+  const banner = (
+    <>
+      {syncError && <SyncErrorBanner onRetry={retrySync} />}
+      {offline && <OfflineBanner pending={pending} top={syncError ? 38 : 0} />}
+    </>
+  );
 
   if (state.loading) {
     return (
       <>
         {banner}
-        <div
-          style={{
-            height: "100%",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: "#8a9aaa",
-            fontFamily: `'JetBrains Mono', ui-monospace, monospace`,
-            fontSize: 12,
-          }}
-        >
-          loading voyages…
-        </div>
+        <VoyageView
+          user={session.user}
+          voyages={[]}
+          activeVoyageId={null}
+          onSelectVoyage={() => {}}
+          selectedContainerId={null}
+          onSelectContainer={() => {}}
+          onOpenLog={() => {}}
+          loading
+        />
       </>
     );
   }
@@ -427,6 +409,8 @@ export default function App() {
         onSelectContainer={setSelectedContainerId}
         onOpenLog={setOpenLogContainerId}
         onExportXlsx={exportXlsx}
+        onExportPdf={exportPdf}
+        profilesById={profilesById}
       />
     </>
   );

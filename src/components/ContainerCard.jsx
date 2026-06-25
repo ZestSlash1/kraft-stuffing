@@ -5,7 +5,15 @@ import { TOKENS, CONTAINER_COLORS, CARGO_COLORS, containerStatus, containerFillP
 import VGMAlert from "./VGMAlert";
 import PresenceAvatars from "./PresenceAvatars";
 
-const STRIPE_COUNT = 16;
+// Corrugated-panel texture: a tight repeating ridge (highlight + shadow) laid
+// over the flat hull color, the same way a real container's fluted side reads
+// under studio light.
+const corrugation = (stripeColor) =>
+  `repeating-linear-gradient(90deg,
+    rgba(255,255,255,0.07) 0px, rgba(255,255,255,0.07) 1px,
+    ${stripeColor}00 1px, ${stripeColor}00 4px,
+    rgba(0,0,0,0.22) 4px, rgba(0,0,0,0.22) 6px,
+    transparent 6px, transparent 13px)`;
 
 export default function ContainerCard({
   container,
@@ -69,21 +77,33 @@ export default function ContainerCard({
         style={{
           position: "absolute",
           inset: 0,
-          display: "flex",
-          opacity: 0.35,
+          backgroundImage: corrugation(colors.stripe),
           pointerEvents: "none",
         }}
-      >
-        {Array.from({ length: STRIPE_COUNT }, (_, i) => (
-          <div
-            key={i}
-            style={{
-              flex: 1,
-              background: i % 2 === 0 ? colors.stripe : "transparent",
-            }}
-          />
-        ))}
-      </div>
+      />
+
+      {/* Glossy top sheen + grounded bottom shadow — studio-render feel */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          background: "linear-gradient(180deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0) 14%, rgba(0,0,0,0) 70%, rgba(0,0,0,0.28) 100%)",
+          pointerEvents: "none",
+        }}
+      />
+
+      {/* Top rail highlight */}
+      <div
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 3,
+          background: "rgba(255,255,255,0.22)",
+          pointerEvents: "none",
+        }}
+      />
 
       <div
         style={{
@@ -142,16 +162,17 @@ export default function ContainerCard({
       />
 
       <div
+        className="condensed"
         style={{
           position: "absolute",
-          top: 16,
+          top: 14,
           left: 18,
-          fontFamily: TOKENS.mono,
-          fontWeight: 700,
-          fontSize: compact ? 38 : 30,
+          fontWeight: 800,
+          fontSize: compact ? 46 : 36,
           color: colors.text,
-          letterSpacing: -1,
-          textShadow: "0 2px 10px rgba(0,0,0,0.35)",
+          letterSpacing: "-0.02em",
+          lineHeight: 1,
+          textShadow: "0 2px 12px rgba(0,0,0,0.4)",
         }}
       >
         {String(index + 1).padStart(2, "0")}
@@ -173,14 +194,15 @@ export default function ContainerCard({
       </div>
 
       <div
+        className="condensed"
         style={{
           position: "absolute",
           left: 18,
           bottom: 14,
-          fontFamily: TOKENS.mono,
           color: colors.text,
-          fontSize: 16,
-          fontWeight: 600,
+          fontSize: compact ? 22 : 18,
+          fontWeight: 700,
+          letterSpacing: "0.01em",
         }}
       >
         {container.number || "Unassigned"}
@@ -190,22 +212,26 @@ export default function ContainerCard({
         style={{
           position: "absolute",
           right: 16,
-          bottom: 12,
+          bottom: 10,
+          display: "flex",
+          flexDirection: "column",
+          gap: 3,
           textAlign: "right",
-          fontFamily: TOKENS.mono,
-          fontSize: 10.5,
-          lineHeight: 1.65,
           color: colors.text,
-          opacity: 0.92,
         }}
       >
-        <div>STATUS &nbsp;{status}</div>
-        <div>FILL &nbsp;&nbsp;&nbsp;{fillPct}%</div>
-        <div>
-          {capacityUnit.toUpperCase()} &nbsp;{totalBags}/{container.capacityBags}
-        </div>
-        <div>KG &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{totalKg.toLocaleString()}</div>
-        <div>SEAL &nbsp;&nbsp;{container.sealNo || "—"}</div>
+        {[
+          ["STATUS", status],
+          ["FILL", `${fillPct}%`],
+          [capacityUnit.toUpperCase(), `${totalBags}/${container.capacityBags}`],
+          ["KG", totalKg.toLocaleString()],
+          ["SEAL", container.sealNo || "—"],
+        ].map(([label, value]) => (
+          <div key={label} style={{ fontFamily: TOKENS.mono, fontSize: 9.5, opacity: 0.85 }}>
+            {label}&nbsp;&nbsp;
+            <span style={{ fontWeight: 700, opacity: 1 }}>{value}</span>
+          </div>
+        ))}
       </div>
 
       {showVgm && (

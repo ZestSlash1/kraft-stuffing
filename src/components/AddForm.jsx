@@ -180,6 +180,7 @@ export default function AddForm({
             border: "none",
             borderRadius: 4,
             padding: "9px 18px",
+            minHeight: 44,
             fontFamily: TOKENS.mono,
             fontWeight: 600,
             cursor: "pointer",

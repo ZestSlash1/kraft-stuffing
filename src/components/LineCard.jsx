@@ -38,6 +38,8 @@ export default function LineCard({ line, onDelete }) {
             color: TOKENS.red,
             borderRadius: 4,
             padding: "4px 8px",
+            minHeight: 44,
+            minWidth: 44,
             cursor: "pointer",
             fontFamily: TOKENS.mono,
             fontSize: 12,

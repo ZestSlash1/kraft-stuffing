@@ -8,6 +8,7 @@ export const initialState = {
   activeVoyageId: null,
   shippers: [],
   consignees: [],
+  profiles: [],
   presence: {},
 };
 
@@ -93,6 +94,9 @@ export function appReducer(state, action) {
 
     case "SET_CONSIGNEES":
       return { ...state, consignees: action.consignees };
+
+    case "SET_PROFILES":
+      return { ...state, profiles: action.profiles };
 
     case "SET_PRESENCE":
       return { ...state, presence: action.presence };
