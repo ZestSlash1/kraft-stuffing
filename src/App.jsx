@@ -1,6 +1,7 @@
 import { useEffect, useReducer, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { supabase } from "./lib/supabase";
+import { useVoyageRealtime } from "./lib/realtime";
 import {
   KRAFT_ORG_ID,
   ensureProfile,
@@ -14,6 +15,8 @@ import {
   createLine,
   deleteLine as dbDeleteLine,
   updateContainer as dbUpdateContainer,
+  upsertShipper,
+  upsertConsignee,
   flushQueue,
   pendingCount,
   fromDbVoyage,
@@ -25,6 +28,8 @@ import {
   toDbContainer,
   toDbLine,
   toDbContainerPatch,
+  toDbShipper,
+  toDbConsignee,
 } from "./lib/db";
 import { readStore, writeStore } from "./data/store";
 import { mkSeed } from "./seed";
@@ -237,6 +242,13 @@ export default function App() {
 
   const voyage = state.voyages.find((v) => v.id === state.activeVoyageId);
 
+  // ── Realtime: one channel per active voyage, shared across views ───────────
+  const { presence, track: trackPresence } = useVoyageRealtime(
+    state.activeVoyageId,
+    dispatch,
+    voyage?.containers.map((c) => c.id) || []
+  );
+
   // ── Mutations: dispatch (instant UI) + Supabase sync (async) ────────────────
   const patchContainer = (containerId, patch) => {
     dispatch({
@@ -259,6 +271,47 @@ export default function App() {
     });
     sync(createLine(toDbLine(newLine)));
     setPending(pendingCount());
+  };
+
+  const sealContainer = (containerId, { sealNo, sealNo2 }) => {
+    patchContainer(containerId, {
+      sealed: true,
+      sealNo,
+      sealNo2,
+      sealedAt: new Date().toISOString(),
+      sealedBy: session?.user?.id,
+    });
+    supabase.functions
+      .invoke("notify-seal", { body: { containerId } })
+      .then(({ error }) => {
+        if (error) console.warn("[notify-seal] failed:", error.message);
+      });
+  };
+
+  const createShipperEntry = async (draft) => {
+    const { data, error } = await upsertShipper(
+      toDbShipper({ orgId: KRAFT_ORG_ID, ...draft })
+    );
+    if (error || !data) {
+      console.warn("[shipper] create failed:", error?.message);
+      return null;
+    }
+    const shipper = fromDbShipper(data);
+    dispatch({ type: "SET_SHIPPERS", shippers: [...state.shippers, shipper] });
+    return shipper;
+  };
+
+  const createConsigneeEntry = async (draft) => {
+    const { data, error } = await upsertConsignee(
+      toDbConsignee({ orgId: KRAFT_ORG_ID, ...draft })
+    );
+    if (error || !data) {
+      console.warn("[consignee] create failed:", error?.message);
+      return null;
+    }
+    const consignee = fromDbConsignee(data);
+    dispatch({ type: "SET_CONSIGNEES", consignees: [...state.consignees, consignee] });
+    return consignee;
   };
 
   const deleteLine = (containerId, lineId) => {
@@ -354,12 +407,19 @@ export default function App() {
         <LogView
           container={openLogContainer}
           user={session.user}
+          presenceMap={presence}
+          trackPresence={trackPresence}
+          shippers={state.shippers}
+          consignees={state.consignees}
+          onCreateShipper={createShipperEntry}
+          onCreateConsignee={createConsigneeEntry}
           onBack={() => setOpenLogContainerId(null)}
           onAddLine={(line) => addLine(openLogContainer.id, line)}
           onDeleteLine={(lineId) => deleteLine(openLogContainer.id, lineId)}
           onPatchContainer={(patch) =>
             patchContainer(openLogContainer.id, patch)
           }
+          onSeal={(payload) => sealContainer(openLogContainer.id, payload)}
         />
       </>
     );
@@ -372,6 +432,7 @@ export default function App() {
         user={session.user}
         voyages={state.voyages}
         activeVoyageId={state.activeVoyageId}
+        presenceMap={presence}
         onSelectVoyage={(id) =>
           dispatch({ type: "SET_ACTIVE_VOYAGE", voyageId: id })
         }

@@ -1,5 +1,9 @@
+import { useEffect, useRef } from "react";
+import { gsap } from "gsap";
 import { Lock, Unlock } from "lucide-react";
 import { TOKENS, CONTAINER_COLORS, CARGO_COLORS, containerStatus, containerFillPct } from "../data/statusHelpers";
+import VGMAlert from "./VGMAlert";
+import PresenceAvatars from "./PresenceAvatars";
 
 const STRIPE_COUNT = 16;
 
@@ -9,6 +13,8 @@ export default function ContainerCard({
   selected = false,
   compact = false,
   onClick,
+  presenceMap,
+  showVgm = false,
 }) {
   const status = containerStatus(container);
   const colors = CONTAINER_COLORS[status] || CONTAINER_COLORS.EMPTY;
@@ -19,11 +25,28 @@ export default function ContainerCard({
     0
   );
   const cargoColor = CARGO_COLORS[container.lines[0]?.cargo] || CARGO_COLORS.default;
+  const capacityUnit = container.capacityUnit || "Bags";
+
+  const cardRef = useRef();
+  const wasSealed = useRef(container.sealed);
+  useEffect(() => {
+    if (!wasSealed.current && container.sealed && cardRef.current) {
+      gsap.to(cardRef.current, {
+        borderColor: TOKENS.green,
+        duration: 0.2,
+        yoyo: true,
+        repeat: 1,
+        ease: "power1.inOut",
+      });
+    }
+    wasSealed.current = container.sealed;
+  }, [container.sealed]);
 
   const height = compact ? 300 : 220;
 
   return (
     <div
+      ref={cardRef}
       onClick={onClick}
       style={{
         position: "relative",
@@ -141,10 +164,11 @@ export default function ContainerCard({
           right: 16,
           display: "flex",
           alignItems: "center",
-          gap: 6,
+          gap: 8,
           color: colors.text,
         }}
       >
+        <PresenceAvatars presenceMap={presenceMap} containerId={container.id} />
         {container.sealed ? <Lock size={16} /> : <Unlock size={16} />}
       </div>
 
@@ -177,10 +201,18 @@ export default function ContainerCard({
       >
         <div>STATUS &nbsp;{status}</div>
         <div>FILL &nbsp;&nbsp;&nbsp;{fillPct}%</div>
-        <div>BAGS &nbsp;&nbsp;{totalBags}/{container.capacityBags}</div>
+        <div>
+          {capacityUnit.toUpperCase()} &nbsp;{totalBags}/{container.capacityBags}
+        </div>
         <div>KG &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{totalKg.toLocaleString()}</div>
         <div>SEAL &nbsp;&nbsp;{container.sealNo || "—"}</div>
       </div>
+
+      {showVgm && (
+        <div style={{ position: "absolute", left: 12, right: 12, top: 56 }}>
+          <VGMAlert container={container} />
+        </div>
+      )}
     </div>
   );
 }

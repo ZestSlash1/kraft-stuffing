@@ -10,6 +10,7 @@ const GAP = 18;
 export default function VoyageView({
   voyages,
   activeVoyageId,
+  presenceMap,
   onSelectVoyage,
   selectedContainerId,
   onSelectContainer,
@@ -136,6 +137,8 @@ export default function VoyageView({
                   container={c}
                   index={i}
                   selected={selectedContainerId === c.id}
+                  presenceMap={presenceMap}
+                  showVgm
                   onClick={() =>
                     onSelectContainer(selectedContainerId === c.id ? null : c.id)
                   }

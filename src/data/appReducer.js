@@ -8,6 +8,7 @@ export const initialState = {
   activeVoyageId: null,
   shippers: [],
   consignees: [],
+  presence: {},
 };
 
 // Map over the containers of one voyage.
@@ -41,10 +42,16 @@ export function appReducer(state, action) {
       return mapContainers(state, action.voyageId, () => action.containers);
 
     case "ADD_CONTAINER":
-      return mapContainers(state, action.voyageId, (cs) => [
-        ...cs,
-        { lines: [], ...action.container },
-      ]);
+      return mapContainers(state, action.voyageId, (cs) =>
+        cs.some((c) => c.id === action.container.id)
+          ? cs
+          : [...cs, { lines: [], ...action.container }]
+      );
+
+    case "REMOVE_CONTAINER":
+      return mapContainers(state, action.voyageId, (cs) =>
+        cs.filter((c) => c.id !== action.containerId)
+      );
 
     case "UPDATE_CONTAINER":
       return mapContainers(state, action.voyageId, (cs) =>
@@ -64,11 +71,14 @@ export function appReducer(state, action) {
       return mapContainers(state, action.voyageId, (cs) =>
         cs.map((c) =>
           c.id === action.containerId
-            ? { ...c, lines: [...(c.lines || []), action.line] }
+            ? c.lines?.some((l) => l.id === action.line.id)
+              ? c
+              : { ...c, lines: [...(c.lines || []), action.line] }
             : c
         )
       );
 
+    case "REMOVE_LINE":
     case "DELETE_LINE":
       return mapContainers(state, action.voyageId, (cs) =>
         cs.map((c) =>
@@ -83,6 +93,9 @@ export function appReducer(state, action) {
 
     case "SET_CONSIGNEES":
       return { ...state, consignees: action.consignees };
+
+    case "SET_PRESENCE":
+      return { ...state, presence: action.presence };
 
     default:
       return state;

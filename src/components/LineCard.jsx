@@ -21,7 +21,9 @@ export default function LineCard({ line, onDelete }) {
     >
       <span style={{ width: 10, height: 10, borderRadius: "50%", background: color, flexShrink: 0 }} />
       <span style={{ width: 90 }}>{line.cargo}</span>
-      <span style={{ width: 80 }}>{line.qty} bags</span>
+      <span style={{ width: 90 }}>
+        {line.qty} {line.unit || "Bags"}
+      </span>
       <span style={{ width: 100, color: "#94a3b8" }}>{kg.toLocaleString()} kg</span>
       <span style={{ width: 110 }}>{line.truckNo || "—"}</span>
       <span style={{ flex: 1, color: "#64748b" }}>

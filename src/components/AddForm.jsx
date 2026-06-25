@@ -1,5 +1,18 @@
 import { useState } from "react";
 import { TOKENS } from "../data/statusHelpers";
+import InvoiceFields from "./InvoiceFields";
+import ShipperConsigneeSelect from "./ShipperConsigneeSelect";
+
+export const CARGO_UNITS = [
+  "Bags",
+  "Cartons",
+  "Rolls",
+  "Drums",
+  "Pallets",
+  "Bundles",
+  "Pieces",
+  "MT",
+];
 
 const inputStyle = {
   background: TOKENS.bg,
@@ -28,13 +41,31 @@ function Field({ label, children }) {
   );
 }
 
-export default function AddForm({ onAddLine }) {
+const emptyInvoice = {
+  invoiceNos: [],
+  invoiceValue: "",
+  invoiceCurrency: "INR",
+  hsCode: "",
+  ewayBillNo: "",
+  chaRef: "",
+  notifyParty: "",
+};
+
+export default function AddForm({
+  onAddLine,
+  shippers = [],
+  consignees = [],
+  onCreateShipper,
+  onCreateConsignee,
+}) {
   const [cargo, setCargo] = useState("Potato");
   const [qty, setQty] = useState("");
+  const [unit, setUnit] = useState("Bags");
   const [unitWeightKg, setUnitWeightKg] = useState("50");
-  const [shipper, setShipper] = useState("Shafrina Impex LLP");
-  const [consignee, setConsignee] = useState("Y.E. Jadwet Group");
+  const [shipper, setShipper] = useState({ id: null, name: "Shafrina Impex LLP" });
+  const [consignee, setConsignee] = useState({ id: null, name: "Y.E. Jadwet Group" });
   const [truckNo, setTruckNo] = useState("");
+  const [invoice, setInvoice] = useState(emptyInvoice);
 
   const submit = (e) => {
     e.preventDefault();
@@ -42,13 +73,34 @@ export default function AddForm({ onAddLine }) {
     onAddLine({
       cargo,
       qty: Number(qty),
+      unit,
       unitWeightKg: Number(unitWeightKg),
-      shipper,
-      consignee,
+      shipperId: shipper.id,
+      shipper: shipper.name,
+      consigneeId: consignee.id,
+      consignee: consignee.name,
       truckNo,
+      invoiceNos: invoice.invoiceNos,
+      invoiceValue: invoice.invoiceValue === "" ? null : Number(invoice.invoiceValue),
+      invoiceCurrency: invoice.invoiceCurrency,
+      hsCode: invoice.hsCode,
+      ewayBillNo: invoice.ewayBillNo,
+      chaRef: invoice.chaRef,
+      notifyParty: invoice.notifyParty,
     });
     setQty("");
     setTruckNo("");
+    setInvoice(emptyInvoice);
+  };
+
+  const createShipper = async (draft) => {
+    if (!onCreateShipper) return null;
+    return onCreateShipper(draft);
+  };
+
+  const createConsignee = async (draft) => {
+    if (!onCreateConsignee) return null;
+    return onCreateConsignee(draft);
   };
 
   return (
@@ -72,13 +124,20 @@ export default function AddForm({ onAddLine }) {
           ))}
         </select>
       </Field>
-      <Field label="qty (bags)">
+      <Field label="qty">
         <input
           type="number"
           value={qty}
           onChange={(e) => setQty(e.target.value)}
           style={inputStyle}
         />
+      </Field>
+      <Field label="unit">
+        <select value={unit} onChange={(e) => setUnit(e.target.value)} style={inputStyle}>
+          {CARGO_UNITS.map((u) => (
+            <option key={u} value={u}>{u}</option>
+          ))}
+        </select>
       </Field>
       <Field label="unit weight (kg)">
         <input
@@ -89,14 +148,29 @@ export default function AddForm({ onAddLine }) {
         />
       </Field>
       <Field label="shipper">
-        <input value={shipper} onChange={(e) => setShipper(e.target.value)} style={inputStyle} />
+        <ShipperConsigneeSelect
+          kind="shipper"
+          items={shippers}
+          name={shipper.name}
+          onSelect={setShipper}
+          onCreate={createShipper}
+        />
       </Field>
       <Field label="consignee">
-        <input value={consignee} onChange={(e) => setConsignee(e.target.value)} style={inputStyle} />
+        <ShipperConsigneeSelect
+          kind="consignee"
+          items={consignees}
+          name={consignee.name}
+          onSelect={setConsignee}
+          onCreate={createConsignee}
+        />
       </Field>
       <Field label="truck no">
         <input value={truckNo} onChange={(e) => setTruckNo(e.target.value)} style={inputStyle} />
       </Field>
+
+      <InvoiceFields value={invoice} onChange={setInvoice} />
+
       <div style={{ display: "flex", alignItems: "flex-end" }}>
         <button
           type="submit"
