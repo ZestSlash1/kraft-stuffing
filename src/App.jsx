@@ -1,71 +1,275 @@
-import { useState, useEffect } from "react";
+import { useEffect, useReducer, useRef, useState } from "react";
 import * as XLSX from "xlsx";
+import { supabase } from "./lib/supabase";
+import {
+  KRAFT_ORG_ID,
+  ensureProfile,
+  fetchVoyages,
+  fetchContainers,
+  fetchLines,
+  fetchShippers,
+  fetchConsignees,
+  createVoyage,
+  createContainer,
+  createLine,
+  deleteLine as dbDeleteLine,
+  updateContainer as dbUpdateContainer,
+  flushQueue,
+  pendingCount,
+  fromDbVoyage,
+  fromDbContainer,
+  fromDbLine,
+  fromDbShipper,
+  fromDbConsignee,
+  toDbVoyage,
+  toDbContainer,
+  toDbLine,
+  toDbContainerPatch,
+} from "./lib/db";
 import { readStore, writeStore } from "./data/store";
 import { mkSeed } from "./seed";
 import { containerStatus } from "./data/statusHelpers";
+import { appReducer, initialState } from "./data/appReducer";
+import AuthView from "./views/AuthView";
 import VoyageView from "./views/VoyageView";
 import LogView from "./views/LogView";
+import OfflineBanner from "./components/OfflineBanner";
 
-const uid = () => Math.random().toString(36).slice(2, 10);
+const uid = () =>
+  typeof crypto !== "undefined" && crypto.randomUUID
+    ? crypto.randomUUID()
+    : Math.random().toString(36).slice(2, 10);
+
+// Fire-and-forget Supabase sync. The reducer has already updated the UI, so we
+// only log failures here — offline failures are queued inside db.js.
+const sync = (promise) => {
+  Promise.resolve(promise).then((res) => {
+    if (res?.error) console.warn("[sync] write failed:", res.error.message);
+  });
+};
+
+// Pull the whole voyage tree out of Supabase and shape it for the UI.
+async function loadVoyageTree(orgId) {
+  const { data: vRows, error } = await fetchVoyages(orgId);
+  if (error) throw error;
+
+  const voyages = [];
+  for (const vRow of vRows || []) {
+    const voyage = fromDbVoyage(vRow);
+    const { data: cRows, error: cErr } = await fetchContainers(voyage.id);
+    if (cErr) throw cErr;
+    voyage.containers = [];
+    for (const cRow of cRows || []) {
+      const container = fromDbContainer(cRow);
+      const { data: lRows, error: lErr } = await fetchLines(container.id);
+      if (lErr) throw lErr;
+      container.lines = (lRows || []).map(fromDbLine);
+      voyage.containers.push(container);
+    }
+    voyages.push(voyage);
+  }
+  return voyages;
+}
+
+// First run on a fresh Supabase project: seed one voyage (with containers and
+// lines) so the app is immediately usable and backed by real, persisting rows.
+// Idempotent in practice — only called when the remote has zero voyages.
+async function bootstrapSeed(userId) {
+  const seed = mkSeed();
+  const v = seed.voyages[0];
+  const voyageId = uid();
+  await createVoyage(
+    toDbVoyage({
+      id: voyageId,
+      orgId: KRAFT_ORG_ID,
+      createdBy: userId,
+      vessel: v.vessel,
+      voyageNo: v.voyageNo,
+      date: v.date,
+    })
+  );
+
+  for (const [i, c] of v.containers.entries()) {
+    const containerId = uid();
+    await createContainer(
+      toDbContainer({
+        id: containerId,
+        voyageId,
+        number: c.number,
+        size: c.size,
+        capacityBags: c.capacityBags,
+        sealNo: c.sealNo,
+        sealed: c.sealed,
+        sortOrder: i,
+      })
+    );
+    for (const [j, l] of c.lines.entries()) {
+      await createLine(
+        toDbLine({
+          id: uid(),
+          containerId,
+          cargo: l.cargo,
+          qty: l.qty,
+          unit: "Bags",
+          unitWeightKg: l.unitWeightKg,
+          shipper: l.shipper,
+          consignee: l.consignee,
+          truckNo: l.truckNo,
+          loggedBy: userId,
+          sortOrder: j,
+        })
+      );
+    }
+  }
+}
 
 export default function App() {
-  const [state, setState] = useState(() => readStore() || mkSeed());
+  // ── Auth ──────────────────────────────────────────────────────────────────
+  const [session, setSession] = useState(null);
+  const [checkingAuth, setCheckingAuth] = useState(true);
+
+  // ── App data ────────────────────────────────────────────────────────────────
+  const [state, dispatch] = useReducer(appReducer, initialState);
   const [selectedContainerId, setSelectedContainerId] = useState(null);
   const [openLogContainerId, setOpenLogContainerId] = useState(null);
 
+  // ── Connectivity ──────────────────────────────────────────────────────────
+  const [offline, setOffline] = useState(
+    typeof navigator !== "undefined" ? !navigator.onLine : false
+  );
+  const [pending, setPending] = useState(0);
+  const loadedForUser = useRef(null);
+
+  // Existing session check + auth subscription
   useEffect(() => {
-    writeStore(state);
-  }, [state]);
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setCheckingAuth(false);
+    });
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      setSession(newSession);
+      setCheckingAuth(false);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Load data once we have a user (falls back to local seed if Supabase is
+  // unreachable or not yet seeded — keeps the app usable offline).
+  useEffect(() => {
+    const user = session?.user;
+    if (!user) {
+      loadedForUser.current = null;
+      return;
+    }
+    if (loadedForUser.current === user.id) return;
+    loadedForUser.current = user.id;
+
+    let cancelled = false;
+    (async () => {
+      dispatch({ type: "SET_LOADING", loading: true });
+      await ensureProfile(user);
+      try {
+        let voyages = await loadVoyageTree(KRAFT_ORG_ID);
+        if (cancelled) return;
+        // Fresh project: seed Supabase once, then read back the canonical tree.
+        if (!voyages.length) {
+          await bootstrapSeed(user.id);
+          voyages = await loadVoyageTree(KRAFT_ORG_ID);
+        }
+        if (cancelled) return;
+        if (!voyages.length) throw new Error("no remote voyages");
+        dispatch({ type: "SET_VOYAGES", voyages });
+
+        const { data: shippers } = await fetchShippers(KRAFT_ORG_ID);
+        const { data: consignees } = await fetchConsignees(KRAFT_ORG_ID);
+        if (cancelled) return;
+        dispatch({ type: "SET_SHIPPERS", shippers: (shippers || []).map(fromDbShipper) });
+        dispatch({
+          type: "SET_CONSIGNEES",
+          consignees: (consignees || []).map(fromDbConsignee),
+        });
+      } catch (err) {
+        // Supabase empty/unreachable → use the last local snapshot or the seed.
+        console.warn("[load] falling back to local store:", err.message);
+        const local = readStore() || mkSeed();
+        if (cancelled) return;
+        dispatch({
+          type: "SET_VOYAGES",
+          voyages: local.voyages,
+          activeVoyageId: local.activeVoyageId,
+        });
+      } finally {
+        if (!cancelled) dispatch({ type: "SET_LOADING", loading: false });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session]);
+
+  // Mirror state to localStorage so an offline reload has something to show.
+  useEffect(() => {
+    if (state.loading) return;
+    writeStore({ activeVoyageId: state.activeVoyageId, voyages: state.voyages });
+  }, [state.voyages, state.activeVoyageId, state.loading]);
+
+  // Online/offline handling: flush the write queue on reconnect.
+  useEffect(() => {
+    const goOnline = async () => {
+      setOffline(false);
+      const { remaining } = await flushQueue();
+      setPending(remaining ?? pendingCount());
+    };
+    const goOffline = () => {
+      setOffline(true);
+      setPending(pendingCount());
+    };
+    window.addEventListener("online", goOnline);
+    window.addEventListener("offline", goOffline);
+    return () => {
+      window.removeEventListener("online", goOnline);
+      window.removeEventListener("offline", goOffline);
+    };
+  }, []);
 
   const voyage = state.voyages.find((v) => v.id === state.activeVoyageId);
 
+  // ── Mutations: dispatch (instant UI) + Supabase sync (async) ────────────────
   const patchContainer = (containerId, patch) => {
-    setState((s) => {
-      const voyages = s.voyages.map((v) => {
-        if (v.id !== s.activeVoyageId) return v;
-        return {
-          ...v,
-          containers: v.containers.map((c) =>
-            c.id === containerId ? { ...c, ...patch } : c
-          ),
-        };
-      });
-      return { ...s, voyages };
+    dispatch({
+      type: "UPDATE_CONTAINER",
+      voyageId: state.activeVoyageId,
+      containerId,
+      patch,
     });
+    sync(dbUpdateContainer(containerId, toDbContainerPatch(patch)));
+    setPending(pendingCount());
   };
 
   const addLine = (containerId, line) => {
-    setState((s) => {
-      const voyages = s.voyages.map((v) => {
-        if (v.id !== s.activeVoyageId) return v;
-        return {
-          ...v,
-          containers: v.containers.map((c) =>
-            c.id === containerId
-              ? { ...c, lines: [...c.lines, { id: uid(), ...line }] }
-              : c
-          ),
-        };
-      });
-      return { ...s, voyages };
+    const newLine = { id: uid(), unit: "Bags", ...line, containerId };
+    dispatch({
+      type: "ADD_LINE",
+      voyageId: state.activeVoyageId,
+      containerId,
+      line: newLine,
     });
+    sync(createLine(toDbLine(newLine)));
+    setPending(pendingCount());
   };
 
   const deleteLine = (containerId, lineId) => {
-    setState((s) => {
-      const voyages = s.voyages.map((v) => {
-        if (v.id !== s.activeVoyageId) return v;
-        return {
-          ...v,
-          containers: v.containers.map((c) =>
-            c.id === containerId
-              ? { ...c, lines: c.lines.filter((l) => l.id !== lineId) }
-              : c
-          ),
-        };
-      });
-      return { ...s, voyages };
+    dispatch({
+      type: "DELETE_LINE",
+      voyageId: state.activeVoyageId,
+      containerId,
+      lineId,
     });
+    sync(dbDeleteLine(lineId));
+    setPending(pendingCount());
   };
 
   const exportXlsx = () => {
@@ -112,29 +316,70 @@ export default function App() {
     XLSX.writeFile(wb, `${voyage.voyageNo || "voyage"}-stuffing-log.xlsx`);
   };
 
-  const openLogContainer = voyage?.containers.find((c) => c.id === openLogContainerId);
+  // ── Render ──────────────────────────────────────────────────────────────────
+  if (checkingAuth) return null;
+  if (!session) return <AuthView />;
+
+  const banner = offline ? <OfflineBanner pending={pending} /> : null;
+
+  if (state.loading) {
+    return (
+      <>
+        {banner}
+        <div
+          style={{
+            height: "100%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "#8a9aaa",
+            fontFamily: `'JetBrains Mono', ui-monospace, monospace`,
+            fontSize: 12,
+          }}
+        >
+          loading voyages…
+        </div>
+      </>
+    );
+  }
+
+  const openLogContainer = voyage?.containers.find(
+    (c) => c.id === openLogContainerId
+  );
 
   if (openLogContainer) {
     return (
-      <LogView
-        container={openLogContainer}
-        onBack={() => setOpenLogContainerId(null)}
-        onAddLine={(line) => addLine(openLogContainer.id, line)}
-        onDeleteLine={(lineId) => deleteLine(openLogContainer.id, lineId)}
-        onPatchContainer={(patch) => patchContainer(openLogContainer.id, patch)}
-      />
+      <>
+        {banner}
+        <LogView
+          container={openLogContainer}
+          user={session.user}
+          onBack={() => setOpenLogContainerId(null)}
+          onAddLine={(line) => addLine(openLogContainer.id, line)}
+          onDeleteLine={(lineId) => deleteLine(openLogContainer.id, lineId)}
+          onPatchContainer={(patch) =>
+            patchContainer(openLogContainer.id, patch)
+          }
+        />
+      </>
     );
   }
 
   return (
-    <VoyageView
-      voyages={state.voyages}
-      activeVoyageId={state.activeVoyageId}
-      onSelectVoyage={(id) => setState((s) => ({ ...s, activeVoyageId: id }))}
-      selectedContainerId={selectedContainerId}
-      onSelectContainer={setSelectedContainerId}
-      onOpenLog={setOpenLogContainerId}
-      onExportXlsx={exportXlsx}
-    />
+    <>
+      {banner}
+      <VoyageView
+        user={session.user}
+        voyages={state.voyages}
+        activeVoyageId={state.activeVoyageId}
+        onSelectVoyage={(id) =>
+          dispatch({ type: "SET_ACTIVE_VOYAGE", voyageId: id })
+        }
+        selectedContainerId={selectedContainerId}
+        onSelectContainer={setSelectedContainerId}
+        onOpenLog={setOpenLogContainerId}
+        onExportXlsx={exportXlsx}
+      />
+    </>
   );
 }
