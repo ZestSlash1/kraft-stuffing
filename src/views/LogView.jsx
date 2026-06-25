@@ -36,6 +36,7 @@ export default function LogView({
   onSeal,
 }) {
   const [sealing, setSealing] = useState(false);
+  const [numberWarning, setNumberWarning] = useState(false);
   const bagCountRef = useRef();
   const prevBagsRef = useRef(null);
 
@@ -118,9 +119,9 @@ export default function LogView({
           <div>
             <div
               className="condensed"
-              style={{ fontSize: 64, fontWeight: 800, lineHeight: 1, letterSpacing: "0.01em" }}
+              style={{ fontSize: "clamp(40px, 8vw, 72px)", fontWeight: 800, lineHeight: 1, letterSpacing: "0.01em" }}
             >
-              {container.number || "UNASSIGNED"}
+              {container.number || "CONTAINER"}
             </div>
             <div className="label-xs" style={{ marginTop: 2 }}>
               {status} · {fillPct}% FULL
@@ -132,12 +133,26 @@ export default function LogView({
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <input
-            placeholder="container number"
-            value={container.number}
-            onChange={(e) => onPatchContainer({ number: e.target.value })}
-            style={{ ...inputStyle, width: 150 }}
-          />
+          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            <input
+              placeholder="container number"
+              value={container.number}
+              onChange={(e) =>
+                onPatchContainer({ number: e.target.value.toUpperCase() })
+              }
+              onBlur={(e) =>
+                setNumberWarning(
+                  !!e.target.value && !/^[A-Z]{4}[0-9]{7}$/.test(e.target.value)
+                )
+              }
+              style={{ ...inputStyle, width: 150 }}
+            />
+            {numberWarning && (
+              <span style={{ fontFamily: TOKENS.mono, fontSize: 9, color: TOKENS.amber, maxWidth: 150 }}>
+                Format should be XXXX0000000 — check before sealing
+              </span>
+            )}
+          </div>
           <input
             type="number"
             placeholder="tare (kg)"
@@ -229,9 +244,18 @@ export default function LogView({
           onCreateConsignee={onCreateConsignee}
         />
         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 14 }}>
-          {container.lines.map((l) => (
-            <LineCard key={l.id} line={l} onDelete={onDeleteLine} />
-          ))}
+          {container.lines.length === 0 ? (
+            <div
+              className="label-xs"
+              style={{ textAlign: "center", padding: "24px 0", color: "#1c2d42", fontSize: 13 }}
+            >
+              NOTHING LOGGED YET — start entering cargo above
+            </div>
+          ) : (
+            container.lines.map((l) => (
+              <LineCard key={l.id} line={l} onDelete={onDeleteLine} />
+            ))
+          )}
         </div>
       </div>
 
