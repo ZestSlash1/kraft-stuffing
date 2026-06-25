@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { supabase } from "./lib/supabase";
 import { exportVoyageXlsx } from "./lib/exportXlsx";
 import { generatePackingList } from "./lib/exportPdf";
@@ -12,13 +12,18 @@ import {
   fetchShippers,
   fetchConsignees,
   fetchProfiles,
+  fetchOrgSettings,
   createVoyage,
+  updateVoyage as dbUpdateVoyage,
+  archiveVoyage as dbArchiveVoyage,
   createContainer,
   createLine,
   deleteLine as dbDeleteLine,
   updateContainer as dbUpdateContainer,
   upsertShipper,
   upsertConsignee,
+  deleteShipper as dbDeleteShipper,
+  deleteConsignee as dbDeleteConsignee,
   flushQueue,
   pendingCount,
   fromDbVoyage,
@@ -28,6 +33,7 @@ import {
   fromDbConsignee,
   fromDbProfile,
   toDbVoyage,
+  toDbVoyagePatch,
   toDbContainer,
   toDbLine,
   toDbContainerPatch,
@@ -37,24 +43,24 @@ import {
 import { readStore, writeStore } from "./data/store";
 import { mkSeed } from "./seed";
 import { appReducer, initialState } from "./data/appReducer";
-// AuthView (email OTP) is disabled for now — re-enable by restoring the
-// checkingAuth/session gate below. Kept around so it's a one-line revert.
-// import AuthView from "./views/AuthView";
-import VoyageView from "./views/VoyageView";
-import LogView from "./views/LogView";
-import OfflineBanner from "./components/OfflineBanner";
-import SyncErrorBanner from "./components/SyncErrorBanner";
+import { AuthContext } from "./context/AuthContext";
+import { RouterContext } from "./context/RouterContext";
+import { ToastProvider } from "./components/Toast";
+import LoginView from "./views/LoginView";
+import AppShell from "./components/AppShell";
+import { TOKENS } from "./data/statusHelpers";
 
 const uid = () =>
   typeof crypto !== "undefined" && crypto.randomUUID
     ? crypto.randomUUID()
     : Math.random().toString(36).slice(2, 10);
 
+const todayISODate = () => new Date().toISOString().slice(0, 10);
+
 // Pull the whole voyage tree out of Supabase and shape it for the UI.
 async function loadVoyageTree(orgId) {
   const { data: vRows, error } = await fetchVoyages(orgId);
   if (error) throw error;
-
   const voyages = [];
   for (const vRow of vRows || []) {
     const voyage = fromDbVoyage(vRow);
@@ -73,9 +79,7 @@ async function loadVoyageTree(orgId) {
   return voyages;
 }
 
-// First run on a fresh Supabase project: seed one voyage (with containers and
-// lines) so the app is immediately usable and backed by real, persisting rows.
-// Idempotent in practice — only called when the remote has zero voyages.
+// Fresh project seed (idempotent in practice — only when remote has zero voyages).
 async function bootstrapSeed(userId) {
   const seed = mkSeed();
   const v = seed.voyages[0];
@@ -88,9 +92,9 @@ async function bootstrapSeed(userId) {
       vessel: v.vessel,
       voyageNo: v.voyageNo,
       date: v.date,
+      status: "LOADING",
     })
   );
-
   for (const [i, c] of v.containers.entries()) {
     const containerId = uid();
     await createContainer(
@@ -125,41 +129,37 @@ async function bootstrapSeed(userId) {
   }
 }
 
-// OTP login is disabled for now (see App() below) — every device gets a
-// stable local identity so loggedBy/sealedBy/presence keep working without a
-// real Supabase auth session. Swap back to session.user once OTP returns.
-const LOCAL_USER_ID_KEY = "kraft-local-user-id";
-function getLocalUser() {
-  let id = localStorage.getItem(LOCAL_USER_ID_KEY);
-  if (!id) {
-    id = uid();
-    localStorage.setItem(LOCAL_USER_ID_KEY, id);
-  }
-  return { id, email: "dock-staff" };
-}
-
 export default function App() {
-  // ── Auth (OTP disabled for now — see import comment above) ─────────────────
-  const [localUser] = useState(getLocalUser);
-  const session = { user: localUser };
+  // ── Auth ───────────────────────────────────────────────────────────────────
+  const [session, setSession] = useState(null);
+  const [checkingAuth, setCheckingAuth] = useState(true);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session ?? null);
+      setCheckingAuth(false);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, sess) => {
+      setSession(sess ?? null);
+      setCheckingAuth(false);
+    });
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  const user = session?.user ?? null;
+
+  // ── Routing ─────────────────────────────────────────────────────────────────
+  const [route, setRoute] = useState({ page: "dashboard", params: {} });
+  const navigate = useCallback((page, params = {}) => setRoute({ page, params }), []);
 
   // ── App data ────────────────────────────────────────────────────────────────
   const [state, dispatch] = useReducer(appReducer, initialState);
-  const [selectedContainerId, setSelectedContainerId] = useState(null);
-  const [openLogContainerId, setOpenLogContainerId] = useState(null);
-
-  // ── Connectivity ──────────────────────────────────────────────────────────
-  const [offline, setOffline] = useState(
-    typeof navigator !== "undefined" ? !navigator.onLine : false
-  );
+  const [orgSettings, setOrgSettings] = useState(null);
   const [pending, setPending] = useState(0);
-  const loadedForUser = useRef(null);
   const [syncError, setSyncError] = useState(null);
+  const loadedForUser = useRef(null);
 
-  // Fire-and-forget Supabase sync. The reducer has already updated the UI, so
-  // a failure only needs to surface a retry banner — offline failures are
-  // already queued inside db.js and don't reach the `error` branch.
-  const sync = (thunk) => {
+  const sync = useCallback((thunk) => {
     Promise.resolve(thunk()).then((res) => {
       if (res?.error) {
         console.warn("[sync] write failed:", res.error.message);
@@ -168,28 +168,20 @@ export default function App() {
         setSyncError(null);
       }
     });
-  };
+    setPending(pendingCount());
+  }, []);
 
-  const retrySync = () => {
-    if (syncError?.thunk) sync(syncError.thunk);
-  };
-
-  // Load data once we have a user (falls back to local seed if Supabase is
-  // unreachable or not yet seeded — keeps the app usable offline).
+  // Load everything once we have an authenticated user.
   useEffect(() => {
-    const user = localUser;
+    if (!user) return;
     if (loadedForUser.current === user.id) return;
     loadedForUser.current = user.id;
 
-    // Note: no cancellation flag here — `loadedForUser` above already ensures
-    // this body runs at most once per user, so React 18 StrictMode's
-    // mount→cleanup→remount dev cycle can't race against itself.
     (async () => {
       dispatch({ type: "SET_LOADING", loading: true });
       await ensureProfile(user);
       try {
         let voyages = await loadVoyageTree(KRAFT_ORG_ID);
-        // Fresh project: seed Supabase once, then read back the canonical tree.
         if (!voyages.length) {
           await bootstrapSeed(user.id);
           voyages = await loadVoyageTree(KRAFT_ORG_ID);
@@ -201,82 +193,66 @@ export default function App() {
         const { data: consignees } = await fetchConsignees(KRAFT_ORG_ID);
         const { data: profiles } = await fetchProfiles(KRAFT_ORG_ID);
         dispatch({ type: "SET_SHIPPERS", shippers: (shippers || []).map(fromDbShipper) });
-        dispatch({
-          type: "SET_CONSIGNEES",
-          consignees: (consignees || []).map(fromDbConsignee),
-        });
+        dispatch({ type: "SET_CONSIGNEES", consignees: (consignees || []).map(fromDbConsignee) });
         dispatch({ type: "SET_PROFILES", profiles: (profiles || []).map(fromDbProfile) });
       } catch (err) {
-        // Supabase empty/unreachable → use the last local snapshot or the seed.
         console.warn("[load] falling back to local store:", err.message);
         const local = readStore() || mkSeed();
-        dispatch({
-          type: "SET_VOYAGES",
-          voyages: local.voyages,
-          activeVoyageId: local.activeVoyageId,
-        });
+        dispatch({ type: "SET_VOYAGES", voyages: local.voyages, activeVoyageId: local.activeVoyageId });
       } finally {
         dispatch({ type: "SET_LOADING", loading: false });
       }
+      setOrgSettings(await fetchOrgSettings());
     })();
-  }, [localUser]);
+  }, [user]);
 
-  // Mirror state to localStorage so an offline reload has something to show.
+  // Mirror state to localStorage for offline reloads.
   useEffect(() => {
     if (state.loading) return;
     writeStore({ activeVoyageId: state.activeVoyageId, voyages: state.voyages });
   }, [state.voyages, state.activeVoyageId, state.loading]);
 
-  // Online/offline handling: flush the write queue on reconnect.
+  // Online/offline: flush the write queue on reconnect.
   useEffect(() => {
     const goOnline = async () => {
-      setOffline(false);
       const { remaining } = await flushQueue();
       setPending(remaining ?? pendingCount());
     };
-    const goOffline = () => {
-      setOffline(true);
-      setPending(pendingCount());
-    };
     window.addEventListener("online", goOnline);
-    window.addEventListener("offline", goOffline);
-    return () => {
-      window.removeEventListener("online", goOnline);
-      window.removeEventListener("offline", goOffline);
-    };
+    return () => window.removeEventListener("online", goOnline);
   }, []);
 
-  const voyage = state.voyages.find((v) => v.id === state.activeVoyageId);
+  const activeVoyage = state.voyages.find((v) => v.id === state.activeVoyageId);
 
-  // ── Realtime: one channel per active voyage, shared across views ───────────
+  // ── Realtime: one channel per active voyage ─────────────────────────────────
   const { presence, track: trackPresence } = useVoyageRealtime(
     state.activeVoyageId,
     dispatch,
-    voyage?.containers.map((c) => c.id) || []
+    activeVoyage?.containers.map((c) => c.id) || []
   );
 
-  // ── Mutations: dispatch (instant UI) + Supabase sync (async) ────────────────
+  // Resolve which voyage a container belongs to (handlers don't rely on active).
+  const voyageIdForContainer = (cid) =>
+    state.voyages.find((v) => v.containers.some((c) => c.id === cid))?.id;
+
+  // ── Mutations ───────────────────────────────────────────────────────────────
   const patchContainer = (containerId, patch) => {
-    dispatch({
-      type: "UPDATE_CONTAINER",
-      voyageId: state.activeVoyageId,
-      containerId,
-      patch,
-    });
+    const voyageId = voyageIdForContainer(containerId);
+    dispatch({ type: "UPDATE_CONTAINER", voyageId, containerId, patch });
     sync(() => dbUpdateContainer(containerId, toDbContainerPatch(patch)));
-    setPending(pendingCount());
   };
 
   const addLine = (containerId, line) => {
-    const newLine = { id: uid(), unit: "Bags", ...line, containerId };
-    dispatch({
-      type: "ADD_LINE",
-      voyageId: state.activeVoyageId,
-      containerId,
-      line: newLine,
-    });
+    const voyageId = voyageIdForContainer(containerId);
+    const newLine = { id: uid(), unit: "Bags", loggedBy: user?.id, ...line, containerId };
+    dispatch({ type: "ADD_LINE", voyageId, containerId, line: newLine });
     sync(() => createLine(toDbLine(newLine)));
-    setPending(pendingCount());
+  };
+
+  const deleteLine = (containerId, lineId) => {
+    const voyageId = voyageIdForContainer(containerId);
+    dispatch({ type: "DELETE_LINE", voyageId, containerId, lineId });
+    sync(() => dbDeleteLine(lineId));
   };
 
   const sealContainer = (containerId, { sealNo, sealNo2 }) => {
@@ -285,133 +261,194 @@ export default function App() {
       sealNo,
       sealNo2,
       sealedAt: new Date().toISOString(),
-      sealedBy: session?.user?.id,
+      sealedBy: user?.id,
     });
     supabase.functions
       .invoke("notify-seal", { body: { containerId } })
-      .then(({ error }) => {
-        if (error) console.warn("[notify-seal] failed:", error.message);
-      });
+      .then(({ error }) => error && console.warn("[notify-seal] failed:", error.message));
   };
 
+  const addContainerEntry = (voyageId) => {
+    const voyage = state.voyages.find((v) => v.id === voyageId);
+    const container = {
+      id: uid(),
+      voyageId,
+      number: "",
+      size: "20",
+      capacityBags: 340,
+      capacityUnit: "Bags",
+      sealed: false,
+      tareWeightKg: Number(orgSettings?.tare_20) || 2200,
+      cmlKg: Number(orgSettings?.cml_20) || 28000,
+      sortOrder: voyage?.containers.length || 0,
+      lines: [],
+    };
+    dispatch({ type: "ADD_CONTAINER", voyageId, container });
+    sync(() => createContainer(toDbContainer(container)));
+    return container;
+  };
+
+  const createVoyageEntry = (draft) => {
+    const voyage = {
+      id: uid(),
+      orgId: KRAFT_ORG_ID,
+      createdBy: user?.id,
+      status: "DRAFT",
+      archived: false,
+      pol: orgSettings?.default_pol || "Kolkata",
+      pod: orgSettings?.default_pod || "Port Blair",
+      ...draft,
+      containers: [],
+    };
+    dispatch({ type: "ADD_VOYAGE", voyage });
+    dispatch({ type: "SET_ACTIVE_VOYAGE", voyageId: voyage.id });
+    sync(() => createVoyage(toDbVoyage(voyage)));
+    return voyage;
+  };
+
+  const updateVoyageEntry = (voyageId, patch) => {
+    dispatch({ type: "UPDATE_VOYAGE", voyageId, patch });
+    sync(() => dbUpdateVoyage(voyageId, toDbVoyagePatch(patch)));
+  };
+
+  const archiveVoyageEntry = (voyageId) => {
+    dispatch({ type: "UPDATE_VOYAGE", voyageId, patch: { archived: true, status: "ARCHIVED" } });
+    sync(() => dbArchiveVoyage(voyageId));
+  };
+
+  const duplicateVoyage = (voyageId) => {
+    const src = state.voyages.find((v) => v.id === voyageId);
+    if (!src) return null;
+    return createVoyageEntry({
+      vessel: src.vessel,
+      voyageNo: `${src.voyageNo || "VOY"}-COPY`,
+      date: todayISODate(),
+      pol: src.pol,
+      pod: src.pod,
+      chaName: src.chaName,
+      shippingLine: src.shippingLine,
+    });
+  };
+
+  const setActiveVoyage = (id) => dispatch({ type: "SET_ACTIVE_VOYAGE", voyageId: id });
+
+  // ── Master data ─────────────────────────────────────────────────────────────
   const createShipperEntry = async (draft) => {
-    const { data, error } = await upsertShipper(
-      toDbShipper({ orgId: KRAFT_ORG_ID, ...draft })
-    );
-    if (error || !data) {
-      console.warn("[shipper] create failed:", error?.message);
-      return null;
-    }
+    const { data, error } = await upsertShipper(toDbShipper({ orgId: KRAFT_ORG_ID, ...draft }));
+    if (error || !data) return null;
     const shipper = fromDbShipper(data);
-    dispatch({ type: "SET_SHIPPERS", shippers: [...state.shippers, shipper] });
+    const exists = state.shippers.some((s) => s.id === shipper.id);
+    dispatch({
+      type: "SET_SHIPPERS",
+      shippers: exists
+        ? state.shippers.map((s) => (s.id === shipper.id ? shipper : s))
+        : [...state.shippers, shipper],
+    });
     return shipper;
   };
 
   const createConsigneeEntry = async (draft) => {
-    const { data, error } = await upsertConsignee(
-      toDbConsignee({ orgId: KRAFT_ORG_ID, ...draft })
-    );
-    if (error || !data) {
-      console.warn("[consignee] create failed:", error?.message);
-      return null;
-    }
+    const { data, error } = await upsertConsignee(toDbConsignee({ orgId: KRAFT_ORG_ID, ...draft }));
+    if (error || !data) return null;
     const consignee = fromDbConsignee(data);
-    dispatch({ type: "SET_CONSIGNEES", consignees: [...state.consignees, consignee] });
+    const exists = state.consignees.some((c) => c.id === consignee.id);
+    dispatch({
+      type: "SET_CONSIGNEES",
+      consignees: exists
+        ? state.consignees.map((c) => (c.id === consignee.id ? consignee : c))
+        : [...state.consignees, consignee],
+    });
     return consignee;
   };
 
-  const deleteLine = (containerId, lineId) => {
-    dispatch({
-      type: "DELETE_LINE",
-      voyageId: state.activeVoyageId,
-      containerId,
-      lineId,
-    });
-    sync(() => dbDeleteLine(lineId));
-    setPending(pendingCount());
+  const removeShipper = (id) => {
+    dispatch({ type: "SET_SHIPPERS", shippers: state.shippers.filter((s) => s.id !== id) });
+    sync(() => dbDeleteShipper(id));
+  };
+  const removeConsignee = (id) => {
+    dispatch({ type: "SET_CONSIGNEES", consignees: state.consignees.filter((c) => c.id !== id) });
+    sync(() => dbDeleteConsignee(id));
   };
 
+  // ── Exports ─────────────────────────────────────────────────────────────────
   const profilesById = state.profiles.reduce((acc, p) => {
     acc[p.id] = p.displayName || p.id;
     return acc;
   }, {});
 
-  const exportXlsx = () => exportVoyageXlsx(voyage, profilesById);
-  const exportPdf = () => voyage && generatePackingList(voyage, voyage.containers);
+  const exportXlsx = (v) => exportVoyageXlsx(v || activeVoyage, profilesById);
+  const exportPdf = (v) => {
+    const target = v || activeVoyage;
+    return target && generatePackingList(target, target.containers);
+  };
+
+  // Current user's profile (for greeting / settings).
+  const profile =
+    state.profiles.find((p) => p.id === user?.id) ||
+    (user ? { id: user.id, displayName: (user.email || "").split("@")[0], role: "staff" } : null);
+
+  const app = {
+    state,
+    dispatch,
+    user,
+    profile,
+    profilesById,
+    presence,
+    trackPresence,
+    orgSettings,
+    setOrgSettings,
+    pending,
+    syncError,
+    navigate,
+    setActiveVoyage,
+    patchContainer,
+    addLine,
+    deleteLine,
+    sealContainer,
+    addContainerEntry,
+    createVoyageEntry,
+    updateVoyageEntry,
+    archiveVoyageEntry,
+    duplicateVoyage,
+    createShipperEntry,
+    createConsigneeEntry,
+    removeShipper,
+    removeConsignee,
+    exportXlsx,
+    exportPdf,
+  };
 
   // ── Render ──────────────────────────────────────────────────────────────────
-  const banner = (
-    <>
-      {syncError && <SyncErrorBanner onRetry={retrySync} />}
-      {offline && <OfflineBanner pending={pending} top={syncError ? 38 : 0} />}
-    </>
-  );
-
-  if (state.loading) {
+  if (checkingAuth) {
     return (
-      <>
-        {banner}
-        <VoyageView
-          user={session.user}
-          voyages={[]}
-          activeVoyageId={null}
-          onSelectVoyage={() => {}}
-          selectedContainerId={null}
-          onSelectContainer={() => {}}
-          onOpenLog={() => {}}
-          loading
-        />
-      </>
+      <div
+        style={{
+          position: "fixed",
+          inset: 0,
+          background: TOKENS.bg,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontFamily: TOKENS.mono,
+          fontSize: 11,
+          color: TOKENS.steel,
+          letterSpacing: "0.2em",
+        }}
+      >
+        LOADING…
+      </div>
     );
   }
 
-  const openLogContainer = voyage?.containers.find(
-    (c) => c.id === openLogContainerId
-  );
-
-  if (openLogContainer) {
-    return (
-      <>
-        {banner}
-        <LogView
-          container={openLogContainer}
-          user={session.user}
-          presenceMap={presence}
-          trackPresence={trackPresence}
-          shippers={state.shippers}
-          consignees={state.consignees}
-          onCreateShipper={createShipperEntry}
-          onCreateConsignee={createConsigneeEntry}
-          onBack={() => setOpenLogContainerId(null)}
-          onAddLine={(line) => addLine(openLogContainer.id, line)}
-          onDeleteLine={(lineId) => deleteLine(openLogContainer.id, lineId)}
-          onPatchContainer={(patch) =>
-            patchContainer(openLogContainer.id, patch)
-          }
-          onSeal={(payload) => sealContainer(openLogContainer.id, payload)}
-        />
-      </>
-    );
-  }
+  if (!session) return <LoginView />;
 
   return (
-    <>
-      {banner}
-      <VoyageView
-        user={session.user}
-        voyages={state.voyages}
-        activeVoyageId={state.activeVoyageId}
-        presenceMap={presence}
-        onSelectVoyage={(id) =>
-          dispatch({ type: "SET_ACTIVE_VOYAGE", voyageId: id })
-        }
-        selectedContainerId={selectedContainerId}
-        onSelectContainer={setSelectedContainerId}
-        onOpenLog={setOpenLogContainerId}
-        onExportXlsx={exportXlsx}
-        onExportPdf={exportPdf}
-        profilesById={profilesById}
-      />
-    </>
+    <AuthContext.Provider value={{ user, session, profile }}>
+      <RouterContext.Provider value={{ route, navigate }}>
+        <ToastProvider>
+          <AppShell app={app} />
+        </ToastProvider>
+      </RouterContext.Provider>
+    </AuthContext.Provider>
   );
 }

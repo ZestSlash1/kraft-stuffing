@@ -23,6 +23,9 @@ export const fromDbVoyage = (r) => ({
   blNo: r.bl_no,
   chaName: r.cha_name,
   chaContact: r.cha_contact,
+  status: r.status || "DRAFT",
+  archived: !!r.archived,
+  createdAt: r.created_at,
   containers: [],
 });
 
@@ -42,6 +45,8 @@ export const toDbVoyage = (v) => ({
   bl_no: v.blNo ?? null,
   cha_name: v.chaName ?? null,
   cha_contact: v.chaContact ?? null,
+  status: v.status ?? undefined,
+  archived: v.archived ?? undefined,
 });
 
 export const fromDbContainer = (r) => ({
@@ -163,6 +168,8 @@ const VOYAGE_KEYMAP = {
   blNo: "bl_no",
   chaName: "cha_name",
   chaContact: "cha_contact",
+  status: "status",
+  archived: "archived",
 };
 
 export const toDbContainerPatch = (patch) => mapKeys(patch, CONTAINER_KEYMAP);
@@ -182,6 +189,7 @@ export const fromDbShipper = (r) => ({
   address: r.address || "",
   gstin: r.gstin || "",
   iecCode: r.iec_code || "",
+  archived: !!r.archived,
 });
 
 export const toDbShipper = (s) => ({
@@ -191,6 +199,7 @@ export const toDbShipper = (s) => ({
   address: s.address ?? null,
   gstin: s.gstin ?? null,
   iec_code: s.iecCode ?? null,
+  archived: s.archived ?? undefined,
 });
 
 export const fromDbConsignee = (r) => ({
@@ -199,6 +208,7 @@ export const fromDbConsignee = (r) => ({
   name: r.name,
   address: r.address || "",
   country: r.country || "IN",
+  archived: !!r.archived,
 });
 
 export const toDbConsignee = (c) => ({
@@ -207,6 +217,7 @@ export const toDbConsignee = (c) => ({
   name: c.name,
   address: c.address ?? null,
   country: c.country ?? undefined,
+  archived: c.archived ?? undefined,
 });
 
 // Strip `undefined` keys so we never overwrite columns with NULL on partial
@@ -273,6 +284,8 @@ const executors = {
     supabase.from("shippers").upsert(p).select().single(),
   upsertConsignee: (p) =>
     supabase.from("consignees").upsert(p).select().single(),
+  deleteShipper: ({ id }) => supabase.from("shippers").delete().eq("id", id),
+  deleteConsignee: ({ id }) => supabase.from("consignees").delete().eq("id", id),
 };
 
 // Run a write, queueing it for later if we are offline. Returns {data, error}.
@@ -460,4 +473,101 @@ export function upsertShipper(shipper) {
 export function upsertConsignee(consignee) {
   const p = clean(consignee);
   return runWrite("upsertConsignee", p, p);
+}
+
+export function deleteShipper(id) {
+  return runWrite("deleteShipper", { id }, { id });
+}
+
+export function deleteConsignee(id) {
+  return runWrite("deleteConsignee", { id }, { id });
+}
+
+// How many stuffing lines reference this shipper/consignee (for the archive guard).
+export async function countShipperUsage(id) {
+  const { count } = await supabase
+    .from("stuffing_lines")
+    .select("id", { count: "exact", head: true })
+    .eq("shipper_id", id);
+  return count || 0;
+}
+
+export async function countConsigneeUsage(id) {
+  const { count } = await supabase
+    .from("stuffing_lines")
+    .select("id", { count: "exact", head: true })
+    .eq("consignee_id", id);
+  return count || 0;
+}
+
+// Soft-delete a voyage (preserve data integrity — never hard delete).
+export function archiveVoyage(id) {
+  return updateVoyage(id, { archived: true, status: "ARCHIVED" });
+}
+
+// ── Dashboard / activity reads ────────────────────────────────────────────────
+export async function fetchRecentActivity(limit = 12) {
+  const { data, error } = await supabase
+    .from("audit_log")
+    .select("*")
+    .order("changed_at", { ascending: false })
+    .limit(limit);
+  return { data: data || [], error };
+}
+
+// ── Org settings (key/value store) ────────────────────────────────────────────
+export const ORG_SETTING_DEFAULTS = {
+  tare_20: "2200",
+  tare_40: "3900",
+  cml_20: "28000",
+  cml_40: "32500",
+  default_pol: "Kolkata",
+  default_pod: "Port Blair",
+  whatsapp_number: "",
+  org_name: "Kraft Shipping & Logistics",
+};
+
+const ORG_SETTINGS_LS_KEY = "kraft-org-settings-v1";
+
+const readLocalSettings = () => {
+  try {
+    return JSON.parse(localStorage.getItem(ORG_SETTINGS_LS_KEY)) || {};
+  } catch {
+    return {};
+  }
+};
+
+export async function fetchOrgSettings() {
+  let remote = {};
+  try {
+    const { data, error } = await supabase.from("org_settings").select("*");
+    if (!error && data) {
+      for (const row of data) remote[row.key] = row.value;
+    }
+  } catch {
+    // table missing or offline — fall back to local
+  }
+  return { ...ORG_SETTING_DEFAULTS, ...readLocalSettings(), ...remote };
+}
+
+export async function saveOrgSettings(entries) {
+  // entries: { key: value, ... } — mirror to localStorage always, upsert remotely.
+  const local = { ...readLocalSettings(), ...entries };
+  try {
+    localStorage.setItem(ORG_SETTINGS_LS_KEY, JSON.stringify(local));
+  } catch {
+    // ignore
+  }
+  const rows = Object.entries(entries).map(([key, value]) => ({
+    key,
+    value: String(value ?? ""),
+  }));
+  try {
+    const { error } = await supabase
+      .from("org_settings")
+      .upsert(rows, { onConflict: "key" });
+    return { error };
+  } catch (error) {
+    return { error };
+  }
 }

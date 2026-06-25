@@ -39,6 +39,19 @@ export function appReducer(state, action) {
     case "SET_ACTIVE_VOYAGE":
       return { ...state, activeVoyageId: action.voyageId };
 
+    case "ADD_VOYAGE":
+      return state.voyages.some((v) => v.id === action.voyage.id)
+        ? state
+        : { ...state, voyages: [{ containers: [], ...action.voyage }, ...state.voyages] };
+
+    case "UPDATE_VOYAGE":
+      return {
+        ...state,
+        voyages: state.voyages.map((v) =>
+          v.id === action.voyageId ? { ...v, ...action.patch } : v
+        ),
+      };
+
     case "SET_CONTAINERS":
       return mapContainers(state, action.voyageId, () => action.containers);
 

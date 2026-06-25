@@ -106,7 +106,52 @@ canvas {
 
 @keyframes shimmer {
   0%, 100% { opacity: 0.4; }
-  50% { opacity: 0.8; }
+  50% { opacity: 0.9; }
+}
+
+.skeleton {
+  background: #0d1828;
+  animation: shimmer 1.6s ease-in-out infinite;
+  border-radius: 2px;
+}
+
+/* ── Navigation / shell ─────────────────────────────────────────────────── */
+.bottom-nav { display: none; }
+.app-main { padding-bottom: 0; }
+
+@media (max-width: 767px) {
+  .topnav-links { display: none !important; }
+  .topnav-username { display: none !important; }
+  .bottom-nav { display: flex !important; }
+  .app-main { padding-bottom: calc(56px + env(safe-area-inset-bottom)); }
+}
+
+/* ── Dashboard ──────────────────────────────────────────────────────────── */
+@media (max-width: 767px) {
+  .stat-grid { grid-template-columns: 1fr 1fr !important; }
+  .chart-grid { grid-template-columns: 1fr !important; }
+}
+
+/* ── Voyages list ───────────────────────────────────────────────────────── */
+.voyages-cards { display: none; }
+.voyage-row:hover { background: rgba(232, 147, 10, 0.05); }
+@media (max-width: 767px) {
+  .voyages-table { display: none; }
+  .voyages-cards { display: flex !important; }
+}
+
+/* ── Modals ─────────────────────────────────────────────────────────────── */
+@media (min-width: 640px) {
+  .modal-backdrop { align-items: center !important; }
+}
+
+@media (max-width: 520px) {
+  .form-grid-2 { grid-template-columns: 1fr !important; }
+  .toast-stack {
+    left: 12px !important;
+    right: 12px !important;
+    align-items: center !important;
+  }
 }
 
 @media (max-width: 640px) {
