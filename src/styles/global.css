@@ -132,6 +132,38 @@ canvas {
   .chart-grid { grid-template-columns: 1fr !important; }
 }
 
+/* ── Vessel hero ────────────────────────────────────────────────────────── */
+@keyframes waveScroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+@keyframes waveScrollReverse {
+  from { transform: translateX(-50%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes containerPulse {
+  0%, 100% { box-shadow: 0 0 6px #e8930a33; }
+  50% { box-shadow: 0 0 16px #e8930a77; }
+}
+
+.vessel-wave {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 200%;
+  height: 60px;
+  display: block;
+}
+.vessel-wave--fg { animation: waveScroll 8s linear infinite; }
+.vessel-wave--bg { animation: waveScrollReverse 12s linear infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .vessel-wave--fg, .vessel-wave--bg { animation: none; }
+  .vessel-slot--stuffing { animation: none !important; }
+}
+
 /* ── Voyages list ───────────────────────────────────────────────────────── */
 .voyages-cards { display: none; }
 .voyage-row:hover { background: rgba(232, 147, 10, 0.05); }

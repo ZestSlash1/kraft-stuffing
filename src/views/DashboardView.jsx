@@ -15,12 +15,12 @@ import {
 } from "recharts";
 import {
   TOKENS,
-  voyageStats,
   greeting,
   timeAgo,
   CARGO_COLORS,
 } from "../data/statusHelpers";
 import { fetchRecentActivity } from "../lib/db";
+import VesselHero from "../components/VesselHero";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -153,13 +153,20 @@ export default function DashboardView({ app }) {
   };
 
   return (
-    <div style={{ maxWidth: 1200, margin: "0 auto", padding: "20px 18px 50px" }}>
-      <div style={{ fontFamily: TOKENS.condensed, fontWeight: 700, fontSize: 28, color: "#e8eef4" }}>
-        GOOD {greeting()}, {greetName}
-      </div>
-      <div style={{ fontFamily: TOKENS.mono, fontSize: 11, color: TOKENS.steel, marginTop: 2 }}>
-        {new Intl.DateTimeFormat("en-IN", { weekday: "long", day: "2-digit", month: "long", year: "numeric" }).format(now)}
-      </div>
+    <div style={{ width: "100%" }}>
+      {/* ── Vessel hero — port operations display ── */}
+      <VesselHero
+        voyage={activeVoyage}
+        onContainerClick={(containerId) => navigate("container-log", { containerId })}
+      />
+
+      <div style={{ maxWidth: 1200, margin: "0 auto", padding: "24px 20px 50px" }}>
+        <div style={{ fontFamily: TOKENS.condensed, fontWeight: 700, fontSize: 28, color: "#e8eef4" }}>
+          GOOD {greeting()}, {greetName}
+        </div>
+        <div style={{ fontFamily: TOKENS.mono, fontSize: 11, color: TOKENS.steel, marginTop: 2 }}>
+          {new Intl.DateTimeFormat("en-IN", { weekday: "long", day: "2-digit", month: "long", year: "numeric" }).format(now)}
+        </div>
 
       {/* Stat cards */}
       <div className="stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginTop: 18 }}>
@@ -169,52 +176,27 @@ export default function DashboardView({ app }) {
         <StatCard label="Net MT This Month" value={mtThisMonth} decimals={1} sub="metric tonnes" Icon={Weight} empty={!hasData} />
       </div>
 
-      {/* Active voyage widget */}
-      <div style={{ marginTop: 18, background: TOKENS.surface, border: `1px solid ${TOKENS.border}`, borderRadius: 12, padding: 18 }}>
-        {activeVoyage ? (() => {
-          const s = voyageStats(activeVoyage);
-          const pct = s.total ? Math.round((s.sealed / s.total) * 100) : 0;
-          return (
-            <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 14 }}>
-              <div>
-                <div style={{ fontFamily: TOKENS.condensed, fontWeight: 800, fontSize: 26, color: "#e8eef4" }}>
-                  {activeVoyage.vessel}
-                </div>
-                <div style={{ fontFamily: TOKENS.mono, fontSize: 12, color: TOKENS.steel, marginTop: 4 }}>
-                  {activeVoyage.voyageNo} · {activeVoyage.pol} → {activeVoyage.pod}
-                </div>
-                <div style={{ fontFamily: TOKENS.mono, fontSize: 11, color: "#cbd5e1", marginTop: 8 }}>
-                  {s.sealed}/{s.total} sealed · {pct}%
-                </div>
-                <div style={{ height: 6, width: 220, maxWidth: "100%", background: TOKENS.bg, borderRadius: 3, marginTop: 6, overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: `${pct}%`, background: TOKENS.amber }} />
-                </div>
-              </div>
-              <button
-                onClick={() => navigate("voyage-detail", { voyageId: activeVoyage.id })}
-                style={{
-                  alignSelf: "center",
-                  background: "none",
-                  border: `1px solid ${TOKENS.amber}`,
-                  color: TOKENS.amber,
-                  fontFamily: TOKENS.condensed,
-                  fontWeight: 700,
-                  fontSize: 14,
-                  textTransform: "uppercase",
-                  padding: "10px 16px",
-                  cursor: "pointer",
-                }}
-              >
-                Open Voyage →
-              </button>
-            </div>
-          );
-        })() : (
-          <div style={{ fontFamily: TOKENS.mono, fontSize: 12, color: TOKENS.steel }}>
-            No active voyage — create one to get started
-          </div>
-        )}
-      </div>
+      {/* Open active voyage */}
+      {activeVoyage && (
+        <div style={{ marginTop: 18, display: "flex", justifyContent: "flex-end" }}>
+          <button
+            onClick={() => navigate("voyage-detail", { voyageId: activeVoyage.id })}
+            style={{
+              background: "none",
+              border: `1px solid ${TOKENS.amber}`,
+              color: TOKENS.amber,
+              fontFamily: TOKENS.condensed,
+              fontWeight: 700,
+              fontSize: 14,
+              textTransform: "uppercase",
+              padding: "10px 16px",
+              cursor: "pointer",
+            }}
+          >
+            Open Voyage →
+          </button>
+        </div>
+      )}
 
       {/* Charts */}
       {hasData && (
@@ -290,6 +272,7 @@ export default function DashboardView({ app }) {
             <div style={{ fontFamily: TOKENS.condensed, fontWeight: 700, fontSize: 28, color: "#e8eef4" }}>{value}</div>
           </div>
         ))}
+      </div>
       </div>
     </div>
   );
