@@ -27,6 +27,7 @@ export default function LogView({
   trackPresence,
   shippers,
   consignees,
+  bookings,
   onCreateShipper,
   onCreateConsignee,
   onBack,
@@ -240,6 +241,7 @@ export default function LogView({
           onAddLine={onAddLine}
           shippers={shippers}
           consignees={consignees}
+          bookings={bookings}
           onCreateShipper={onCreateShipper}
           onCreateConsignee={onCreateConsignee}
         />

@@ -8,6 +8,7 @@ const LINKS = [
   { page: "dashboard", label: "Dashboard" },
   { page: "voyages", label: "Voyages" },
   { page: "masters", label: "Masters" },
+  { page: "manifest", label: "Manifest" },
   { page: "settings", label: "Settings" },
 ];
 
@@ -18,6 +19,7 @@ const GROUP = {
   "voyage-detail": "voyages",
   "container-log": "voyages",
   masters: "masters",
+  manifest: "manifest",
   settings: "settings",
 };
 
@@ -62,31 +64,20 @@ export default function TopNav() {
       {/* Left: logo */}
       <button
         onClick={() => navigate("dashboard")}
-        style={{ background: "none", border: "none", cursor: "pointer", textAlign: "left", padding: 0 }}
+        style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", padding: 0 }}
       >
-        <div
+        <span
           style={{
-            fontFamily: TOKENS.condensed,
-            fontWeight: 800,
-            fontSize: 16,
-            color: "#fff",
-            lineHeight: 1,
-            letterSpacing: "0.02em",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "#e8eef4",
+            borderRadius: "50%",
+            padding: 2,
           }}
         >
-          STUFFING LOG
-        </div>
-        <div
-          style={{
-            fontFamily: TOKENS.mono,
-            fontSize: 9,
-            color: TOKENS.steel,
-            letterSpacing: "0.2em",
-            marginTop: 2,
-          }}
-        >
-          KRAFT
-        </div>
+          <img src="/kraft-logo.png" height="36" alt="Kraft" style={{ display: "block" }} />
+        </span>
       </button>
 
       {/* Center: nav links (desktop) */}

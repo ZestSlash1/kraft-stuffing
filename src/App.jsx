@@ -13,6 +13,8 @@ import {
   fetchConsignees,
   fetchProfiles,
   fetchOrgSettings,
+  fetchBookings,
+  fetchVesselMovements,
   createVoyage,
   updateVoyage as dbUpdateVoyage,
   archiveVoyage as dbArchiveVoyage,
@@ -24,6 +26,11 @@ import {
   upsertConsignee,
   deleteShipper as dbDeleteShipper,
   deleteConsignee as dbDeleteConsignee,
+  createBooking,
+  updateBooking as dbUpdateBooking,
+  deleteBooking as dbDeleteBooking,
+  createVesselMovement,
+  deleteVesselMovement as dbDeleteVesselMovement,
   flushQueue,
   pendingCount,
   fromDbVoyage,
@@ -32,6 +39,8 @@ import {
   fromDbShipper,
   fromDbConsignee,
   fromDbProfile,
+  fromDbBooking,
+  fromDbVesselMovement,
   toDbVoyage,
   toDbVoyagePatch,
   toDbContainer,
@@ -39,6 +48,9 @@ import {
   toDbContainerPatch,
   toDbShipper,
   toDbConsignee,
+  toDbBooking,
+  toDbBookingPatch,
+  toDbVesselMovement,
 } from "./lib/db";
 import { readStore, writeStore } from "./data/store";
 import { mkSeed } from "./seed";
@@ -46,7 +58,9 @@ import { appReducer, initialState } from "./data/appReducer";
 import { AuthContext } from "./context/AuthContext";
 import { RouterContext } from "./context/RouterContext";
 import { ToastProvider } from "./components/Toast";
+import ErrorBoundary from "./components/ErrorBoundary";
 import LoginView from "./views/LoginView";
+import AppSelectorView from "./views/AppSelectorView";
 import AppShell from "./components/AppShell";
 import { TOKENS } from "./data/statusHelpers";
 
@@ -56,6 +70,16 @@ const uid = () =>
     : Math.random().toString(36).slice(2, 10);
 
 const todayISODate = () => new Date().toISOString().slice(0, 10);
+
+// Never let a hung network call (e.g. a stale/unreachable Supabase project)
+// leave the UI stuck on a loading screen forever.
+const withTimeout = (promise, ms, label) =>
+  Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+    ),
+  ]);
 
 // Pull the whole voyage tree out of Supabase and shape it for the UI.
 async function loadVoyageTree(orgId) {
@@ -74,6 +98,12 @@ async function loadVoyageTree(orgId) {
       container.lines = (lRows || []).map(fromDbLine);
       voyage.containers.push(container);
     }
+    const { data: bRows, error: bErr } = await fetchBookings(voyage.id);
+    if (bErr) throw bErr;
+    voyage.bookings = (bRows || []).map(fromDbBooking);
+    const { data: mRows, error: mErr } = await fetchVesselMovements(voyage.id);
+    if (mErr) throw mErr;
+    voyage.vesselMovements = (mRows || []).map(fromDbVesselMovement);
     voyages.push(voyage);
   }
   return voyages;
@@ -135,13 +165,22 @@ export default function App() {
   const [checkingAuth, setCheckingAuth] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session ?? null);
-      setCheckingAuth(false);
-    });
+    withTimeout(supabase.auth.getSession(), 10000, "getSession")
+      .then(({ data }) => {
+        setSession(data.session ?? null);
+      })
+      .catch((err) => {
+        console.warn("[auth] getSession failed:", err.message);
+        setSession(null);
+      })
+      .finally(() => setCheckingAuth(false));
     const { data: sub } = supabase.auth.onAuthStateChange((_event, sess) => {
       setSession(sess ?? null);
       setCheckingAuth(false);
+      if (!sess) {
+        sessionStorage.removeItem("kraft_app_selected");
+        setAppSelected(false);
+      }
     });
     return () => sub.subscription.unsubscribe();
   }, []);
@@ -151,6 +190,19 @@ export default function App() {
   // ── Routing ─────────────────────────────────────────────────────────────────
   const [route, setRoute] = useState({ page: "dashboard", params: {} });
   const navigate = useCallback((page, params = {}) => setRoute({ page, params }), []);
+
+  // App selector: shown once per session after login, before entering a section.
+  const [appSelected, setAppSelected] = useState(
+    () => sessionStorage.getItem("kraft_app_selected") === "1"
+  );
+  const selectApp = useCallback(
+    (page) => {
+      sessionStorage.setItem("kraft_app_selected", "1");
+      setAppSelected(true);
+      navigate(page);
+    },
+    [navigate]
+  );
 
   // ── App data ────────────────────────────────────────────────────────────────
   const [state, dispatch] = useReducer(appReducer, initialState);
@@ -179,22 +231,28 @@ export default function App() {
 
     (async () => {
       dispatch({ type: "SET_LOADING", loading: true });
-      await ensureProfile(user);
       try {
-        let voyages = await loadVoyageTree(KRAFT_ORG_ID);
-        if (!voyages.length) {
-          await bootstrapSeed(user.id);
-          voyages = await loadVoyageTree(KRAFT_ORG_ID);
-        }
-        if (!voyages.length) throw new Error("no remote voyages");
-        dispatch({ type: "SET_VOYAGES", voyages });
+        await withTimeout(
+          (async () => {
+            await ensureProfile(user);
+            let voyages = await loadVoyageTree(KRAFT_ORG_ID);
+            if (!voyages.length) {
+              await bootstrapSeed(user.id);
+              voyages = await loadVoyageTree(KRAFT_ORG_ID);
+            }
+            if (!voyages.length) throw new Error("no remote voyages");
+            dispatch({ type: "SET_VOYAGES", voyages });
 
-        const { data: shippers } = await fetchShippers(KRAFT_ORG_ID);
-        const { data: consignees } = await fetchConsignees(KRAFT_ORG_ID);
-        const { data: profiles } = await fetchProfiles(KRAFT_ORG_ID);
-        dispatch({ type: "SET_SHIPPERS", shippers: (shippers || []).map(fromDbShipper) });
-        dispatch({ type: "SET_CONSIGNEES", consignees: (consignees || []).map(fromDbConsignee) });
-        dispatch({ type: "SET_PROFILES", profiles: (profiles || []).map(fromDbProfile) });
+            const { data: shippers } = await fetchShippers(KRAFT_ORG_ID);
+            const { data: consignees } = await fetchConsignees(KRAFT_ORG_ID);
+            const { data: profiles } = await fetchProfiles(KRAFT_ORG_ID);
+            dispatch({ type: "SET_SHIPPERS", shippers: (shippers || []).map(fromDbShipper) });
+            dispatch({ type: "SET_CONSIGNEES", consignees: (consignees || []).map(fromDbConsignee) });
+            dispatch({ type: "SET_PROFILES", profiles: (profiles || []).map(fromDbProfile) });
+          })(),
+          15000,
+          "remote data load"
+        );
       } catch (err) {
         console.warn("[load] falling back to local store:", err.message);
         const local = readStore() || mkSeed();
@@ -370,6 +428,43 @@ export default function App() {
     sync(() => dbDeleteConsignee(id));
   };
 
+  // ── Bookings (manifest) ─────────────────────────────────────────────────────
+  const createBookingEntry = async (voyageId, draft) => {
+    const { data, error } = await createBooking(
+      toDbBooking({ orgId: KRAFT_ORG_ID, voyageId, createdBy: user?.id, ...draft })
+    );
+    if (error || !data) return null;
+    const booking = fromDbBooking(data);
+    dispatch({ type: "ADD_BOOKING", voyageId, booking });
+    return booking;
+  };
+
+  const updateBookingEntry = (voyageId, bookingId, patch) => {
+    dispatch({ type: "UPDATE_BOOKING", voyageId, bookingId, patch });
+    sync(() => dbUpdateBooking(bookingId, toDbBookingPatch(patch)));
+  };
+
+  const removeBookingEntry = (voyageId, bookingId) => {
+    dispatch({ type: "REMOVE_BOOKING", voyageId, bookingId });
+    sync(() => dbDeleteBooking(bookingId));
+  };
+
+  // ── Vessel movements (manifest) ─────────────────────────────────────────────
+  const createMovementEntry = async (voyageId, draft) => {
+    const { data, error } = await createVesselMovement(
+      toDbVesselMovement({ orgId: KRAFT_ORG_ID, voyageId, loggedBy: user?.id, ...draft })
+    );
+    if (error || !data) return null;
+    const movement = fromDbVesselMovement(data);
+    dispatch({ type: "ADD_VESSEL_MOVEMENT", voyageId, movement });
+    return movement;
+  };
+
+  const removeMovementEntry = (voyageId, movementId) => {
+    dispatch({ type: "REMOVE_VESSEL_MOVEMENT", voyageId, movementId });
+    sync(() => dbDeleteVesselMovement(movementId));
+  };
+
   // ── Exports ─────────────────────────────────────────────────────────────────
   const profilesById = state.profiles.reduce((acc, p) => {
     acc[p.id] = p.displayName || p.id;
@@ -414,6 +509,11 @@ export default function App() {
     createConsigneeEntry,
     removeShipper,
     removeConsignee,
+    createBookingEntry,
+    updateBookingEntry,
+    removeBookingEntry,
+    createMovementEntry,
+    removeMovementEntry,
     exportXlsx,
     exportPdf,
   };
@@ -440,15 +540,19 @@ export default function App() {
     );
   }
 
-  if (!session) return <LoginView />;
+  if (!session) return <ErrorBoundary><LoginView /></ErrorBoundary>;
+
+  if (!appSelected) return <ErrorBoundary><AppSelectorView onSelect={selectApp} /></ErrorBoundary>;
 
   return (
-    <AuthContext.Provider value={{ user, session, profile }}>
-      <RouterContext.Provider value={{ route, navigate }}>
-        <ToastProvider>
-          <AppShell app={app} />
-        </ToastProvider>
-      </RouterContext.Provider>
-    </AuthContext.Provider>
+    <ErrorBoundary>
+      <AuthContext.Provider value={{ user, session, profile }}>
+        <RouterContext.Provider value={{ route, navigate }}>
+          <ToastProvider>
+            <AppShell app={app} />
+          </ToastProvider>
+        </RouterContext.Provider>
+      </AuthContext.Provider>
+    </ErrorBoundary>
   );
 }

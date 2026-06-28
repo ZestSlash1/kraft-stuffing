@@ -83,6 +83,12 @@ export default function AuthView() {
       }}
     >
       <div style={{ width: "100%", maxWidth: 360 }}>
+        <img
+          src="/kraft-logo.png"
+          height="80"
+          alt="Kraft"
+          style={{ display: "block", margin: "0 auto 24px" }}
+        />
         <div
           style={{
             fontFamily: CONDENSED,

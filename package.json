@@ -17,6 +17,7 @@
     "lucide-react": "^1.21.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
+    "react-globe.gl": "^2.38.0",
     "recharts": "^3.9.0",
     "xlsx": "^0.18.5"
   },

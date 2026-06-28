@@ -9,6 +9,14 @@ export default function ContainerLogView({ app, containerId }) {
   const voyage = state.voyages.find((v) => v.containers.some((c) => c.id === containerId));
   const container = voyage?.containers.find((c) => c.id === containerId);
 
+  const shipperName = (id) => state.shippers.find((s) => s.id === id)?.name || "";
+  const consigneeName = (id) => state.consignees.find((c) => c.id === id)?.name || "";
+  const bookings = (voyage?.bookings || []).map((b) => ({
+    ...b,
+    shipperName: shipperName(b.shipperId),
+    consigneeName: consigneeName(b.consigneeId),
+  }));
+
   if (!container) {
     return (
       <div style={{ padding: 40, fontFamily: TOKENS.mono, color: TOKENS.steel }}>
@@ -43,6 +51,7 @@ export default function ContainerLogView({ app, containerId }) {
           trackPresence={trackPresence}
           shippers={state.shippers}
           consignees={state.consignees}
+          bookings={bookings}
           onCreateShipper={createShipperEntry}
           onCreateConsignee={createConsigneeEntry}
           onBack={() => navigate("voyage-detail", { voyageId: voyage.id })}

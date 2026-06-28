@@ -102,8 +102,10 @@ export const fromDbLine = (r) => ({
   invoiceValue: r.invoice_value,
   invoiceCurrency: r.invoice_currency || "INR",
   ewayBillNo: r.eway_bill_no || "",
+  ewayValidTill: r.eway_valid_till || null,
   chaRef: r.cha_ref || "",
   truckNo: r.truck_no || "",
+  bookingId: r.booking_id || null,
   loggedBy: r.logged_by,
   loggedAt: r.logged_at,
 });
@@ -125,11 +127,104 @@ export const toDbLine = (l) => ({
   invoice_value: l.invoiceValue ?? null,
   invoice_currency: l.invoiceCurrency ?? undefined,
   eway_bill_no: l.ewayBillNo ?? null,
+  eway_valid_till: l.ewayValidTill ?? null,
   cha_ref: l.chaRef ?? null,
   truck_no: l.truckNo ?? null,
+  booking_id: l.bookingId ?? null,
   logged_by: l.loggedBy ?? null,
   sort_order: l.sortOrder ?? undefined,
 });
+
+// ── Bookings (manifest) ──────────────────────────────────────────────────────
+export const fromDbBooking = (r) => ({
+  id: r.id,
+  orgId: r.org_id,
+  voyageId: r.voyage_id,
+  shipperId: r.shipper_id,
+  consigneeId: r.consignee_id,
+  bookingDate: r.booking_date,
+  freightAmount: r.freight_amount,
+  freightCurrency: r.freight_currency || "INR",
+  freightStatus: r.freight_status || "to_pay",
+  paymentStatus: r.payment_status || "pending",
+  notes: r.notes || "",
+  createdBy: r.created_by,
+  createdAt: r.created_at,
+  updatedAt: r.updated_at,
+});
+
+export const toDbBooking = (b) => ({
+  id: b.id ?? undefined,
+  org_id: b.orgId ?? KRAFT_ORG_ID,
+  voyage_id: b.voyageId ?? null,
+  shipper_id: b.shipperId ?? null,
+  consignee_id: b.consigneeId ?? null,
+  booking_date: b.bookingDate ?? null,
+  freight_amount: b.freightAmount ?? null,
+  freight_currency: b.freightCurrency ?? undefined,
+  freight_status: b.freightStatus ?? undefined,
+  payment_status: b.paymentStatus ?? undefined,
+  notes: b.notes ?? null,
+  created_by: b.createdBy ?? null,
+});
+
+const BOOKING_KEYMAP = {
+  shipperId: "shipper_id",
+  consigneeId: "consignee_id",
+  bookingDate: "booking_date",
+  freightAmount: "freight_amount",
+  freightCurrency: "freight_currency",
+  freightStatus: "freight_status",
+  paymentStatus: "payment_status",
+  notes: "notes",
+};
+export const toDbBookingPatch = (patch) => mapKeys(patch, BOOKING_KEYMAP);
+
+export async function fetchBookings(voyageId) {
+  const { data, error } = await supabase
+    .from("bookings")
+    .select("*")
+    .eq("voyage_id", voyageId)
+    .order("created_at", { ascending: false });
+  return { data, error };
+}
+
+// ── Vessel movements (manifest) ──────────────────────────────────────────────
+export const fromDbVesselMovement = (r) => ({
+  id: r.id,
+  orgId: r.org_id,
+  voyageId: r.voyage_id,
+  eventType: r.event_type,
+  eventDate: r.event_date,
+  location: r.location || "",
+  latitude: r.latitude,
+  longitude: r.longitude,
+  notes: r.notes || "",
+  loggedBy: r.logged_by,
+  createdAt: r.created_at,
+});
+
+export const toDbVesselMovement = (m) => ({
+  id: m.id ?? undefined,
+  org_id: m.orgId ?? KRAFT_ORG_ID,
+  voyage_id: m.voyageId ?? null,
+  event_type: m.eventType,
+  event_date: m.eventDate,
+  location: m.location ?? null,
+  latitude: m.latitude ?? null,
+  longitude: m.longitude ?? null,
+  notes: m.notes ?? null,
+  logged_by: m.loggedBy ?? null,
+});
+
+export async function fetchVesselMovements(voyageId) {
+  const { data, error } = await supabase
+    .from("vessel_movements")
+    .select("*")
+    .eq("voyage_id", voyageId)
+    .order("event_date", { ascending: true });
+  return { data, error };
+}
 
 // Partial-patch mappers: translate only the keys present in `patch` (camelCase)
 // to DB columns, so updates never accidentally null untouched columns.
@@ -286,6 +381,20 @@ const executors = {
     supabase.from("consignees").upsert(p).select().single(),
   deleteShipper: ({ id }) => supabase.from("shippers").delete().eq("id", id),
   deleteConsignee: ({ id }) => supabase.from("consignees").delete().eq("id", id),
+  createBooking: (p) => supabase.from("bookings").insert(p).select().single(),
+  updateBooking: ({ id, patch }) =>
+    supabase.from("bookings").update(patch).eq("id", id).select().single(),
+  deleteBooking: ({ id }) => supabase.from("bookings").delete().eq("id", id),
+  createVesselMovement: (p) =>
+    supabase.from("vessel_movements").insert(p).select().single(),
+  deleteVesselMovement: ({ id }) =>
+    supabase.from("vessel_movements").delete().eq("id", id),
+  upsertPushSubscription: (p) =>
+    supabase
+      .from("push_subscriptions")
+      .upsert(p, { onConflict: "user_id,endpoint" })
+      .select()
+      .single(),
 };
 
 // Run a write, queueing it for later if we are offline. Returns {data, error}.
@@ -481,6 +590,34 @@ export function deleteShipper(id) {
 
 export function deleteConsignee(id) {
   return runWrite("deleteConsignee", { id }, { id });
+}
+
+export function createBooking(booking) {
+  const p = clean(booking);
+  return runWrite("createBooking", p, p);
+}
+
+export function updateBooking(id, patch) {
+  const p = clean(patch);
+  return runWrite("updateBooking", { id, patch: p }, { id, ...p });
+}
+
+export function deleteBooking(id) {
+  return runWrite("deleteBooking", { id }, { id });
+}
+
+export function createVesselMovement(movement) {
+  const p = clean(movement);
+  return runWrite("createVesselMovement", p, p);
+}
+
+export function deleteVesselMovement(id) {
+  return runWrite("deleteVesselMovement", { id }, { id });
+}
+
+export function upsertPushSubscription(subscription) {
+  const p = clean(subscription);
+  return runWrite("upsertPushSubscription", p, p);
 }
 
 // How many stuffing lines reference this shipper/consignee (for the archive guard).

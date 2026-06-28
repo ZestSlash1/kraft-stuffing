@@ -102,6 +102,86 @@ export function appReducer(state, action) {
         )
       );
 
+    case "SET_BOOKINGS":
+      return {
+        ...state,
+        voyages: state.voyages.map((v) =>
+          v.id !== action.voyageId ? v : { ...v, bookings: action.bookings }
+        ),
+      };
+
+    case "ADD_BOOKING":
+      return {
+        ...state,
+        voyages: state.voyages.map((v) =>
+          v.id !== action.voyageId
+            ? v
+            : (v.bookings || []).some((b) => b.id === action.booking.id)
+            ? v
+            : { ...v, bookings: [action.booking, ...(v.bookings || [])] }
+        ),
+      };
+
+    case "UPDATE_BOOKING":
+      return {
+        ...state,
+        voyages: state.voyages.map((v) =>
+          v.id !== action.voyageId
+            ? v
+            : {
+                ...v,
+                bookings: (v.bookings || []).map((b) =>
+                  b.id === action.bookingId ? { ...b, ...action.patch } : b
+                ),
+              }
+        ),
+      };
+
+    case "REMOVE_BOOKING":
+      return {
+        ...state,
+        voyages: state.voyages.map((v) =>
+          v.id !== action.voyageId
+            ? v
+            : { ...v, bookings: (v.bookings || []).filter((b) => b.id !== action.bookingId) }
+        ),
+      };
+
+    case "SET_VESSEL_MOVEMENTS":
+      return {
+        ...state,
+        voyages: state.voyages.map((v) =>
+          v.id !== action.voyageId ? v : { ...v, vesselMovements: action.movements }
+        ),
+      };
+
+    case "ADD_VESSEL_MOVEMENT":
+      return {
+        ...state,
+        voyages: state.voyages.map((v) =>
+          v.id !== action.voyageId
+            ? v
+            : (v.vesselMovements || []).some((m) => m.id === action.movement.id)
+            ? v
+            : {
+                ...v,
+                vesselMovements: [...(v.vesselMovements || []), action.movement].sort(
+                  (a, b) => new Date(a.eventDate) - new Date(b.eventDate)
+                ),
+              }
+        ),
+      };
+
+    case "REMOVE_VESSEL_MOVEMENT":
+      return {
+        ...state,
+        voyages: state.voyages.map((v) =>
+          v.id !== action.voyageId
+            ? v
+            : { ...v, vesselMovements: (v.vesselMovements || []).filter((m) => m.id !== action.movementId) }
+        ),
+      };
+
     case "SET_SHIPPERS":
       return { ...state, shippers: action.shippers };
 

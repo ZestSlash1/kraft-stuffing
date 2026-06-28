@@ -9,6 +9,7 @@ import VoyageDetailView from "../views/VoyageDetailView";
 import ContainerLogView from "../views/ContainerLogView";
 import MastersView from "../views/MastersView";
 import SettingsView from "../views/SettingsView";
+import ManifestShell from "./ManifestShell";
 
 // Part 6E — persistent offline banner, dismissable, re-appears on next drop.
 function OfflineIndicator() {
@@ -88,6 +89,9 @@ export default function AppShell({ app }) {
       break;
     case "settings":
       content = <SettingsView app={app} />;
+      break;
+    case "manifest":
+      content = <ManifestShell app={app} />;
       break;
     case "dashboard":
     default:

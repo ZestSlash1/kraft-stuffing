@@ -13,6 +13,12 @@ export default defineConfig({
       manifest: false, // public/manifest.json is hand-authored, served as-is
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico}'],
+        // react-globe.gl (PortGlobeView) and the html2canvas/purify chunks jsPDF
+        // pulls in for its unused .html() plugin are dynamic-import-only — keep
+        // them out of the eager install precache, or the SW just re-downloads
+        // the whole point of code-splitting them out of the initial bundle.
+        // They're cached on first use instead via the runtimeCaching rule below.
+        globIgnores: ['**/react-globe.gl-*.js', '**/html2canvas-*.js', '**/purify.es-*.js'],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
@@ -31,6 +37,14 @@ export default defineConfig({
             urlPattern: /\/node_modules\/@supabase\/supabase-js\/.*/i,
             handler: 'CacheFirst',
             options: { cacheName: 'supabase-js' },
+          },
+          {
+            urlPattern: /\/assets\/(react-globe\.gl|html2canvas|purify\.es)-.*\.js$/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'lazy-chunks',
+              cacheableResponse: { statuses: [0, 200] },
+            },
           },
         ],
       },

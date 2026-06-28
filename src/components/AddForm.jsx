@@ -2,6 +2,7 @@ import { useState } from "react";
 import { TOKENS } from "../data/statusHelpers";
 import InvoiceFields from "./InvoiceFields";
 import ShipperConsigneeSelect from "./ShipperConsigneeSelect";
+import BookingSelect from "./BookingSelect";
 
 export const CARGO_UNITS = [
   "Bags",
@@ -55,6 +56,7 @@ export default function AddForm({
   onAddLine,
   shippers = [],
   consignees = [],
+  bookings = [],
   onCreateShipper,
   onCreateConsignee,
 }) {
@@ -65,6 +67,7 @@ export default function AddForm({
   const [shipper, setShipper] = useState({ id: null, name: "Shafrina Impex LLP" });
   const [consignee, setConsignee] = useState({ id: null, name: "Y.E. Jadwet Group" });
   const [truckNo, setTruckNo] = useState("");
+  const [bookingId, setBookingId] = useState(null);
   const [invoice, setInvoice] = useState(emptyInvoice);
 
   const submit = (e) => {
@@ -80,6 +83,7 @@ export default function AddForm({
       consigneeId: consignee.id,
       consignee: consignee.name,
       truckNo,
+      bookingId,
       invoiceNos: invoice.invoiceNos,
       invoiceValue: invoice.invoiceValue === "" ? null : Number(invoice.invoiceValue),
       invoiceCurrency: invoice.invoiceCurrency,
@@ -90,6 +94,7 @@ export default function AddForm({
     });
     setQty("");
     setTruckNo("");
+    setBookingId(null);
     setInvoice(emptyInvoice);
   };
 
@@ -167,6 +172,15 @@ export default function AddForm({
       </Field>
       <Field label="truck no">
         <input value={truckNo} onChange={(e) => setTruckNo(e.target.value)} style={inputStyle} />
+      </Field>
+      <Field label="link to booking">
+        <BookingSelect
+          bookings={bookings}
+          shippers={shippers}
+          consignees={consignees}
+          bookingId={bookingId}
+          onSelect={setBookingId}
+        />
       </Field>
 
       <InvoiceFields value={invoice} onChange={setInvoice} />

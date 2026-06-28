@@ -1,4 +1,4 @@
-import { LayoutDashboard, Ship, Users, Settings } from "lucide-react";
+import { LayoutDashboard, Ship, Users, FileText, Settings } from "lucide-react";
 import { useRouter } from "../context/RouterContext";
 import { TOKENS } from "../data/statusHelpers";
 
@@ -6,6 +6,7 @@ const ITEMS = [
   { page: "dashboard", label: "Dashboard", Icon: LayoutDashboard },
   { page: "voyages", label: "Voyages", Icon: Ship },
   { page: "masters", label: "Masters", Icon: Users },
+  { page: "manifest", label: "Manifest", Icon: FileText },
   { page: "settings", label: "Settings", Icon: Settings },
 ];
 
@@ -15,6 +16,7 @@ const GROUP = {
   "voyage-detail": "voyages",
   "container-log": "voyages",
   masters: "masters",
+  manifest: "manifest",
   settings: "settings",
 };
 
