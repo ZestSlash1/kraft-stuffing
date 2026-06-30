@@ -329,6 +329,7 @@ export const fromDbProfile = (r) => ({
   id: r.id,
   orgId: r.org_id,
   displayName: r.display_name || "",
+  title: r.title || "",
   role: r.role || "staff",
 });
 

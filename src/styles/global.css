@@ -125,6 +125,11 @@ canvas {
   .topnav-username { display: none !important; }
   .bottom-nav { display: flex !important; }
   .app-main { padding-bottom: calc(56px + env(safe-area-inset-bottom)); }
+  /* Launcher stacks to a single column on phones. */
+  .app-selector-grid { grid-template-columns: 1fr !important; }
+  /* Mail: collapse the sidebar to a horizontal strip, list+pane stack. */
+  .mail-shell { flex-direction: column !important; }
+  .mail-shell > aside { width: 100% !important; flex-direction: row !important; overflow-x: auto; border-right: none !important; }
 }
 
 /* ── Dashboard ──────────────────────────────────────────────────────────── */

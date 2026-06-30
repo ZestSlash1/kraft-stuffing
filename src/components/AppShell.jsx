@@ -11,6 +11,7 @@ import MastersView from "../views/MastersView";
 import SettingsView from "../views/SettingsView";
 import ManifestShell from "./ManifestShell";
 import ExpensesShell from "../views/expenses/ExpensesShell";
+import MailShell from "../views/mail/MailShell";
 
 // Part 6E — persistent offline banner, dismissable, re-appears on next drop.
 function OfflineIndicator() {
@@ -96,6 +97,9 @@ export default function AppShell({ app }) {
       break;
     case "expenses":
       content = <ExpensesShell app={app} />;
+      break;
+    case "mail":
+      content = <MailShell app={app} />;
       break;
     case "dashboard":
     default:

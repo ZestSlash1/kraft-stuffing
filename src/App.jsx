@@ -551,7 +551,12 @@ export default function App() {
 
   if (!session) return <ErrorBoundary><LoginView /></ErrorBoundary>;
 
-  if (!appSelected) return <ErrorBoundary><AppSelectorView onSelect={selectApp} /></ErrorBoundary>;
+  if (!appSelected)
+    return (
+      <ErrorBoundary>
+        <AppSelectorView onSelect={selectApp} user={user} profile={profile} />
+      </ErrorBoundary>
+    );
 
   return (
     <ErrorBoundary>
