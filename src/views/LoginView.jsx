@@ -1,62 +1,41 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { Ship, ArrowRight } from "lucide-react";
 import { supabase } from "../lib/supabase";
-import { KRAFT_ORG_ID } from "../lib/db";
 import { theme } from "../theme";
 
-// Passwordless login, reimagined as a single fluid motion:
-//   email → (auto-sent) → 6-digit code that auto-submits on the last digit.
-// No "Verify" button to hunt for; each step is exactly one action.
+// Email + password sign-in. A "forgot password" mode sends a reset link, which is
+// also how a brand-new (or OTP-era) user sets their first password — clicking the
+// emailed link drops them into the app's recovery flow (handled in App.jsx).
 export default function LoginView() {
-  const [step, setStep] = useState("email"); // 'email' | 'otp'
+  const [mode, setMode] = useState("signin"); // 'signin' | 'reset'
   const [email, setEmail] = useState("");
-  const [token, setToken] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const otpRef = useRef(null);
+  const [notice, setNotice] = useState("");
 
-  const sendOtp = async () => {
+  const signIn = async () => {
     setError("");
-    if (!email || !email.includes("@")) return setError("Enter a valid email address.");
+    if (!email.includes("@") || !password) return setError("Enter your email and password.");
     setLoading(true);
-    const { error } = await supabase.auth.signInWithOtp({ email });
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    setLoading(false);
+    if (error) return setError("Incorrect email or password.");
+    // onAuthStateChange swaps to the portal.
+  };
+
+  const sendReset = async () => {
+    setError("");
+    setNotice("");
+    if (!email.includes("@")) return setError("Enter your email address first.");
+    setLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin,
+    });
     setLoading(false);
     if (error) return setError(error.message);
-    setStep("otp");
+    setNotice("Check your inbox for a link to set your password.");
   };
-
-  const verifyOtp = async (code) => {
-    const t = code ?? token;
-    setError("");
-    if (t.length < 6) return;
-    setLoading(true);
-    const { data, error } = await supabase.auth.verifyOtp({ email, token: t, type: "email" });
-    if (error) {
-      setLoading(false);
-      setToken("");
-      setError("That code didn't match — try again.");
-      otpRef.current?.focus();
-      return;
-    }
-    if (data?.user) {
-      const prefix = (data.user.email || email).split("@")[0];
-      await supabase.from("profiles").upsert(
-        { id: data.user.id, org_id: KRAFT_ORG_ID, display_name: prefix },
-        { onConflict: "id", ignoreDuplicates: true }
-      );
-    }
-    // onAuthStateChange swaps to the portal; keep the spinner until it does.
-  };
-
-  // Auto-submit the moment six digits are present (typed or pasted).
-  useEffect(() => {
-    if (step === "otp" && token.length === 6 && !loading) verifyOtp(token);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, step]);
-
-  useEffect(() => {
-    if (step === "otp") setTimeout(() => otpRef.current?.focus(), 350);
-  }, [step]);
 
   return (
     <div style={{ position: "fixed", inset: 0, background: theme.color.canvas, overflow: "hidden" }}>
@@ -74,7 +53,7 @@ export default function LoginView() {
         }}
       >
         <div
-          key={step}
+          key={mode}
           style={{
             width: "100%",
             maxWidth: 400,
@@ -127,12 +106,12 @@ export default function LoginView() {
               textTransform: "uppercase",
             }}
           >
-            {step === "email" ? "Sign in with your email" : `Code sent to ${email}`}
+            {mode === "signin" ? "Sign in to continue" : "Reset your password"}
           </div>
 
           <div style={{ height: 30 }} />
 
-          {step === "email" ? (
+          {mode === "signin" ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <input
                 type="email"
@@ -142,54 +121,72 @@ export default function LoginView() {
                 placeholder="you@company.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && !loading && sendOtp()}
                 style={fieldStyle}
                 onFocus={(e) => (e.target.style.borderColor = theme.color.amber)}
                 onBlur={(e) => (e.target.style.borderColor = theme.color.borderStrong)}
               />
-              <button onClick={sendOtp} disabled={loading} style={primaryBtn(loading)}>
-                {loading ? "Sending…" : "Continue"}
+              <input
+                type="password"
+                autoComplete="current-password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && !loading && signIn()}
+                style={fieldStyle}
+                onFocus={(e) => (e.target.style.borderColor = theme.color.amber)}
+                onBlur={(e) => (e.target.style.borderColor = theme.color.borderStrong)}
+              />
+              <button onClick={signIn} disabled={loading} style={primaryBtn(loading)}>
+                {loading ? "Signing in…" : "Sign in"}
                 {!loading && <ArrowRight size={18} />}
+              </button>
+              <button
+                onClick={() => {
+                  setMode("reset");
+                  setError("");
+                  setNotice("");
+                }}
+                style={linkBtn}
+              >
+                Forgot password?
               </button>
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <input
-                ref={otpRef}
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                maxLength={6}
-                placeholder="••••••"
-                value={token}
-                disabled={loading}
-                onChange={(e) => setToken(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                style={{
-                  ...fieldStyle,
-                  textAlign: "center",
-                  fontSize: 30,
-                  letterSpacing: "0.6em",
-                  paddingLeft: "0.6em",
-                  opacity: loading ? 0.6 : 1,
-                }}
+                type="email"
+                inputMode="email"
+                autoComplete="email"
+                autoFocus
+                placeholder="you@company.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && !loading && sendReset()}
+                style={fieldStyle}
                 onFocus={(e) => (e.target.style.borderColor = theme.color.amber)}
                 onBlur={(e) => (e.target.style.borderColor = theme.color.borderStrong)}
               />
-              <div style={{ fontFamily: theme.font.mono, fontSize: 11, color: theme.color.slate }}>
-                {loading ? "Verifying…" : "Enter the 6-digit code — it submits automatically"}
-              </div>
+              <button onClick={sendReset} disabled={loading} style={primaryBtn(loading)}>
+                {loading ? "Sending…" : "Send reset link"}
+              </button>
               <button
                 onClick={() => {
-                  setStep("email");
-                  setToken("");
+                  setMode("signin");
                   setError("");
+                  setNotice("");
                 }}
                 style={linkBtn}
               >
-                ← Use a different email
+                ← Back to sign in
               </button>
             </div>
           )}
 
+          {notice && (
+            <div style={{ marginTop: 16, fontFamily: theme.font.mono, fontSize: 12, color: theme.color.green }}>
+              {notice}
+            </div>
+          )}
           {error && (
             <div style={{ marginTop: 16, fontFamily: theme.font.mono, fontSize: 12, color: theme.color.red }}>
               {error}
@@ -253,7 +250,6 @@ const linkBtn = {
   padding: 4,
 };
 
-// Two slow-drifting tinted blobs — subtle motion, never distracting.
 function Aurora() {
   const blob = (color, anim, pos) => ({
     position: "absolute",
@@ -274,8 +270,6 @@ function Aurora() {
   );
 }
 
-// The real voyage as ambient branding: Kolkata → Port Blair with a drifting vessel
-// tracing the dashed route. Anchored to the bottom, low-contrast.
 function RouteMotif() {
   return (
     <svg
@@ -284,7 +278,6 @@ function RouteMotif() {
       style={{ position: "absolute", left: 0, right: 0, bottom: 0, width: "100%", height: 200, opacity: 0.5 }}
     >
       <path
-        id="kraft-route"
         d="M 120 150 C 360 60, 640 60, 880 150"
         fill="none"
         stroke={theme.color.borderStrong}

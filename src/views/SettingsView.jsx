@@ -11,7 +11,7 @@ const input = {
   background: theme.color.surface,
   border: `1px solid ${theme.color.border}`,
   borderRadius: 12,
-  color: "#e2e8f0",
+  color: theme.color.ink,
   padding: "10px 12px",
   fontFamily: theme.font.mono,
   fontSize: 13,
@@ -56,8 +56,14 @@ export default function SettingsView({ app }) {
   const { showToast } = useToast();
 
   const [displayName, setDisplayName] = useState(profile?.displayName || "");
+  const [title, setTitle] = useState(profile?.title || "");
   const [settings, setSettings] = useState(orgSettings || {});
   const [saved, setSaved] = useState({});
+
+  // Change-password fields (account security).
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [pwError, setPwError] = useState("");
 
   const flash = (key) => {
     setSaved((s) => ({ ...s, [key]: true }));
@@ -68,11 +74,23 @@ export default function SettingsView({ app }) {
 
   const saveProfile = async () => {
     await supabase.from("profiles").upsert(
-      { id: user.id, org_id: KRAFT_ORG_ID, display_name: displayName },
+      { id: user.id, org_id: KRAFT_ORG_ID, display_name: displayName, title },
       { onConflict: "id" }
     );
     flash("profile");
     showToast("Profile saved", "success");
+  };
+
+  const changePassword = async () => {
+    setPwError("");
+    if (newPassword.length < 8) return setPwError("Use at least 8 characters.");
+    if (newPassword !== confirmPassword) return setPwError("Passwords don't match.");
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) return setPwError(error.message);
+    setNewPassword("");
+    setConfirmPassword("");
+    flash("password");
+    showToast("Password updated", "success");
   };
 
   const persist = async (keys, tag) => {
@@ -96,6 +114,9 @@ export default function SettingsView({ app }) {
         <Row label="Display name">
           <input style={input} value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
         </Row>
+        <Row label="Title">
+          <input style={input} placeholder="e.g. Operations Manager" value={title} onChange={(e) => setTitle(e.target.value)} />
+        </Row>
         <Row label="Email">
           <input style={{ ...input, color: theme.color.slate }} value={user?.email || ""} readOnly />
         </Row>
@@ -111,6 +132,37 @@ export default function SettingsView({ app }) {
         >
           Sign Out
         </button>
+      </Section>
+
+      <Section title="ACCOUNT SECURITY">
+        <Row label="New password">
+          <input
+            type="password"
+            autoComplete="new-password"
+            style={input}
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+          />
+        </Row>
+        <Row label="Confirm new password">
+          <input
+            type="password"
+            autoComplete="new-password"
+            style={input}
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+          />
+        </Row>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 8 }}>
+          <button
+            onClick={changePassword}
+            style={{ background: theme.color.amber, border: "none", color: theme.color.surface, fontFamily: theme.font.condensed, fontWeight: 700, fontSize: 13, textTransform: "uppercase", padding: "9px 18px", cursor: "pointer" }}
+          >
+            Update Password
+          </button>
+          {saved.password && <span style={{ fontFamily: theme.font.mono, fontSize: 12, color: theme.color.green }}>Updated ✓</span>}
+          {pwError && <span style={{ fontFamily: theme.font.mono, fontSize: 12, color: theme.color.red }}>{pwError}</span>}
+        </div>
       </Section>
 
       <Section title="ORGANISATION">

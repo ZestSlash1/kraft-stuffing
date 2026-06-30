@@ -60,6 +60,7 @@ import { RouterContext } from "./context/RouterContext";
 import { ToastProvider } from "./components/Toast";
 import ErrorBoundary from "./components/ErrorBoundary";
 import LoginView from "./views/LoginView";
+import SetPasswordView from "./views/SetPasswordView";
 import AppSelectorView from "./views/AppSelectorView";
 import AppShell from "./components/AppShell";
 import { TOKENS } from "./data/statusHelpers";
@@ -171,6 +172,8 @@ export default function App() {
   // ── Auth ───────────────────────────────────────────────────────────────────
   const [session, setSession] = useState(DEMO ? DEMO_SESSION : null);
   const [checkingAuth, setCheckingAuth] = useState(!DEMO);
+  // Set when the user arrives via a reset/invite link — forces the set-password UI.
+  const [recovery, setRecovery] = useState(false);
 
   useEffect(() => {
     if (DEMO) return;
@@ -184,6 +187,7 @@ export default function App() {
       })
       .finally(() => setCheckingAuth(false));
     const { data: sub } = supabase.auth.onAuthStateChange((_event, sess) => {
+      if (_event === "PASSWORD_RECOVERY") setRecovery(true);
       setSession(sess ?? null);
       setCheckingAuth(false);
       if (!sess) {
@@ -554,6 +558,13 @@ export default function App() {
       </div>
     );
   }
+
+  if (recovery)
+    return (
+      <ErrorBoundary>
+        <SetPasswordView onDone={() => setRecovery(false)} />
+      </ErrorBoundary>
+    );
 
   if (!session) return <ErrorBoundary><LoginView /></ErrorBoundary>;
 
