@@ -1,17 +1,17 @@
 import { useState } from "react";
 import { ChevronRight } from "lucide-react";
-import { TOKENS } from "../data/statusHelpers";
+import { theme } from "../theme";
 import { FREIGHT_STATUS_COLORS, PAYMENT_STATUS_COLORS } from "../data/manifestHelpers";
 import CreateBookingModal from "../components/CreateBookingModal";
 import { useToast } from "../components/Toast";
 import BookingDetailView from "./BookingDetailView";
 
 function Badge({ status, colors }) {
-  const color = colors[status] || TOKENS.steel;
+  const color = colors[status] || theme.color.slate;
   return (
     <span
       style={{
-        fontFamily: TOKENS.mono,
+        fontFamily: theme.font.mono,
         fontSize: 9,
         letterSpacing: "0.1em",
         color,
@@ -35,21 +35,21 @@ function BookingRow({ booking, shipper, consignee, onOpen }) {
         alignItems: "center",
         gap: 12,
         padding: "14px 18px",
-        borderBottom: `1px solid ${TOKENS.border}`,
+        borderBottom: `1px solid ${theme.color.border}`,
         cursor: "pointer",
       }}
     >
-      <div style={{ fontFamily: TOKENS.mono, fontSize: 12, color: TOKENS.steel }}>{booking.bookingDate}</div>
-      <div style={{ fontFamily: TOKENS.condensed, fontWeight: 700, fontSize: 14, color: "#e8eef4" }}>
+      <div style={{ fontFamily: theme.font.mono, fontSize: 12, color: theme.color.slate }}>{booking.bookingDate}</div>
+      <div style={{ fontFamily: theme.font.condensed, fontWeight: 700, fontSize: 14, color: theme.color.ink }}>
         {shipper?.name || "—"}
       </div>
-      <div style={{ fontFamily: TOKENS.mono, fontSize: 12, color: TOKENS.steel }}>{consignee?.name || "—"}</div>
+      <div style={{ fontFamily: theme.font.mono, fontSize: 12, color: theme.color.slate }}>{consignee?.name || "—"}</div>
       <Badge status={booking.freightStatus} colors={FREIGHT_STATUS_COLORS} />
       <Badge status={booking.paymentStatus} colors={PAYMENT_STATUS_COLORS} />
-      <div style={{ fontFamily: TOKENS.condensed, fontWeight: 700, fontSize: 14, color: TOKENS.amber }}>
+      <div style={{ fontFamily: theme.font.condensed, fontWeight: 700, fontSize: 14, color: theme.color.amber }}>
         {booking.freightAmount != null ? `${booking.freightAmount} ${booking.freightCurrency}` : "—"}
       </div>
-      <ChevronRight size={16} color={TOKENS.steel} />
+      <ChevronRight size={16} color={theme.color.slate} />
     </div>
   );
 }
@@ -63,7 +63,7 @@ export default function BookingsView({ app, voyage }) {
 
   if (!voyage) {
     return (
-      <div style={{ padding: "40px 18px", textAlign: "center", fontFamily: TOKENS.mono, fontSize: 12, color: TOKENS.steel }}>
+      <div style={{ padding: "40px 18px", textAlign: "center", fontFamily: theme.font.mono, fontSize: 12, color: theme.color.slate }}>
         No active voyage selected.
       </div>
     );
@@ -109,16 +109,16 @@ export default function BookingsView({ app, voyage }) {
   return (
     <div style={{ maxWidth: 1100, margin: "0 auto", padding: "20px 18px 40px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
-        <div style={{ fontFamily: TOKENS.condensed, fontWeight: 800, fontSize: 28, color: "#e8eef4" }}>
+        <div style={{ fontFamily: theme.font.condensed, fontWeight: 800, fontSize: 28, color: theme.color.ink }}>
           BOOKINGS — {voyage.voyageNo}
         </div>
         <button
           onClick={() => setCreating(true)}
           style={{
-            background: TOKENS.amber,
+            background: theme.color.amber,
             border: "none",
-            color: TOKENS.bg,
-            fontFamily: TOKENS.condensed,
+            color: theme.color.surface,
+            fontFamily: theme.font.condensed,
             fontWeight: 700,
             fontSize: 14,
             letterSpacing: "0.06em",
@@ -131,13 +131,13 @@ export default function BookingsView({ app, voyage }) {
         </button>
       </div>
 
-      <div style={{ marginTop: 16, border: `1px solid ${TOKENS.border}` }}>
+      <div style={{ marginTop: 16, border: `1px solid ${theme.color.border}` }}>
         {bookings.length === 0 ? (
           <div style={{ textAlign: "center", padding: "60px 20px" }}>
-            <div style={{ fontFamily: TOKENS.condensed, fontWeight: 800, fontSize: 24, color: "#1c2d42" }}>
+            <div style={{ fontFamily: theme.font.condensed, fontWeight: 800, fontSize: 24, color: theme.color.slateFaint }}>
               NO BOOKINGS YET
             </div>
-            <div style={{ fontFamily: TOKENS.mono, fontSize: 12, color: TOKENS.steel, marginTop: 8 }}>
+            <div style={{ fontFamily: theme.font.mono, fontSize: 12, color: theme.color.slate, marginTop: 8 }}>
               Create a booking to link shippers, consignees, and freight terms to this voyage.
             </div>
           </div>

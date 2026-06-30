@@ -1,17 +1,17 @@
 import { useState } from "react";
 import { supabase } from "../lib/supabase";
 import { KRAFT_ORG_ID } from "../lib/db";
-import { TOKENS } from "../data/statusHelpers";
+import { theme } from "../theme";
 
 const inputStyle = {
   width: "100%",
   boxSizing: "border-box",
-  background: TOKENS.surface,
-  border: `1px solid ${TOKENS.border}`,
-  borderRadius: 0,
-  color: "#e2e8f0",
+  background: theme.color.surface,
+  border: `1px solid ${theme.color.border}`,
+  borderRadius: 12,
+  color: theme.color.ink,
   padding: "15px 16px",
-  fontFamily: TOKENS.mono,
+  fontFamily: theme.font.mono,
   fontSize: 15,
   outline: "none",
 };
@@ -19,9 +19,9 @@ const inputStyle = {
 const buttonBase = {
   width: "100%",
   border: "none",
-  borderRadius: 0,
+  borderRadius: 12,
   padding: "15px 16px",
-  fontFamily: TOKENS.condensed,
+  fontFamily: theme.font.condensed,
   fontWeight: 700,
   fontSize: 18,
   letterSpacing: "0.08em",
@@ -86,9 +86,7 @@ export default function LoginView() {
       style={{
         position: "fixed",
         inset: 0,
-        background: TOKENS.bg,
-        backgroundImage:
-          "repeating-linear-gradient(0deg, transparent, transparent 1px, rgba(255,255,255,0.012) 1px, rgba(255,255,255,0.012) 2px)",
+        background: theme.color.canvas,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -98,11 +96,11 @@ export default function LoginView() {
       <div style={{ width: "100%", maxWidth: 380, textAlign: "center" }}>
         <div
           style={{
-            fontFamily: TOKENS.condensed,
+            fontFamily: theme.font.condensed,
             fontWeight: 800,
             fontSize: 40,
             letterSpacing: "0.02em",
-            color: "#e8eef4",
+            color: theme.color.ink,
             lineHeight: 1,
           }}
         >
@@ -110,10 +108,10 @@ export default function LoginView() {
         </div>
         <div
           style={{
-            fontFamily: TOKENS.mono,
+            fontFamily: theme.font.mono,
             fontSize: 10,
             letterSpacing: "0.22em",
-            color: TOKENS.steel,
+            color: theme.color.slate,
             marginTop: 10,
           }}
         >
@@ -132,8 +130,8 @@ export default function LoginView() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && !loading && sendOtp()}
-              onFocus={(e) => (e.target.style.borderColor = TOKENS.amber)}
-              onBlur={(e) => (e.target.style.borderColor = TOKENS.border)}
+              onFocus={(e) => (e.target.style.borderColor = theme.color.amber)}
+              onBlur={(e) => (e.target.style.borderColor = theme.color.border)}
               style={inputStyle}
             />
             <button
@@ -141,8 +139,8 @@ export default function LoginView() {
               disabled={loading}
               style={{
                 ...buttonBase,
-                background: TOKENS.amber,
-                color: TOKENS.bg,
+                background: theme.color.amber,
+                color: theme.color.white,
                 cursor: loading ? "wait" : "pointer",
                 opacity: loading ? 0.7 : 1,
               }}
@@ -154,7 +152,7 @@ export default function LoginView() {
 
         {step === "otp" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <div style={{ fontFamily: TOKENS.mono, fontSize: 13, color: TOKENS.steel }}>
+            <div style={{ fontFamily: theme.font.mono, fontSize: 13, color: theme.color.slate }}>
               Check your email
             </div>
             <input
@@ -165,8 +163,8 @@ export default function LoginView() {
               value={token}
               onChange={(e) => setToken(e.target.value.replace(/\D/g, "").slice(0, 8))}
               onKeyDown={(e) => e.key === "Enter" && !loading && verifyOtp()}
-              onFocus={(e) => (e.target.style.borderColor = TOKENS.amber)}
-              onBlur={(e) => (e.target.style.borderColor = TOKENS.border)}
+              onFocus={(e) => (e.target.style.borderColor = theme.color.amber)}
+              onBlur={(e) => (e.target.style.borderColor = theme.color.border)}
               style={{
                 ...inputStyle,
                 letterSpacing: "0.5em",
@@ -179,8 +177,8 @@ export default function LoginView() {
               disabled={loading}
               style={{
                 ...buttonBase,
-                background: TOKENS.green,
-                color: "#eef7ff",
+                background: theme.color.green,
+                color: theme.color.white,
                 cursor: loading ? "wait" : "pointer",
                 opacity: loading ? 0.7 : 1,
               }}
@@ -196,8 +194,8 @@ export default function LoginView() {
               style={{
                 background: "none",
                 border: "none",
-                color: TOKENS.steel,
-                fontFamily: TOKENS.mono,
+                color: theme.color.slate,
+                fontFamily: theme.font.mono,
                 fontSize: 12,
                 cursor: "pointer",
                 padding: 4,
@@ -212,9 +210,9 @@ export default function LoginView() {
           <div
             style={{
               marginTop: 16,
-              fontFamily: TOKENS.mono,
+              fontFamily: theme.font.mono,
               fontSize: 12,
-              color: TOKENS.red,
+              color: theme.color.red,
             }}
           >
             {error}

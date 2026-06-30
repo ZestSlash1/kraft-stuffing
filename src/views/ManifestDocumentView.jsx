@@ -1,13 +1,14 @@
 import { Download } from "lucide-react";
-import { TOKENS, formatIST } from "../data/statusHelpers";
+import { formatIST } from "../data/statusHelpers";
+import { theme } from "../theme";
 import { generateManifest } from "../lib/exportManifestPdf";
 
-const cell = { fontFamily: TOKENS.mono, fontSize: 11, color: "#cbd5e1", padding: "8px 10px" };
+const cell = { fontFamily: theme.font.mono, fontSize: 11, color: theme.color.inkSoft, padding: "8px 10px" };
 const headCell = {
-  fontFamily: TOKENS.mono,
+  fontFamily: theme.font.mono,
   fontSize: 9,
   letterSpacing: "0.1em",
-  color: TOKENS.steel,
+  color: theme.color.slate,
   padding: "8px 10px",
 };
 
@@ -16,7 +17,7 @@ export default function ManifestDocumentView({ app, voyage }) {
 
   if (!voyage) {
     return (
-      <div style={{ padding: "40px 18px", textAlign: "center", fontFamily: TOKENS.mono, fontSize: 12, color: TOKENS.steel }}>
+      <div style={{ padding: "40px 18px", textAlign: "center", fontFamily: theme.font.mono, fontSize: 12, color: theme.color.slate }}>
         No active voyage selected.
       </div>
     );
@@ -31,20 +32,20 @@ export default function ManifestDocumentView({ app, voyage }) {
     <div style={{ maxWidth: 1100, margin: "0 auto", padding: "20px 18px 60px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
         <div>
-          <div style={{ fontFamily: TOKENS.condensed, fontWeight: 800, fontSize: 28, color: "#e8eef4" }}>
+          <div style={{ fontFamily: theme.font.condensed, fontWeight: 800, fontSize: 28, color: theme.color.ink }}>
             CARGO MANIFEST
           </div>
-          <div style={{ fontFamily: TOKENS.mono, fontSize: 12, color: TOKENS.steel, marginTop: 4 }}>
+          <div style={{ fontFamily: theme.font.mono, fontSize: 12, color: theme.color.slate, marginTop: 4 }}>
             {voyage.voyageNo} — {voyage.vessel} — {voyage.pol} → {voyage.pod}
           </div>
         </div>
         <button
           onClick={() => generateManifest(voyage, sealedContainers.length ? sealedContainers : containers, state.shippers)}
           style={{
-            background: TOKENS.amber,
+            background: theme.color.amber,
             border: "none",
-            color: TOKENS.bg,
-            fontFamily: TOKENS.condensed,
+            color: theme.color.surface,
+            fontFamily: theme.font.condensed,
             fontWeight: 700,
             fontSize: 14,
             letterSpacing: "0.06em",
@@ -64,10 +65,10 @@ export default function ManifestDocumentView({ app, voyage }) {
         <div
           style={{
             marginTop: 14,
-            border: `1px solid ${TOKENS.amber}`,
-            background: "#1a1206",
-            color: TOKENS.amber,
-            fontFamily: TOKENS.mono,
+            border: `1px solid ${theme.color.amber}`,
+            background: theme.color.amberSoft,
+            color: "#b3700a",
+            fontFamily: theme.font.mono,
             fontSize: 11,
             padding: "8px 12px",
           }}
@@ -79,10 +80,10 @@ export default function ManifestDocumentView({ app, voyage }) {
 
       {sealedContainers.length === 0 ? (
         <div style={{ textAlign: "center", padding: "60px 20px" }}>
-          <div style={{ fontFamily: TOKENS.condensed, fontWeight: 800, fontSize: 24, color: "#1c2d42" }}>
+          <div style={{ fontFamily: theme.font.condensed, fontWeight: 800, fontSize: 24, color: theme.color.slateFaint }}>
             NO SEALED CONTAINERS YET
           </div>
-          <div style={{ fontFamily: TOKENS.mono, fontSize: 12, color: TOKENS.steel, marginTop: 8 }}>
+          <div style={{ fontFamily: theme.font.mono, fontSize: 12, color: theme.color.slate, marginTop: 8 }}>
             Seal at least one container to generate the cargo manifest.
           </div>
         </div>
@@ -94,45 +95,45 @@ export default function ManifestDocumentView({ app, voyage }) {
             <div key={c.id} style={{ marginTop: 24 }}>
               <div
                 style={{
-                  background: TOKENS.surface,
-                  border: `1px solid ${TOKENS.border}`,
+                  background: theme.color.surface,
+                  border: `1px solid ${theme.color.border}`,
                   padding: "10px 14px",
                   display: "flex",
                   flexWrap: "wrap",
                   gap: 18,
-                  fontFamily: TOKENS.mono,
+                  fontFamily: theme.font.mono,
                   fontSize: 11,
-                  color: "#e8eef4",
+                  color: theme.color.ink,
                 }}
               >
                 <span>
-                  <span style={{ color: TOKENS.steel }}>CONTAINER </span>
+                  <span style={{ color: theme.color.slate }}>CONTAINER </span>
                   {c.number || "Unassigned"}
                 </span>
                 <span>
-                  <span style={{ color: TOKENS.steel }}>SIZE </span>
+                  <span style={{ color: theme.color.slate }}>SIZE </span>
                   {c.size}ft
                 </span>
                 <span>
-                  <span style={{ color: TOKENS.steel }}>SEAL </span>
+                  <span style={{ color: theme.color.slate }}>SEAL </span>
                   {c.sealNo || "—"}
                 </span>
                 <span>
-                  <span style={{ color: TOKENS.steel }}>SEALED </span>
+                  <span style={{ color: theme.color.slate }}>SEALED </span>
                   {formatIST(c.sealedAt)}
                 </span>
                 <span>
-                  <span style={{ color: TOKENS.steel }}>GROSS </span>
+                  <span style={{ color: theme.color.slate }}>GROSS </span>
                   {grossKg.toFixed(0)} kg
                 </span>
               </div>
 
-              <div style={{ border: `1px solid ${TOKENS.border}`, borderTop: "none" }}>
+              <div style={{ border: `1px solid ${theme.color.border}`, borderTop: "none" }}>
                 <div
                   style={{
                     display: "grid",
                     gridTemplateColumns: "1.2fr 0.6fr 1.2fr 1fr 1.2fr 0.8fr 1.2fr",
-                    borderBottom: `1px solid ${TOKENS.border}`,
+                    borderBottom: `1px solid ${theme.color.border}`,
                   }}
                 >
                   {["CARGO", "QTY", "SHIPPER", "GSTIN", "CONSIGNEE", "HS CODE", "INVOICE NOS"].map((h) => (
@@ -142,7 +143,7 @@ export default function ManifestDocumentView({ app, voyage }) {
                   ))}
                 </div>
                 {(c.lines || []).length === 0 ? (
-                  <div style={{ ...cell, color: TOKENS.steel }}>No cargo logged.</div>
+                  <div style={{ ...cell, color: theme.color.slate }}>No cargo logged.</div>
                 ) : (
                   c.lines.map((l) => (
                     <div
@@ -150,7 +151,7 @@ export default function ManifestDocumentView({ app, voyage }) {
                       style={{
                         display: "grid",
                         gridTemplateColumns: "1.2fr 0.6fr 1.2fr 1fr 1.2fr 0.8fr 1.2fr",
-                        borderBottom: `1px solid ${TOKENS.border}`,
+                        borderBottom: `1px solid ${theme.color.border}`,
                       }}
                     >
                       <div style={cell}>{l.cargo}</div>

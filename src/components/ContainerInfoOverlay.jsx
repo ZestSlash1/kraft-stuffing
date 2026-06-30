@@ -1,6 +1,7 @@
 import { useRef, useEffect, useState } from "react";
 import { gsap } from "gsap";
-import { TOKENS, containerStatus, containerFillPct, formatIST } from "../data/statusHelpers";
+import { containerStatus, containerFillPct, formatIST } from "../data/statusHelpers";
+import { theme } from "../theme";
 import { fetchAuditLog, fromDbAuditEntry } from "../lib/db";
 
 const reducedMotion = () =>
@@ -53,7 +54,7 @@ function AuditTab({ container, profilesById }) {
         return (
           <div
             key={e.id}
-            style={{ padding: "10px 0", borderBottom: `1px solid ${TOKENS.border}` }}
+            style={{ padding: "10px 0", borderBottom: `1px solid ${theme.color.border}` }}
           >
             <div style={{ fontSize: 12 }}>
               {e.action} by {who} — {formatIST(e.changedAt)}
@@ -61,7 +62,7 @@ function AuditTab({ container, profilesById }) {
             {diffs.length > 0 && (
               <div style={{ marginLeft: 14, marginTop: 4, display: "flex", flexDirection: "column", gap: 2 }}>
                 {diffs.map(([k, before, after]) => (
-                  <span key={k} style={{ fontSize: 11, color: TOKENS.steel }}>
+                  <span key={k} style={{ fontSize: 11, color: theme.color.slate }}>
                     {k}: {String(before)} → {String(after)}
                   </span>
                 ))}
@@ -131,9 +132,10 @@ export default function ContainerInfoOverlay({ container, onClose, onSelectLine,
         left: 0,
         right: 0,
         bottom: 0,
-        background: TOKENS.surface,
-        borderTop: `1px solid ${TOKENS.border}`,
-        color: "#e2e8f0",
+        background: theme.color.surface,
+        borderTop: `1px solid ${theme.color.border}`,
+        boxShadow: "0 -8px 30px rgba(16,24,40,.10)",
+        color: theme.color.ink,
         maxHeight: "55%",
         overflowY: "auto",
       }}
@@ -145,7 +147,7 @@ export default function ContainerInfoOverlay({ container, onClose, onSelectLine,
           justifyContent: "space-between",
           alignItems: "center",
           padding: "0 20px",
-          borderBottom: `1px solid ${TOKENS.border}`,
+          borderBottom: `1px solid ${theme.color.border}`,
           flexShrink: 0,
         }}
       >
@@ -160,8 +162,8 @@ export default function ContainerInfoOverlay({ container, onClose, onSelectLine,
           className="mono label-xs"
           style={{
             background: "none",
-            border: `1px solid ${TOKENS.border}`,
-            color: TOKENS.steel,
+            border: `1px solid ${theme.color.border}`,
+            color: theme.color.slate,
             borderRadius: 0,
             padding: "5px 12px",
             minWidth: 44,
@@ -179,13 +181,13 @@ export default function ContainerInfoOverlay({ container, onClose, onSelectLine,
           gridTemplateColumns: "1fr 1fr",
           gap: "8px 24px",
           padding: "16px 20px",
-          borderBottom: `1px solid ${TOKENS.border}`,
+          borderBottom: `1px solid ${theme.color.border}`,
         }}
       >
         {dataGrid.map(([label, value]) => (
           <div key={label} style={{ display: "flex", justifyContent: "space-between" }}>
             <span className="label-xs">{label}</span>
-            <span style={{ fontSize: 13, color: "#e2e8f0" }}>{value}</span>
+            <span style={{ fontSize: 13, color: theme.color.ink }}>{value}</span>
           </div>
         ))}
       </div>
@@ -195,7 +197,7 @@ export default function ContainerInfoOverlay({ container, onClose, onSelectLine,
           display: "flex",
           gap: 18,
           padding: "10px 20px 0",
-          borderBottom: `1px solid ${TOKENS.border}`,
+          borderBottom: `1px solid ${theme.color.border}`,
         }}
       >
         {["entries", "audit"].map((t) => (
@@ -206,8 +208,8 @@ export default function ContainerInfoOverlay({ container, onClose, onSelectLine,
             style={{
               background: "none",
               border: "none",
-              color: tab === t ? "#e2e8f0" : TOKENS.steel,
-              fontFamily: TOKENS.condensed,
+              color: tab === t ? theme.color.ink : theme.color.slate,
+              fontFamily: theme.font.condensed,
               fontWeight: 700,
               fontSize: 10,
               letterSpacing: "0.1em",
@@ -215,7 +217,7 @@ export default function ContainerInfoOverlay({ container, onClose, onSelectLine,
               padding: "0 0 10px",
               minHeight: 44,
               cursor: "pointer",
-              borderBottom: tab === t ? `2px solid ${TOKENS.amber}` : "2px solid transparent",
+              borderBottom: tab === t ? `2px solid ${theme.color.amber}` : "2px solid transparent",
             }}
           >
             {t === "entries" ? "Entries" : "Audit"}
@@ -238,7 +240,7 @@ export default function ContainerInfoOverlay({ container, onClose, onSelectLine,
                 style={{
                   padding: "10px 0",
                   minHeight: 44,
-                  borderBottom: `1px solid ${TOKENS.border}`,
+                  borderBottom: `1px solid ${theme.color.border}`,
                   cursor: onSelectLine ? "pointer" : "default",
                 }}
               >
@@ -247,13 +249,13 @@ export default function ContainerInfoOverlay({ container, onClose, onSelectLine,
                   {" — "}
                   {l.qty} {l.unit || "Bags"}
                   {" — "}
-                  <span style={{ color: TOKENS.steel }}>{l.truckNo || "—"}</span>
+                  <span style={{ color: theme.color.slate }}>{l.truckNo || "—"}</span>
                 </div>
-                <div style={{ marginLeft: 14, marginTop: 2, fontSize: 11, color: TOKENS.steel }}>
+                <div style={{ marginLeft: 14, marginTop: 2, fontSize: 11, color: theme.color.slate }}>
                   {l.shipper} → {l.consignee}
                 </div>
                 {(l.invoiceNos?.length > 0 || l.hsCode) && (
-                  <div style={{ marginLeft: 14, marginTop: 1, fontSize: 11, color: TOKENS.steel }}>
+                  <div style={{ marginLeft: 14, marginTop: 1, fontSize: 11, color: theme.color.slate }}>
                     {l.invoiceNos?.length > 0 && `inv: ${l.invoiceNos.join(", ")}`}
                     {l.invoiceNos?.length > 0 && l.hsCode && " — "}
                     {l.hsCode && `HS: ${l.hsCode}`}

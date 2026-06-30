@@ -1,21 +1,21 @@
 import { useState } from "react";
 import { ChevronRight } from "lucide-react";
-import { TOKENS } from "../data/statusHelpers";
+import { theme } from "../theme";
 
 const inputStyle = {
-  background: TOKENS.bg,
-  border: `1px solid ${TOKENS.border}`,
-  color: "#e2e8f0",
+  background: theme.color.surface,
+  border: `1px solid ${theme.color.border}`,
+  color: theme.color.ink,
   borderRadius: 4,
   padding: "8px 10px",
-  fontFamily: TOKENS.mono,
+  fontFamily: theme.font.mono,
   fontSize: 13,
   width: "100%",
 };
 
 const labelStyle = {
   fontSize: 11,
-  color: "#64748b",
+  color: theme.color.slate,
   marginBottom: 4,
   display: "block",
 };
@@ -65,7 +65,7 @@ export default function InvoiceFields({ value, onChange }) {
     <div
       style={{
         flex: "1 0 100%",
-        border: `1px solid ${TOKENS.border}`,
+        border: `1px solid ${theme.color.border}`,
         borderRadius: 6,
         overflow: "hidden",
       }}
@@ -80,8 +80,8 @@ export default function InvoiceFields({ value, onChange }) {
           gap: 8,
           background: "none",
           border: "none",
-          color: "#94a3b8",
-          fontFamily: TOKENS.mono,
+          color: theme.color.slate,
+          fontFamily: theme.font.mono,
           fontSize: 12,
           padding: "8px 12px",
           cursor: "pointer",
@@ -101,7 +101,7 @@ export default function InvoiceFields({ value, onChange }) {
               width: 6,
               height: 6,
               borderRadius: "50%",
-              background: TOKENS.amber,
+              background: theme.color.amber,
               marginLeft: 2,
             }}
           />
@@ -133,19 +133,19 @@ export default function InvoiceFields({ value, onChange }) {
                     display: "flex",
                     alignItems: "center",
                     gap: 6,
-                    background: TOKENS.surface,
-                    border: `1px solid ${TOKENS.border}`,
+                    background: theme.color.surface,
+                    border: `1px solid ${theme.color.border}`,
                     borderRadius: 4,
                     padding: "3px 8px",
-                    fontFamily: TOKENS.mono,
+                    fontFamily: theme.font.mono,
                     fontSize: 11,
-                    color: "#e2e8f0",
+                    color: theme.color.ink,
                   }}
                 >
                   {no}
                   <span
                     onClick={() => removeInvoiceNo(no)}
-                    style={{ cursor: "pointer", color: TOKENS.red }}
+                    style={{ cursor: "pointer", color: theme.color.red }}
                   >
                     ×
                   </span>

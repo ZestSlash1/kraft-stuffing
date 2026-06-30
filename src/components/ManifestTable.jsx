@@ -1,7 +1,9 @@
 import { useEffect, useRef } from "react";
 import { gsap } from "gsap";
 import { ChevronRight, Lock, Unlock } from "lucide-react";
-import { TOKENS, containerStatus, CONTAINER_COLORS } from "../data/statusHelpers";
+import { containerStatus } from "../data/statusHelpers";
+import { theme } from "../theme";
+import { StatusBadge } from "./ui";
 import CrossSectionFill from "./CrossSectionFill";
 
 const reducedMotion = () =>
@@ -14,12 +16,8 @@ export function ManifestSkeleton() {
       {[0, 1, 2].map((i) => (
         <div
           key={i}
-          style={{
-            height: 48,
-            margin: "10px 16px",
-            background: "#0d1828",
-            animation: "shimmer 1.4s ease-in-out infinite",
-          }}
+          className="skeleton"
+          style={{ height: 48, margin: "10px 16px" }}
         />
       ))}
     </div>
@@ -57,8 +55,8 @@ export default function ManifestTable({
       if (!wasSealed && c.sealed && el) {
         gsap
           .timeline()
-          .set(el, { outline: `2px solid ${TOKENS.green}`, boxShadow: `0 0 0 0px ${TOKENS.green}` })
-          .to(el, { boxShadow: `0 0 0 6px rgba(11,107,80,0.25)`, duration: 0.25, ease: "power1.out" })
+          .set(el, { outline: `2px solid ${theme.color.green}`, boxShadow: `0 0 0 0px ${theme.color.green}` })
+          .to(el, { boxShadow: `0 0 0 6px rgba(11,107,80,0.20)`, duration: 0.25, ease: "power1.out" })
           .to(el, { boxShadow: `0 0 0 0px rgba(11,107,80,0)`, duration: 0.4, ease: "power1.in" })
           .set(el, { outline: "none" });
       }
@@ -92,10 +90,10 @@ export default function ManifestTable({
           padding: "0 20px",
         }}
       >
-        <div className="condensed" style={{ fontSize: 32, fontWeight: 800, color: "#1c2d42" }}>
+        <div className="condensed" style={{ fontSize: 32, fontWeight: 800, color: theme.color.slateFaint }}>
           NO CONTAINERS LOGGED
         </div>
-        <div className="mono" style={{ fontSize: 12, color: TOKENS.steel }}>
+        <div className="mono" style={{ fontSize: 12, color: theme.color.slate }}>
           Tap + to start logging for {voyageNo || "this voyage"}
         </div>
       </div>
@@ -103,7 +101,17 @@ export default function ManifestTable({
   }
 
   return (
-    <div className="manifest-table mono" style={{ color: "#e2e8f0" }}>
+    <div
+      className="manifest-table light-manifest mono"
+      style={{
+        color: theme.color.ink,
+        background: theme.color.surface,
+        border: `1px solid ${theme.color.border}`,
+        borderRadius: theme.radius.card,
+        boxShadow: theme.shadow.card,
+        overflow: "hidden",
+      }}
+    >
       <div className="manifest-grid manifest-header label-xs">
         <span>FILL</span>
         <span>#</span>
@@ -117,7 +125,6 @@ export default function ManifestTable({
 
       {containers.map((c, i) => {
         const status = containerStatus(c);
-        const colors = CONTAINER_COLORS[status] || CONTAINER_COLORS.EMPTY;
         const bags = c.lines.reduce((a, l) => a + Number(l.qty || 0), 0);
         const kg = c.lines.reduce((a, l) => a + Number(l.qty || 0) * Number(l.unitWeightKg || 0), 0);
         const cargoNames = [...new Set(c.lines.map((l) => l.cargo).filter(Boolean))];
@@ -139,44 +146,34 @@ export default function ManifestTable({
               <CrossSectionFill container={c} />
             </span>
 
-            <span className="manifest-cell condensed" style={{ fontSize: 20, fontWeight: 800, color: TOKENS.steel }}>
+            <span className="manifest-cell condensed" style={{ fontSize: 20, fontWeight: 800, color: theme.color.slateFaint }}>
               {String(i + 1).padStart(2, "0")}
             </span>
 
-            <span className="manifest-cell condensed" style={{ fontSize: 22, fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>
+            <span className="manifest-cell condensed" style={{ fontSize: 22, fontWeight: 700, display: "flex", alignItems: "center", gap: 8, color: theme.color.ink }}>
               <span className="manifest-cell-label label-xs">CONTAINER&nbsp;</span>
               {c.number || "Unassigned"}
-              {c.sealed ? <Lock size={13} color={TOKENS.green} /> : <Unlock size={13} color={TOKENS.steel} />}
+              {c.sealed ? <Lock size={13} color={theme.color.green} /> : <Unlock size={13} color={theme.color.slateFaint} />}
             </span>
 
-            <span className="manifest-cell" style={{ fontSize: 12, color: TOKENS.steel }}>
+            <span className="manifest-cell" style={{ fontSize: 12, color: theme.color.slate }}>
               <span className="manifest-cell-label label-xs">CARGO&nbsp;</span>
               {cargoNames.length ? cargoNames.join(", ") : "—"}
             </span>
 
-            <span className="manifest-cell" style={{ textAlign: "right", justifyContent: "flex-end", fontSize: 13 }}>
+            <span className="manifest-cell" style={{ textAlign: "right", justifyContent: "flex-end", fontSize: 13, color: theme.color.inkSoft }}>
               <span className="manifest-cell-label label-xs">BAGS/UNIT&nbsp;</span>
               {bags}/{c.capacityBags}
             </span>
 
-            <span className="manifest-cell" style={{ textAlign: "right", justifyContent: "flex-end", fontSize: 13 }}>
+            <span className="manifest-cell" style={{ textAlign: "right", justifyContent: "flex-end", fontSize: 13, color: theme.color.inkSoft }}>
               <span className="manifest-cell-label label-xs">NET MT&nbsp;</span>
               {(kg / 1000).toFixed(2)}
             </span>
 
             <span className="manifest-cell">
               <span className="manifest-cell-label label-xs">STATUS&nbsp;</span>
-              <span
-                className="label-xs"
-                style={{
-                  color: colors.accent,
-                  border: `1px solid ${colors.accent}`,
-                  padding: "3px 8px",
-                  letterSpacing: "0.12em",
-                }}
-              >
-                {status}
-              </span>
+              <StatusBadge status={status} size="sm" />
             </span>
 
             <span
@@ -192,7 +189,7 @@ export default function ManifestTable({
                 onOpenLog(c.id);
               }}
             >
-              <ChevronRight size={18} color={TOKENS.steel} />
+              <ChevronRight size={18} color={theme.color.slateFaint} />
             </span>
           </div>
         );

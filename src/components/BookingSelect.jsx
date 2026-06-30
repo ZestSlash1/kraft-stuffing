@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { TOKENS } from "../data/statusHelpers";
+import { theme } from "../theme";
 
 const inputStyle = {
-  background: TOKENS.bg,
-  border: `1px solid ${TOKENS.border}`,
-  color: "#e2e8f0",
+  background: theme.color.surface,
+  border: `1px solid ${theme.color.border}`,
+  color: theme.color.ink,
   borderRadius: 4,
   padding: "8px 10px",
-  fontFamily: TOKENS.mono,
+  fontFamily: theme.font.mono,
   fontSize: 13,
   width: "100%",
 };
@@ -73,24 +73,24 @@ export default function BookingSelect({ bookings = [], shippers = [], consignees
             left: 0,
             right: 0,
             zIndex: 20,
-            background: TOKENS.surface,
-            border: `1px solid ${TOKENS.border}`,
+            background: theme.color.surface,
+            border: `1px solid ${theme.color.border}`,
             borderRadius: 4,
             maxHeight: 180,
             overflowY: "auto",
-            boxShadow: "0 8px 20px -8px rgba(0,0,0,0.6)",
+            boxShadow: theme.shadow.raised,
           }}
         >
           <div
             onClick={() => choose(null)}
             style={{
               padding: "7px 10px",
-              fontFamily: TOKENS.mono,
+              fontFamily: theme.font.mono,
               fontSize: 12,
-              color: TOKENS.steel,
+              color: theme.color.slate,
               cursor: "pointer",
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = TOKENS.bg)}
+            onMouseEnter={(e) => (e.currentTarget.style.background = theme.color.surfaceMuted)}
             onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
           >
             none
@@ -101,13 +101,13 @@ export default function BookingSelect({ bookings = [], shippers = [], consignees
               onClick={() => choose(b)}
               style={{
                 padding: "7px 10px",
-                fontFamily: TOKENS.mono,
+                fontFamily: theme.font.mono,
                 fontSize: 12,
-                color: "#e2e8f0",
+                color: theme.color.ink,
                 cursor: "pointer",
-                borderTop: `1px solid ${TOKENS.border}`,
+                borderTop: `1px solid ${theme.color.border}`,
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = TOKENS.bg)}
+              onMouseEnter={(e) => (e.currentTarget.style.background = theme.color.surfaceMuted)}
               onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
             >
               {bookingLabel(b, shippers, consignees)}

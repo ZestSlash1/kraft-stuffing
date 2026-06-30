@@ -1,4 +1,4 @@
-import { TOKENS } from "../data/statusHelpers";
+import { theme } from "../theme";
 
 // Inline confirmation — slides in below the trigger button (no modal overlay).
 export default function ConfirmDialog({
@@ -8,14 +8,15 @@ export default function ConfirmDialog({
   onConfirm,
   onCancel,
 }) {
-  const accent = confirmVariant === "success" ? TOKENS.green : TOKENS.red;
+  const accent = confirmVariant === "success" ? theme.color.green : theme.color.red;
   return (
     <div
       style={{
         marginTop: 10,
-        background: TOKENS.surface,
+        background: theme.color.surface,
         border: `1px solid ${accent}`,
-        borderRadius: 8,
+        borderRadius: theme.radius.input,
+        boxShadow: theme.shadow.card,
         padding: "12px 14px",
         display: "flex",
         alignItems: "center",
@@ -24,18 +25,18 @@ export default function ConfirmDialog({
         flexWrap: "wrap",
       }}
     >
-      <span style={{ fontFamily: TOKENS.mono, fontSize: 12, color: "#e2e8f0" }}>{message}</span>
+      <span style={{ fontFamily: theme.font.mono, fontSize: 12, color: theme.color.ink }}>{message}</span>
       <div style={{ display: "flex", gap: 8 }}>
         <button
           onClick={onCancel}
           style={{
-            background: "none",
-            border: `1px solid ${TOKENS.border}`,
-            color: TOKENS.steel,
-            fontFamily: TOKENS.mono,
+            background: theme.color.surface,
+            border: `1px solid ${theme.color.borderStrong}`,
+            color: theme.color.inkSoft,
+            fontFamily: theme.font.mono,
             fontSize: 11,
             padding: "7px 14px",
-            borderRadius: 4,
+            borderRadius: theme.radius.sm,
             cursor: "pointer",
           }}
         >
@@ -47,13 +48,13 @@ export default function ConfirmDialog({
             background: accent,
             border: "none",
             color: "#fff",
-            fontFamily: TOKENS.condensed,
+            fontFamily: theme.font.condensed,
             fontWeight: 700,
             fontSize: 13,
             letterSpacing: "0.06em",
             textTransform: "uppercase",
             padding: "7px 16px",
-            borderRadius: 4,
+            borderRadius: theme.radius.sm,
             cursor: "pointer",
           }}
         >

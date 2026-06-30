@@ -1,12 +1,12 @@
 import { useState } from "react";
-import { TOKENS } from "../data/statusHelpers";
+import { theme } from "../theme";
 
 const label = {
-  fontFamily: TOKENS.mono,
+  fontFamily: theme.font.mono,
   fontSize: 9,
   letterSpacing: "0.16em",
   textTransform: "uppercase",
-  color: TOKENS.steel,
+  color: theme.color.slate,
   marginBottom: 4,
   display: "block",
 };
@@ -14,12 +14,12 @@ const label = {
 const input = {
   width: "100%",
   boxSizing: "border-box",
-  background: TOKENS.bg,
-  border: `1px solid ${TOKENS.border}`,
-  borderRadius: 0,
-  color: "#e2e8f0",
+  background: theme.color.surface,
+  border: `1px solid ${theme.color.borderStrong}`,
+  borderRadius: theme.radius.input,
+  color: theme.color.ink,
   padding: "10px 12px",
-  fontFamily: TOKENS.mono,
+  fontFamily: theme.font.mono,
   fontSize: 13,
   outline: "none",
 };
@@ -58,8 +58,8 @@ export default function CreateVoyageModal({ voyage, defaults = {}, onClose, onSu
     value: form[k],
     onChange: set(k),
     style: input,
-    onFocus: (e) => (e.target.style.borderColor = TOKENS.amber),
-    onBlur: (e) => (e.target.style.borderColor = TOKENS.border),
+    onFocus: (e) => (e.target.style.borderColor = theme.color.amber),
+    onBlur: (e) => (e.target.style.borderColor = theme.color.borderStrong),
   });
 
   return (
@@ -69,7 +69,7 @@ export default function CreateVoyageModal({ voyage, defaults = {}, onClose, onSu
         position: "fixed",
         inset: 0,
         zIndex: 500,
-        background: "rgba(0,0,0,0.6)",
+        background: "rgba(15,23,42,0.35)",
         display: "flex",
         alignItems: "flex-end",
         justifyContent: "center",
@@ -82,9 +82,10 @@ export default function CreateVoyageModal({ voyage, defaults = {}, onClose, onSu
         style={{
           width: "100%",
           maxWidth: 520,
-          background: TOKENS.surface,
-          border: `1px solid ${TOKENS.border}`,
-          borderRadius: 16,
+          background: theme.color.surface,
+          border: `1px solid ${theme.color.border}`,
+          borderRadius: theme.radius.card,
+          boxShadow: theme.shadow.raised,
           padding: 20,
           maxHeight: "92vh",
           overflowY: "auto",
@@ -92,10 +93,10 @@ export default function CreateVoyageModal({ voyage, defaults = {}, onClose, onSu
       >
         <div
           style={{
-            fontFamily: TOKENS.condensed,
+            fontFamily: theme.font.condensed,
             fontWeight: 800,
             fontSize: 24,
-            color: "#e8eef4",
+            color: theme.color.ink,
             marginBottom: 16,
           }}
         >
@@ -139,13 +140,13 @@ export default function CreateVoyageModal({ voyage, defaults = {}, onClose, onSu
             onClick={onClose}
             style={{
               flex: "0 0 auto",
-              background: "none",
-              border: `1px solid ${TOKENS.border}`,
-              color: TOKENS.steel,
-              fontFamily: TOKENS.mono,
+              background: theme.color.surface,
+              border: `1px solid ${theme.color.borderStrong}`,
+              color: theme.color.inkSoft,
+              fontFamily: theme.font.mono,
               fontSize: 12,
               padding: "12px 18px",
-              borderRadius: 0,
+              borderRadius: theme.radius.input,
               cursor: "pointer",
             }}
           >
@@ -155,16 +156,16 @@ export default function CreateVoyageModal({ voyage, defaults = {}, onClose, onSu
             onClick={submit}
             style={{
               flex: 1,
-              background: TOKENS.amber,
+              background: theme.color.amber,
               border: "none",
-              color: TOKENS.bg,
-              fontFamily: TOKENS.condensed,
+              color: theme.color.white,
+              fontFamily: theme.font.condensed,
               fontWeight: 700,
               fontSize: 16,
               letterSpacing: "0.06em",
               textTransform: "uppercase",
               padding: "12px 18px",
-              borderRadius: 0,
+              borderRadius: theme.radius.input,
               cursor: "pointer",
             }}
           >

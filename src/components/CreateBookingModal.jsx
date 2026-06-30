@@ -1,13 +1,13 @@
 import { useState } from "react";
-import { TOKENS } from "../data/statusHelpers";
+import { theme } from "../theme";
 import ShipperConsigneeSelect from "./ShipperConsigneeSelect";
 
 const label = {
-  fontFamily: TOKENS.mono,
+  fontFamily: theme.font.mono,
   fontSize: 9,
   letterSpacing: "0.16em",
   textTransform: "uppercase",
-  color: TOKENS.steel,
+  color: theme.color.slate,
   marginBottom: 4,
   display: "block",
 };
@@ -15,12 +15,12 @@ const label = {
 const input = {
   width: "100%",
   boxSizing: "border-box",
-  background: TOKENS.bg,
-  border: `1px solid ${TOKENS.border}`,
-  borderRadius: 0,
-  color: "#e2e8f0",
+  background: theme.color.surface,
+  border: `1px solid ${theme.color.border}`,
+  borderRadius: 12,
+  color: theme.color.ink,
   padding: "10px 12px",
-  fontFamily: TOKENS.mono,
+  fontFamily: theme.font.mono,
   fontSize: 13,
   outline: "none",
 };
@@ -83,8 +83,8 @@ export default function CreateBookingModal({
     value: form[k],
     onChange: set(k),
     style: input,
-    onFocus: (e) => (e.target.style.borderColor = TOKENS.amber),
-    onBlur: (e) => (e.target.style.borderColor = TOKENS.border),
+    onFocus: (e) => (e.target.style.borderColor = theme.color.amber),
+    onBlur: (e) => (e.target.style.borderColor = theme.color.border),
   });
 
   return (
@@ -94,7 +94,7 @@ export default function CreateBookingModal({
         position: "fixed",
         inset: 0,
         zIndex: 500,
-        background: "rgba(0,0,0,0.6)",
+        background: "rgba(15,23,42,0.35)",
         display: "flex",
         alignItems: "flex-end",
         justifyContent: "center",
@@ -107,8 +107,8 @@ export default function CreateBookingModal({
         style={{
           width: "100%",
           maxWidth: 520,
-          background: TOKENS.surface,
-          border: `1px solid ${TOKENS.border}`,
+          background: theme.color.surface,
+          border: `1px solid ${theme.color.border}`,
           padding: 20,
           maxHeight: "92vh",
           overflowY: "auto",
@@ -116,10 +116,10 @@ export default function CreateBookingModal({
       >
         <div
           style={{
-            fontFamily: TOKENS.condensed,
+            fontFamily: theme.font.condensed,
             fontWeight: 800,
             fontSize: 24,
-            color: "#e8eef4",
+            color: theme.color.ink,
             marginBottom: 16,
           }}
         >
@@ -185,9 +185,9 @@ export default function CreateBookingModal({
             style={{
               flex: "0 0 auto",
               background: "none",
-              border: `1px solid ${TOKENS.border}`,
-              color: TOKENS.steel,
-              fontFamily: TOKENS.mono,
+              border: `1px solid ${theme.color.border}`,
+              color: theme.color.slate,
+              fontFamily: theme.font.mono,
               fontSize: 12,
               padding: "12px 18px",
               cursor: "pointer",
@@ -199,10 +199,10 @@ export default function CreateBookingModal({
             onClick={submit}
             style={{
               flex: 1,
-              background: TOKENS.amber,
+              background: theme.color.amber,
               border: "none",
-              color: TOKENS.bg,
-              fontFamily: TOKENS.condensed,
+              color: theme.color.surface,
+              fontFamily: theme.font.condensed,
               fontWeight: 700,
               fontSize: 16,
               letterSpacing: "0.06em",

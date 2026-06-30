@@ -159,12 +159,21 @@ async function bootstrapSeed(userId) {
   }
 }
 
+// DEV-only preview bypass: `?demo=1` skips auth and renders the shell with the
+// local seed (Supabase load fails → falls back to seed). Stripped from prod builds.
+const DEMO =
+  import.meta.env.DEV &&
+  typeof window !== "undefined" &&
+  new URLSearchParams(window.location.search).get("demo") === "1";
+const DEMO_SESSION = { user: { id: "demo-user", email: "demo@kraft.local" } };
+
 export default function App() {
   // ── Auth ───────────────────────────────────────────────────────────────────
-  const [session, setSession] = useState(null);
-  const [checkingAuth, setCheckingAuth] = useState(true);
+  const [session, setSession] = useState(DEMO ? DEMO_SESSION : null);
+  const [checkingAuth, setCheckingAuth] = useState(!DEMO);
 
   useEffect(() => {
+    if (DEMO) return;
     withTimeout(supabase.auth.getSession(), 10000, "getSession")
       .then(({ data }) => {
         setSession(data.session ?? null);
@@ -193,7 +202,7 @@ export default function App() {
 
   // App selector: shown once per session after login, before entering a section.
   const [appSelected, setAppSelected] = useState(
-    () => sessionStorage.getItem("kraft_app_selected") === "1"
+    () => DEMO || sessionStorage.getItem("kraft_app_selected") === "1"
   );
   const selectApp = useCallback(
     (page) => {

@@ -14,11 +14,11 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import {
-  TOKENS,
   greeting,
   timeAgo,
   CARGO_COLORS,
 } from "../data/statusHelpers";
+import { theme } from "../theme";
 import { fetchRecentActivity } from "../lib/db";
 import VesselHero from "../components/VesselHero";
 
@@ -44,15 +44,15 @@ function CountUp({ value, decimals = 0 }) {
 
 function StatCard({ label, value, sub, decimals, Icon, empty }) {
   return (
-    <div style={{ background: TOKENS.surface, border: `1px solid ${TOKENS.border}`, borderRadius: 12, padding: "16px 20px" }}>
+    <div style={{ background: theme.color.surface, border: `1px solid ${theme.color.border}`, borderRadius: 12, padding: "16px 20px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div className="label-xs">{label}</div>
-        <Icon size={18} color={TOKENS.amber} />
+        <Icon size={18} color={theme.color.amber} />
       </div>
-      <div style={{ fontFamily: TOKENS.condensed, fontWeight: 800, fontSize: 40, color: "#e8eef4", lineHeight: 1.1, marginTop: 6 }}>
+      <div style={{ fontFamily: theme.font.condensed, fontWeight: 800, fontSize: 40, color: theme.color.ink, lineHeight: 1.1, marginTop: 6 }}>
         {empty ? "—" : <CountUp value={value} decimals={decimals} />}
       </div>
-      <div style={{ fontFamily: TOKENS.mono, fontSize: 10, color: TOKENS.steel, marginTop: 2 }}>{sub}</div>
+      <div style={{ fontFamily: theme.font.mono, fontSize: 10, color: theme.color.slate, marginTop: 2 }}>{sub}</div>
     </div>
   );
 }
@@ -145,15 +145,15 @@ export default function DashboardView({ app }) {
   const greetName = (profile?.displayName || "there").toUpperCase();
 
   const tooltipStyle = {
-    background: TOKENS.surface,
-    border: `1px solid ${TOKENS.border}`,
-    fontFamily: TOKENS.mono,
+    background: theme.color.surface,
+    border: `1px solid ${theme.color.border}`,
+    fontFamily: theme.font.mono,
     fontSize: 11,
-    color: "#e2e8f0",
+    color: theme.color.ink,
   };
 
   return (
-    <div style={{ width: "100%" }}>
+    <div style={{ width: "100%", minHeight: "100%", background: theme.color.canvas, color: theme.color.ink }}>
       {/* ── Vessel hero — port operations display ── */}
       <VesselHero
         voyage={activeVoyage}
@@ -161,10 +161,10 @@ export default function DashboardView({ app }) {
       />
 
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: "24px 20px 50px" }}>
-        <div style={{ fontFamily: TOKENS.condensed, fontWeight: 700, fontSize: 28, color: "#e8eef4" }}>
+        <div style={{ fontFamily: theme.font.condensed, fontWeight: 700, fontSize: 28, color: theme.color.ink }}>
           GOOD {greeting()}, {greetName}
         </div>
-        <div style={{ fontFamily: TOKENS.mono, fontSize: 11, color: TOKENS.steel, marginTop: 2 }}>
+        <div style={{ fontFamily: theme.font.mono, fontSize: 11, color: theme.color.slate, marginTop: 2 }}>
           {new Intl.DateTimeFormat("en-IN", { weekday: "long", day: "2-digit", month: "long", year: "numeric" }).format(now)}
         </div>
 
@@ -183,9 +183,9 @@ export default function DashboardView({ app }) {
             onClick={() => navigate("voyage-detail", { voyageId: activeVoyage.id })}
             style={{
               background: "none",
-              border: `1px solid ${TOKENS.amber}`,
-              color: TOKENS.amber,
-              fontFamily: TOKENS.condensed,
+              border: `1px solid ${theme.color.amber}`,
+              color: theme.color.amber,
+              fontFamily: theme.font.condensed,
               fontWeight: 700,
               fontSize: 14,
               textTransform: "uppercase",
@@ -201,24 +201,24 @@ export default function DashboardView({ app }) {
       {/* Charts */}
       {hasData && (
         <div className="chart-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 18 }}>
-          <div style={{ background: TOKENS.surface, border: `1px solid ${TOKENS.border}`, borderRadius: 12, padding: 16 }}>
+          <div style={{ background: theme.color.surface, border: `1px solid ${theme.color.border}`, borderRadius: 12, padding: 16 }}>
             {chartTitle("MONTHLY CARGO (MT)")}
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={monthlyData}>
-                <CartesianGrid stroke={TOKENS.border} vertical={false} />
-                <XAxis dataKey="month" stroke={TOKENS.steel} tick={{ fontSize: 11, fontFamily: "monospace", fill: TOKENS.steel }} />
-                <YAxis stroke={TOKENS.steel} tick={{ fontSize: 11, fontFamily: "monospace", fill: TOKENS.steel }} />
+                <CartesianGrid stroke={theme.color.border} vertical={false} />
+                <XAxis dataKey="month" stroke={theme.color.slate} tick={{ fontSize: 11, fontFamily: "monospace", fill: theme.color.slate }} />
+                <YAxis stroke={theme.color.slate} tick={{ fontSize: 11, fontFamily: "monospace", fill: theme.color.slate }} />
                 <Tooltip
                   contentStyle={tooltipStyle}
                   cursor={{ fill: "rgba(232,147,10,0.08)" }}
                   formatter={(val) => [`${val} MT`, "MT"]}
                 />
-                <Bar dataKey="MT" fill={TOKENS.amber} radius={[2, 2, 0, 0]} />
+                <Bar dataKey="MT" fill={theme.color.amber} radius={[2, 2, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
 
-          <div style={{ background: TOKENS.surface, border: `1px solid ${TOKENS.border}`, borderRadius: 12, padding: 16 }}>
+          <div style={{ background: theme.color.surface, border: `1px solid ${theme.color.border}`, borderRadius: 12, padding: 16 }}>
             {chartTitle("CARGO BREAKDOWN")}
             <ResponsiveContainer width="100%" height={180}>
               <PieChart>
@@ -232,7 +232,7 @@ export default function DashboardView({ app }) {
             </ResponsiveContainer>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 14px", marginTop: 8 }}>
               {cargoData.map((c) => (
-                <span key={c.name} style={{ fontFamily: TOKENS.mono, fontSize: 10, color: TOKENS.steel, display: "flex", alignItems: "center", gap: 5 }}>
+                <span key={c.name} style={{ fontFamily: theme.font.mono, fontSize: 10, color: theme.color.slate, display: "flex", alignItems: "center", gap: 5 }}>
                   <span style={{ width: 8, height: 8, background: CARGO_COLORS[c.name] || CARGO_COLORS.default, display: "inline-block" }} />
                   {c.name} {Math.round((c.value / cargoTotal) * 100)}%
                 </span>
@@ -246,14 +246,14 @@ export default function DashboardView({ app }) {
       <div style={{ marginTop: 22 }}>
         <div className="label-xs" style={{ marginBottom: 10 }}>RECENT ACTIVITY</div>
         {activity.length === 0 ? (
-          <div style={{ fontFamily: TOKENS.mono, fontSize: 11, color: TOKENS.steel }}>No activity yet.</div>
+          <div style={{ fontFamily: theme.font.mono, fontSize: 11, color: theme.color.slate }}>No activity yet.</div>
         ) : (
           activity.map((e) => {
             const who = profilesById[e.changed_by] || "Someone";
             const detail = e.new_data?.voyage_no || e.new_data?.number || e.new_data?.cargo || e.table_name;
             return (
-              <div key={e.id} style={{ fontFamily: TOKENS.mono, fontSize: 12, color: "#cbd5e1", padding: "9px 0", borderBottom: `1px solid ${TOKENS.border}` }}>
-                {who} {e.action?.toLowerCase()} {e.table_name} — {detail} — <span style={{ color: TOKENS.steel }}>{timeAgo(e.changed_at)}</span>
+              <div key={e.id} style={{ fontFamily: theme.font.mono, fontSize: 12, color: theme.color.inkSoft, padding: "9px 0", borderBottom: `1px solid ${theme.color.border}` }}>
+                {who} {e.action?.toLowerCase()} {e.table_name} — {detail} — <span style={{ color: theme.color.slate }}>{timeAgo(e.changed_at)}</span>
               </div>
             );
           })
@@ -269,7 +269,7 @@ export default function DashboardView({ app }) {
         ].map(([label, value]) => (
           <div key={label}>
             <div className="label-xs">{label}</div>
-            <div style={{ fontFamily: TOKENS.condensed, fontWeight: 700, fontSize: 28, color: "#e8eef4" }}>{value}</div>
+            <div style={{ fontFamily: theme.font.condensed, fontWeight: 700, fontSize: 28, color: theme.color.ink }}>{value}</div>
           </div>
         ))}
       </div>

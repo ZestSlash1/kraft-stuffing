@@ -1,15 +1,16 @@
 import { useState } from "react";
 import { ArrowLeft, Pencil, Trash2 } from "lucide-react";
-import { TOKENS, formatIST } from "../data/statusHelpers";
+import { formatIST } from "../data/statusHelpers";
+import { theme } from "../theme";
 import { FREIGHT_STATUS_COLORS, PAYMENT_STATUS_COLORS } from "../data/manifestHelpers";
 import ConfirmDialog from "../components/ConfirmDialog";
 
 function Badge({ status, colors }) {
-  const color = colors[status] || TOKENS.steel;
+  const color = colors[status] || theme.color.slate;
   return (
     <span
       style={{
-        fontFamily: TOKENS.mono,
+        fontFamily: theme.font.mono,
         fontSize: 9,
         letterSpacing: "0.1em",
         color,
@@ -23,7 +24,7 @@ function Badge({ status, colors }) {
   );
 }
 
-const cell = { fontFamily: TOKENS.mono, fontSize: 12, color: "#cbd5e1" };
+const cell = { fontFamily: theme.font.mono, fontSize: 12, color: theme.color.inkSoft };
 
 export default function BookingDetailView({ app, voyage, booking, onBack, onEdit, onDelete }) {
   const { state } = app;
@@ -44,8 +45,8 @@ export default function BookingDetailView({ app, voyage, booking, onBack, onEdit
         style={{
           background: "none",
           border: "none",
-          color: TOKENS.steel,
-          fontFamily: TOKENS.mono,
+          color: theme.color.slate,
+          fontFamily: theme.font.mono,
           fontSize: 12,
           display: "flex",
           alignItems: "center",
@@ -60,10 +61,10 @@ export default function BookingDetailView({ app, voyage, booking, onBack, onEdit
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
         <div>
-          <div style={{ fontFamily: TOKENS.condensed, fontWeight: 800, fontSize: 28, color: "#e8eef4" }}>
+          <div style={{ fontFamily: theme.font.condensed, fontWeight: 800, fontSize: 28, color: theme.color.ink }}>
             {shipper?.name || "—"} → {consignee?.name || "—"}
           </div>
-          <div style={{ fontFamily: TOKENS.mono, fontSize: 12, color: TOKENS.steel, marginTop: 4 }}>
+          <div style={{ fontFamily: theme.font.mono, fontSize: 12, color: theme.color.slate, marginTop: 4 }}>
             Booked {booking.bookingDate} · Voyage {voyage?.voyageNo || "—"}
           </div>
         </div>
@@ -72,10 +73,10 @@ export default function BookingDetailView({ app, voyage, booking, onBack, onEdit
             onClick={onEdit}
             style={{
               background: "none",
-              border: `1px solid ${TOKENS.border}`,
-              color: TOKENS.steel,
+              border: `1px solid ${theme.color.border}`,
+              color: theme.color.slate,
               padding: "8px 12px",
-              fontFamily: TOKENS.mono,
+              fontFamily: theme.font.mono,
               fontSize: 11,
               display: "flex",
               alignItems: "center",
@@ -89,10 +90,10 @@ export default function BookingDetailView({ app, voyage, booking, onBack, onEdit
             onClick={() => setConfirmingDelete(true)}
             style={{
               background: "none",
-              border: `1px solid ${TOKENS.red}`,
-              color: TOKENS.red,
+              border: `1px solid ${theme.color.red}`,
+              color: theme.color.red,
               padding: "8px 12px",
-              fontFamily: TOKENS.mono,
+              fontFamily: theme.font.mono,
               fontSize: 11,
               display: "flex",
               alignItems: "center",
@@ -123,9 +124,9 @@ export default function BookingDetailView({ app, voyage, booking, onBack, onEdit
           display: "grid",
           gridTemplateColumns: "repeat(4, 1fr)",
           gap: 1,
-          background: TOKENS.border,
+          background: theme.color.border,
           marginTop: 20,
-          border: `1px solid ${TOKENS.border}`,
+          border: `1px solid ${theme.color.border}`,
         }}
         className="booking-detail-grid"
       >
@@ -135,36 +136,36 @@ export default function BookingDetailView({ app, voyage, booking, onBack, onEdit
           ["Payment status", <Badge key="p" status={booking.paymentStatus} colors={PAYMENT_STATUS_COLORS} />],
           ["Notes", booking.notes || "—"],
         ].map(([l, v]) => (
-          <div key={l} style={{ background: TOKENS.surface, padding: 14 }}>
-            <div style={{ fontFamily: TOKENS.mono, fontSize: 9, letterSpacing: "0.14em", color: TOKENS.steel, marginBottom: 6 }}>
+          <div key={l} style={{ background: theme.color.surface, padding: 14 }}>
+            <div style={{ fontFamily: theme.font.mono, fontSize: 9, letterSpacing: "0.14em", color: theme.color.slate, marginBottom: 6 }}>
               {l.toUpperCase()}
             </div>
-            <div style={{ fontFamily: TOKENS.condensed, fontWeight: 700, fontSize: 16, color: "#e8eef4" }}>{v}</div>
+            <div style={{ fontFamily: theme.font.condensed, fontWeight: 700, fontSize: 16, color: theme.color.ink }}>{v}</div>
           </div>
         ))}
       </div>
 
-      <div style={{ fontFamily: TOKENS.condensed, fontWeight: 700, fontSize: 18, color: "#e8eef4", marginTop: 28, marginBottom: 10 }}>
+      <div style={{ fontFamily: theme.font.condensed, fontWeight: 700, fontSize: 18, color: theme.color.ink, marginTop: 28, marginBottom: 10 }}>
         LINKED STUFFING LINES
       </div>
 
       {linkedLines.length === 0 ? (
-        <div style={{ fontFamily: TOKENS.mono, fontSize: 12, color: TOKENS.steel, padding: "16px 0" }}>
+        <div style={{ fontFamily: theme.font.mono, fontSize: 12, color: theme.color.slate, padding: "16px 0" }}>
           No stuffing lines linked to this booking yet.
         </div>
       ) : (
-        <div style={{ border: `1px solid ${TOKENS.border}` }}>
+        <div style={{ border: `1px solid ${theme.color.border}` }}>
           <div
             style={{
               display: "grid",
               gridTemplateColumns: "0.8fr 1.4fr 0.8fr 1fr 1fr 1.2fr",
               gap: 12,
               padding: "10px 14px",
-              borderBottom: `1px solid ${TOKENS.border}`,
-              fontFamily: TOKENS.mono,
+              borderBottom: `1px solid ${theme.color.border}`,
+              fontFamily: theme.font.mono,
               fontSize: 9,
               letterSpacing: "0.1em",
-              color: TOKENS.steel,
+              color: theme.color.slate,
             }}
           >
             <div>CONTAINER</div>
@@ -182,7 +183,7 @@ export default function BookingDetailView({ app, voyage, booking, onBack, onEdit
                 gridTemplateColumns: "0.8fr 1.4fr 0.8fr 1fr 1fr 1.2fr",
                 gap: 12,
                 padding: "10px 14px",
-                borderBottom: `1px solid ${TOKENS.border}`,
+                borderBottom: `1px solid ${theme.color.border}`,
               }}
             >
               <div style={cell}>{l.containerNumber || "—"}</div>

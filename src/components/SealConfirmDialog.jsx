@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
-import { TOKENS } from "../data/statusHelpers";
+import { theme } from "../theme";
 
 const inputStyle = {
-  background: TOKENS.bg,
-  border: `1px solid ${TOKENS.border}`,
-  color: "#e2e8f0",
-  borderRadius: 4,
+  background: theme.color.surface,
+  border: `1px solid ${theme.color.borderStrong}`,
+  color: theme.color.ink,
+  borderRadius: theme.radius.input,
   padding: "8px 10px",
-  fontFamily: TOKENS.mono,
+  fontFamily: theme.font.mono,
   fontSize: 13,
   width: "100%",
 };
@@ -31,7 +31,7 @@ export default function SealConfirmDialog({ containerNumber, onConfirm, onCancel
         position: "fixed",
         inset: 0,
         zIndex: 100,
-        background: "rgba(3,5,8,0.7)",
+        background: "rgba(15,23,42,0.35)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -41,20 +41,21 @@ export default function SealConfirmDialog({ containerNumber, onConfirm, onCancel
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: TOKENS.surface,
-          border: `1px solid ${TOKENS.border}`,
-          borderRadius: 8,
+          background: theme.color.surface,
+          border: `1px solid ${theme.color.border}`,
+          borderRadius: theme.radius.card,
+          boxShadow: theme.shadow.raised,
           padding: 20,
           width: 320,
-          fontFamily: TOKENS.mono,
-          color: "#e2e8f0",
+          fontFamily: theme.font.mono,
+          color: theme.color.ink,
         }}
       >
         <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 14 }}>
           Seal container {containerNumber || "Unassigned"}?
         </div>
 
-        <label style={{ fontSize: 11, color: "#64748b", marginBottom: 4, display: "block" }}>
+        <label style={{ fontSize: 11, color: theme.color.slate, marginBottom: 4, display: "block" }}>
           Seal No (required)
         </label>
         <input
@@ -64,7 +65,7 @@ export default function SealConfirmDialog({ containerNumber, onConfirm, onCancel
           style={{ ...inputStyle, marginBottom: 10 }}
         />
 
-        <label style={{ fontSize: 11, color: "#64748b", marginBottom: 4, display: "block" }}>
+        <label style={{ fontSize: 11, color: theme.color.slate, marginBottom: 4, display: "block" }}>
           Seal No 2 (optional)
         </label>
         <input
@@ -77,13 +78,13 @@ export default function SealConfirmDialog({ containerNumber, onConfirm, onCancel
           <button
             onClick={onCancel}
             style={{
-              background: "none",
-              border: `1px solid ${TOKENS.border}`,
-              color: "#94a3b8",
-              borderRadius: 4,
+              background: theme.color.surface,
+              border: `1px solid ${theme.color.borderStrong}`,
+              color: theme.color.inkSoft,
+              borderRadius: theme.radius.sm,
               padding: "8px 14px",
               minHeight: 44,
-              fontFamily: TOKENS.mono,
+              fontFamily: theme.font.mono,
               cursor: "pointer",
             }}
           >
@@ -93,13 +94,13 @@ export default function SealConfirmDialog({ containerNumber, onConfirm, onCancel
             disabled={!sealNo.trim()}
             onClick={() => sealNo.trim() && onConfirm({ sealNo: sealNo.trim(), sealNo2: sealNo2.trim() })}
             style={{
-              background: sealNo.trim() ? TOKENS.green : "#1c2d42",
+              background: sealNo.trim() ? theme.color.green : theme.color.surfaceMuted,
               border: "none",
-              color: sealNo.trim() ? "#07090e" : "#64748b",
-              borderRadius: 4,
+              color: sealNo.trim() ? theme.color.white : theme.color.slateFaint,
+              borderRadius: theme.radius.sm,
               padding: "8px 14px",
               minHeight: 44,
-              fontFamily: TOKENS.mono,
+              fontFamily: theme.font.mono,
               fontWeight: 600,
               cursor: sealNo.trim() ? "pointer" : "not-allowed",
             }}

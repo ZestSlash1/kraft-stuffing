@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { TOKENS } from "../data/statusHelpers";
+import { theme } from "../theme";
 import InvoiceFields from "./InvoiceFields";
 import ShipperConsigneeSelect from "./ShipperConsigneeSelect";
 import BookingSelect from "./BookingSelect";
@@ -16,19 +16,19 @@ export const CARGO_UNITS = [
 ];
 
 const inputStyle = {
-  background: TOKENS.bg,
-  border: `1px solid ${TOKENS.border}`,
-  color: "#e2e8f0",
+  background: theme.color.surface,
+  border: `1px solid ${theme.color.border}`,
+  color: theme.color.ink,
   borderRadius: 4,
   padding: "8px 10px",
-  fontFamily: TOKENS.mono,
+  fontFamily: theme.font.mono,
   fontSize: 13,
   width: "100%",
 };
 
 const labelStyle = {
   fontSize: 11,
-  color: "#64748b",
+  color: theme.color.slate,
   marginBottom: 4,
   display: "block",
 };
@@ -115,8 +115,8 @@ export default function AddForm({
         display: "flex",
         flexWrap: "wrap",
         gap: 10,
-        background: TOKENS.surface,
-        border: `1px solid ${TOKENS.border}`,
+        background: theme.color.surface,
+        border: `1px solid ${theme.color.border}`,
         borderRadius: 6,
         padding: 14,
         marginTop: 12,
@@ -189,13 +189,13 @@ export default function AddForm({
         <button
           type="submit"
           style={{
-            background: TOKENS.green,
-            color: "#07090e",
+            background: theme.color.green,
+            color: theme.color.white,
             border: "none",
             borderRadius: 4,
             padding: "9px 18px",
             minHeight: 44,
-            fontFamily: TOKENS.mono,
+            fontFamily: theme.font.mono,
             fontWeight: 600,
             cursor: "pointer",
           }}

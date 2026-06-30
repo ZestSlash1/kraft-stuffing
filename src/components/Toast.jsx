@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import { TOKENS } from "../data/statusHelpers";
+import { theme } from "../theme";
 
 const ToastContext = createContext({ showToast: () => {} });
 export const useToast = () => useContext(ToastContext);
@@ -7,9 +7,9 @@ export const useToast = () => useContext(ToastContext);
 let nextId = 1;
 
 const BORDER_COLOR = {
-  success: TOKENS.green,
-  error: TOKENS.red,
-  info: TOKENS.amber,
+  success: theme.color.green,
+  error: theme.color.red,
+  info: theme.color.amber,
 };
 
 function ToastItem({ toast, onDismiss }) {
@@ -33,17 +33,18 @@ function ToastItem({ toast, onDismiss }) {
       ref={ref}
       onClick={() => onDismiss(toast.id)}
       style={{
-        background: TOKENS.surface,
-        border: `1px solid ${TOKENS.border}`,
-        borderLeft: `3px solid ${BORDER_COLOR[toast.type] || TOKENS.amber}`,
-        color: "#e2e8f0",
+        background: theme.color.surface,
+        border: `1px solid ${theme.color.border}`,
+        borderLeft: `3px solid ${BORDER_COLOR[toast.type] || theme.color.amber}`,
+        color: theme.color.ink,
         padding: "11px 16px",
-        fontFamily: TOKENS.mono,
+        borderRadius: theme.radius.input,
+        fontFamily: theme.font.mono,
         fontSize: 12,
         minWidth: 220,
         maxWidth: 340,
         cursor: "pointer",
-        boxShadow: "0 6px 24px rgba(0,0,0,0.5)",
+        boxShadow: theme.shadow.raised,
         transition: "transform 0.25s ease, opacity 0.25s ease",
       }}
     >

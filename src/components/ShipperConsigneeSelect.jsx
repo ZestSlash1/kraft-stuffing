@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { TOKENS } from "../data/statusHelpers";
+import { theme } from "../theme";
 
 const inputStyle = {
-  background: TOKENS.bg,
-  border: `1px solid ${TOKENS.border}`,
-  color: "#e2e8f0",
+  background: theme.color.surface,
+  border: `1px solid ${theme.color.border}`,
+  color: theme.color.ink,
   borderRadius: 4,
   padding: "8px 10px",
-  fontFamily: TOKENS.mono,
+  fontFamily: theme.font.mono,
   fontSize: 13,
   width: "100%",
 };
@@ -85,12 +85,12 @@ export default function ShipperConsigneeSelect({
             left: 0,
             right: 0,
             zIndex: 20,
-            background: TOKENS.surface,
-            border: `1px solid ${TOKENS.border}`,
+            background: theme.color.surface,
+            border: `1px solid ${theme.color.border}`,
             borderRadius: 4,
             maxHeight: 180,
             overflowY: "auto",
-            boxShadow: "0 8px 20px -8px rgba(0,0,0,0.6)",
+            boxShadow: theme.shadow.raised,
           }}
         >
           {matches.map((item) => (
@@ -99,12 +99,12 @@ export default function ShipperConsigneeSelect({
               onClick={() => choose(item)}
               style={{
                 padding: "7px 10px",
-                fontFamily: TOKENS.mono,
+                fontFamily: theme.font.mono,
                 fontSize: 12,
-                color: "#e2e8f0",
+                color: theme.color.ink,
                 cursor: "pointer",
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = TOKENS.bg)}
+              onMouseEnter={(e) => (e.currentTarget.style.background = theme.color.surfaceMuted)}
               onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
             >
               {item.name}
@@ -114,11 +114,11 @@ export default function ShipperConsigneeSelect({
             onClick={startAdd}
             style={{
               padding: "7px 10px",
-              fontFamily: TOKENS.mono,
+              fontFamily: theme.font.mono,
               fontSize: 12,
-              color: TOKENS.amber,
+              color: theme.color.amber,
               cursor: "pointer",
-              borderTop: matches.length ? `1px solid ${TOKENS.border}` : "none",
+              borderTop: matches.length ? `1px solid ${theme.color.border}` : "none",
             }}
           >
             + Add as new {kind}
@@ -134,14 +134,14 @@ export default function ShipperConsigneeSelect({
             left: 0,
             right: 0,
             zIndex: 20,
-            background: TOKENS.surface,
-            border: `1px solid ${TOKENS.border}`,
+            background: theme.color.surface,
+            border: `1px solid ${theme.color.border}`,
             borderRadius: 4,
             padding: 10,
             display: "flex",
             flexDirection: "column",
             gap: 6,
-            boxShadow: "0 8px 20px -8px rgba(0,0,0,0.6)",
+            boxShadow: theme.shadow.raised,
             width: 260,
           }}
         >
@@ -186,11 +186,11 @@ export default function ShipperConsigneeSelect({
               onClick={() => setAdding(false)}
               style={{
                 background: "none",
-                border: `1px solid ${TOKENS.border}`,
-                color: "#94a3b8",
+                border: `1px solid ${theme.color.border}`,
+                color: theme.color.slate,
                 borderRadius: 4,
                 padding: "6px 10px",
-                fontFamily: TOKENS.mono,
+                fontFamily: theme.font.mono,
                 fontSize: 12,
                 cursor: "pointer",
               }}
@@ -201,12 +201,12 @@ export default function ShipperConsigneeSelect({
               type="button"
               onClick={submitAdd}
               style={{
-                background: TOKENS.green,
+                background: theme.color.green,
                 border: "none",
-                color: "#07090e",
+                color: theme.color.white,
                 borderRadius: 4,
                 padding: "6px 10px",
-                fontFamily: TOKENS.mono,
+                fontFamily: theme.font.mono,
                 fontSize: 12,
                 fontWeight: 600,
                 cursor: "pointer",

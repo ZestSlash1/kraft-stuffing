@@ -226,6 +226,48 @@ export async function fetchVesselMovements(voyageId) {
   return { data, error };
 }
 
+// ── Expenses ──────────────────────────────────────────────────────────────────
+export const fromDbExpense = (r) => ({
+  id: r.id,
+  orgId: r.org_id,
+  type: r.type || "expense",
+  category: r.category,
+  amount: Number(r.amount ?? 0), // integer paise — never a float
+  currency: r.currency || "INR",
+  description: r.description,
+  expenseDate: r.expense_date,
+  notes: r.notes || "",
+  referenceNo: r.reference_no || "",
+  voyageId: r.voyage_id || null,
+  loggedBy: r.logged_by,
+  createdAt: r.created_at,
+  updatedAt: r.updated_at,
+});
+
+export const toDbExpense = (e) => ({
+  id: e.id ?? undefined,
+  org_id: e.orgId ?? KRAFT_ORG_ID,
+  type: e.type ?? "expense",
+  category: e.category,
+  amount: e.amount,
+  currency: e.currency ?? undefined,
+  description: e.description,
+  expense_date: e.expenseDate,
+  notes: e.notes ?? null,
+  reference_no: e.referenceNo ?? null,
+  voyage_id: e.voyageId ?? null,
+  logged_by: e.loggedBy ?? null,
+});
+
+export async function fetchExpenses(orgId) {
+  const { data, error } = await supabase
+    .from("expenses")
+    .select("*")
+    .eq("org_id", orgId)
+    .order("expense_date", { ascending: false });
+  return { data, error };
+}
+
 // Partial-patch mappers: translate only the keys present in `patch` (camelCase)
 // to DB columns, so updates never accidentally null untouched columns.
 const mapKeys = (patch, keymap) => {
@@ -269,6 +311,19 @@ const VOYAGE_KEYMAP = {
 
 export const toDbContainerPatch = (patch) => mapKeys(patch, CONTAINER_KEYMAP);
 export const toDbVoyagePatch = (patch) => mapKeys(patch, VOYAGE_KEYMAP);
+
+const EXPENSE_KEYMAP = {
+  type: "type",
+  category: "category",
+  amount: "amount",
+  currency: "currency",
+  description: "description",
+  expenseDate: "expense_date",
+  notes: "notes",
+  referenceNo: "reference_no",
+  voyageId: "voyage_id",
+};
+export const toDbExpensePatch = (patch) => mapKeys(patch, EXPENSE_KEYMAP);
 
 export const fromDbProfile = (r) => ({
   id: r.id,
@@ -389,6 +444,10 @@ const executors = {
     supabase.from("vessel_movements").insert(p).select().single(),
   deleteVesselMovement: ({ id }) =>
     supabase.from("vessel_movements").delete().eq("id", id),
+  createExpense: (p) => supabase.from("expenses").insert(p).select().single(),
+  updateExpense: ({ id, patch }) =>
+    supabase.from("expenses").update(patch).eq("id", id).select().single(),
+  deleteExpense: ({ id }) => supabase.from("expenses").delete().eq("id", id),
   upsertPushSubscription: (p) =>
     supabase
       .from("push_subscriptions")
@@ -613,6 +672,20 @@ export function createVesselMovement(movement) {
 
 export function deleteVesselMovement(id) {
   return runWrite("deleteVesselMovement", { id }, { id });
+}
+
+export function createExpense(expense) {
+  const p = clean(expense);
+  return runWrite("createExpense", p, p);
+}
+
+export function updateExpense(id, patch) {
+  const p = clean(patch);
+  return runWrite("updateExpense", { id, patch: p }, { id, ...p });
+}
+
+export function deleteExpense(id) {
+  return runWrite("deleteExpense", { id }, { id });
 }
 
 export function upsertPushSubscription(subscription) {

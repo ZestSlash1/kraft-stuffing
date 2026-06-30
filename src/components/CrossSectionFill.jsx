@@ -1,4 +1,5 @@
-import { CARGO_COLORS, TOKENS } from "../data/statusHelpers";
+import { CARGO_COLORS } from "../data/statusHelpers";
+import { theme } from "../theme";
 
 // 44x20px proportional fill strip: one segment per cargo type, width scaled to
 // its share of total qty. Purely decorative — no logic depends on it.
@@ -25,8 +26,9 @@ export default function CrossSectionFill({ container }) {
         height: 20,
         flexShrink: 0,
         display: "flex",
-        border: `1px solid ${TOKENS.border}`,
-        background: TOKENS.bg,
+        border: `1px solid ${theme.color.borderStrong}`,
+        borderRadius: 4,
+        background: theme.color.surfaceMuted,
         overflow: "hidden",
       }}
     >

@@ -165,3 +165,40 @@ export function exportVoyageXlsx(voyage, profilesById = {}) {
 
   XLSX.writeFile(wb, `${voyage.voyageNo || "voyage"}-stuffing-log.xlsx`);
 }
+
+// ── Expenses ────────────────────────────────────────────────────────────────
+function buildExpenseRows(expenses, profilesById) {
+  return expenses.map((e) => ({
+    Date: e.expenseDate,
+    Type: e.type === "income" ? "Income" : "Expense",
+    Category: e.category,
+    Description: e.description,
+    "Amount (₹)": Number((Number(e.amount || 0) / 100).toFixed(2)),
+    Currency: e.currency || "INR",
+    Reference: e.referenceNo || "",
+    Notes: e.notes || "",
+    "Logged By": profileName(profilesById, e.loggedBy),
+  }));
+}
+
+export function exportExpensesXlsx(expenses, profilesById = {}) {
+  if (!expenses?.length) return;
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(
+    wb,
+    XLSX.utils.json_to_sheet(buildExpenseRows(expenses, profilesById)),
+    "Expenses"
+  );
+
+  const stamp = new Intl.DateTimeFormat("en-IN", {
+    timeZone: "Asia/Kolkata",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  })
+    .format(new Date())
+    .replace(/\s+/g, "-");
+
+  XLSX.writeFile(wb, `expenses-${stamp}.xlsx`);
+}

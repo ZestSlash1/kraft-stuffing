@@ -1,5 +1,5 @@
-import { Ship, FileText } from "lucide-react";
-import { TOKENS } from "../data/statusHelpers";
+import { Ship, FileText, Receipt } from "lucide-react";
+import { theme } from "../theme";
 
 const CARDS = [
   {
@@ -14,6 +14,12 @@ const CARDS = [
     sub: "Bookings, vessel movements & documents",
     Icon: FileText,
   },
+  {
+    page: "expenses",
+    title: "EXPENSES",
+    sub: "Kraft Shipping & Logistics",
+    Icon: Receipt,
+  },
 ];
 
 export default function AppSelectorView({ onSelect }) {
@@ -22,9 +28,7 @@ export default function AppSelectorView({ onSelect }) {
       style={{
         position: "fixed",
         inset: 0,
-        background: TOKENS.bg,
-        backgroundImage:
-          "repeating-linear-gradient(0deg, transparent, transparent 1px, rgba(255,255,255,0.012) 1px, rgba(255,255,255,0.012) 2px)",
+        background: theme.color.canvas,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -40,11 +44,11 @@ export default function AppSelectorView({ onSelect }) {
         />
         <div
           style={{
-            fontFamily: TOKENS.condensed,
+            fontFamily: theme.font.condensed,
             fontWeight: 800,
             fontSize: 32,
             letterSpacing: "0.02em",
-            color: "#e8eef4",
+            color: theme.color.ink,
             lineHeight: 1,
           }}
         >
@@ -52,10 +56,10 @@ export default function AppSelectorView({ onSelect }) {
         </div>
         <div
           style={{
-            fontFamily: TOKENS.mono,
+            fontFamily: theme.font.mono,
             fontSize: 10,
             letterSpacing: "0.22em",
-            color: TOKENS.steel,
+            color: theme.color.slate,
             marginTop: 10,
             textTransform: "uppercase",
           }}
@@ -67,18 +71,23 @@ export default function AppSelectorView({ onSelect }) {
 
         <div
           className="app-selector-grid"
-          style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+            gap: 16,
+          }}
         >
           {CARDS.map(({ page, title, sub, Icon }) => (
             <button
               key={page}
               onClick={() => onSelect(page)}
-              onMouseEnter={(e) => (e.currentTarget.style.borderColor = TOKENS.amber)}
-              onMouseLeave={(e) => (e.currentTarget.style.borderColor = TOKENS.border)}
+              onMouseEnter={(e) => (e.currentTarget.style.borderColor = theme.color.amber)}
+              onMouseLeave={(e) => (e.currentTarget.style.borderColor = theme.color.border)}
               style={{
-                background: TOKENS.surface,
-                border: `1px solid ${TOKENS.border}`,
-                borderRadius: 0,
+                background: theme.color.surface,
+                border: `1px solid ${theme.color.border}`,
+                borderRadius: theme.radius.card,
+                boxShadow: theme.shadow.card,
                 padding: "40px 20px",
                 display: "flex",
                 flexDirection: "column",
@@ -88,19 +97,19 @@ export default function AppSelectorView({ onSelect }) {
                 transition: "border-color 0.15s ease",
               }}
             >
-              <Icon size={32} color={TOKENS.amber} />
+              <Icon size={32} color={theme.color.amber} />
               <div
                 style={{
-                  fontFamily: TOKENS.condensed,
+                  fontFamily: theme.font.condensed,
                   fontWeight: 800,
                   fontSize: 20,
                   letterSpacing: "0.04em",
-                  color: "#e8eef4",
+                  color: theme.color.ink,
                 }}
               >
                 {title}
               </div>
-              <div style={{ fontFamily: TOKENS.mono, fontSize: 11, color: TOKENS.steel }}>
+              <div style={{ fontFamily: theme.font.mono, fontSize: 11, color: theme.color.slate }}>
                 {sub}
               </div>
             </button>

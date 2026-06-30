@@ -1,26 +1,26 @@
 import { useState } from "react";
 import { supabase } from "../lib/supabase";
 import { saveOrgSettings, KRAFT_ORG_ID } from "../lib/db";
-import { TOKENS } from "../data/statusHelpers";
+import { theme } from "../theme";
 import { useToast } from "../components/Toast";
 import { useAuth } from "../context/AuthContext";
 
 const input = {
   width: "100%",
   boxSizing: "border-box",
-  background: TOKENS.bg,
-  border: `1px solid ${TOKENS.border}`,
-  borderRadius: 0,
+  background: theme.color.surface,
+  border: `1px solid ${theme.color.border}`,
+  borderRadius: 12,
   color: "#e2e8f0",
   padding: "10px 12px",
-  fontFamily: TOKENS.mono,
+  fontFamily: theme.font.mono,
   fontSize: 13,
   outline: "none",
 };
 
 function Section({ title, children }) {
   return (
-    <div style={{ padding: "22px 0", borderBottom: `1px solid ${TOKENS.border}` }}>
+    <div style={{ padding: "22px 0", borderBottom: `1px solid ${theme.color.border}` }}>
       <div className="label-xs" style={{ marginBottom: 14, fontSize: 11 }}>{title}</div>
       {children}
     </div>
@@ -41,11 +41,11 @@ function SaveButton({ onSave, saved }) {
     <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 8 }}>
       <button
         onClick={onSave}
-        style={{ background: TOKENS.amber, border: "none", color: TOKENS.bg, fontFamily: TOKENS.condensed, fontWeight: 700, fontSize: 13, textTransform: "uppercase", padding: "9px 18px", cursor: "pointer" }}
+        style={{ background: theme.color.amber, border: "none", color: theme.color.surface, fontFamily: theme.font.condensed, fontWeight: 700, fontSize: 13, textTransform: "uppercase", padding: "9px 18px", cursor: "pointer" }}
       >
         Save Settings
       </button>
-      {saved && <span style={{ fontFamily: TOKENS.mono, fontSize: 12, color: TOKENS.green }}>Saved ✓</span>}
+      {saved && <span style={{ fontFamily: theme.font.mono, fontSize: 12, color: theme.color.green }}>Saved ✓</span>}
     </div>
   );
 }
@@ -86,8 +86,9 @@ export default function SettingsView({ app }) {
   const signOut = () => supabase.auth.signOut();
 
   return (
+    <div style={{ minHeight: "100%", background: theme.color.canvas, color: theme.color.ink }}>
     <div style={{ maxWidth: 640, margin: "0 auto", padding: "16px 18px 50px" }}>
-      <div style={{ fontFamily: TOKENS.condensed, fontWeight: 800, fontSize: 28, color: "#e8eef4", marginBottom: 4 }}>
+      <div style={{ fontFamily: theme.font.condensed, fontWeight: 800, fontSize: 28, color: theme.color.ink, marginBottom: 4 }}>
         SETTINGS
       </div>
 
@@ -96,17 +97,17 @@ export default function SettingsView({ app }) {
           <input style={input} value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
         </Row>
         <Row label="Email">
-          <input style={{ ...input, color: TOKENS.steel }} value={user?.email || ""} readOnly />
+          <input style={{ ...input, color: theme.color.slate }} value={user?.email || ""} readOnly />
         </Row>
         <Row label="Role">
-          <span style={{ fontFamily: TOKENS.mono, fontSize: 11, color: TOKENS.amber, border: `1px solid ${TOKENS.amber}`, padding: "3px 8px", borderRadius: 3 }}>
+          <span style={{ fontFamily: theme.font.mono, fontSize: 11, color: theme.color.amber, border: `1px solid ${theme.color.amber}`, padding: "3px 8px", borderRadius: 3 }}>
             {(profile?.role || "staff").toUpperCase()}
           </span>
         </Row>
         <SaveButton onSave={saveProfile} saved={saved.profile} />
         <button
           onClick={signOut}
-          style={{ marginTop: 16, background: "none", border: `1px solid ${TOKENS.red}`, color: TOKENS.red, fontFamily: TOKENS.condensed, fontWeight: 700, fontSize: 14, textTransform: "uppercase", padding: "10px 18px", cursor: "pointer", width: "100%" }}
+          style={{ marginTop: 16, background: "none", border: `1px solid ${theme.color.red}`, color: theme.color.red, fontFamily: theme.font.condensed, fontWeight: 700, fontSize: 14, textTransform: "uppercase", padding: "10px 18px", cursor: "pointer", width: "100%" }}
         >
           Sign Out
         </button>
@@ -114,7 +115,7 @@ export default function SettingsView({ app }) {
 
       <Section title="ORGANISATION">
         <Row label="Org name">
-          <input style={{ ...input, color: TOKENS.steel }} value={settings.org_name || "Kraft Shipping & Logistics"} readOnly />
+          <input style={{ ...input, color: theme.color.slate }} value={settings.org_name || "Kraft Shipping & Logistics"} readOnly />
         </Row>
         <Row label="WhatsApp notification number">
           <input style={input} placeholder="+91XXXXXXXXXX" value={settings.whatsapp_number || ""} onChange={setS("whatsapp_number")} />
@@ -136,6 +137,7 @@ export default function SettingsView({ app }) {
           saved={saved.defaults}
         />
       </Section>
+    </div>
     </div>
   );
 }

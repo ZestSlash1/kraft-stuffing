@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import TopNav from "./TopNav";
 import BottomNav from "./BottomNav";
 import { useRouter } from "../context/RouterContext";
-import { TOKENS } from "../data/statusHelpers";
+import { theme } from "../theme";
 import DashboardView from "../views/DashboardView";
 import VoyagesView from "../views/VoyagesView";
 import VoyageDetailView from "../views/VoyageDetailView";
@@ -10,6 +10,7 @@ import ContainerLogView from "../views/ContainerLogView";
 import MastersView from "../views/MastersView";
 import SettingsView from "../views/SettingsView";
 import ManifestShell from "./ManifestShell";
+import ExpensesShell from "../views/expenses/ExpensesShell";
 
 // Part 6E — persistent offline banner, dismissable, re-appears on next drop.
 function OfflineIndicator() {
@@ -40,10 +41,10 @@ function OfflineIndicator() {
     <div
       style={{
         flexShrink: 0,
-        background: "#2a1c02",
-        borderBottom: `1px solid ${TOKENS.amber}`,
-        color: TOKENS.amber,
-        fontFamily: TOKENS.mono,
+        background: theme.color.amberSoft,
+        borderBottom: `1px solid ${theme.color.amber}`,
+        color: "#b3700a",
+        fontFamily: theme.font.mono,
         fontSize: 10,
         letterSpacing: "0.04em",
         padding: "6px 14px",
@@ -58,9 +59,9 @@ function OfflineIndicator() {
         style={{
           background: "none",
           border: "none",
-          color: TOKENS.amber,
+          color: "#b3700a",
           cursor: "pointer",
-          fontFamily: TOKENS.mono,
+          fontFamily: theme.font.mono,
           fontSize: 12,
         }}
       >
@@ -92,6 +93,9 @@ export default function AppShell({ app }) {
       break;
     case "manifest":
       content = <ManifestShell app={app} />;
+      break;
+    case "expenses":
+      content = <ExpensesShell app={app} />;
       break;
     case "dashboard":
     default:

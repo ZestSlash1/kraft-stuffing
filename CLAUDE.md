@@ -19,25 +19,57 @@ Multi-user real-time: dockside staff log simultaneously. Voyage supervisor views
 - Region: ap-south-1 (Mumbai)
 - Env vars in .env: VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY
 
-## Design system (DO NOT DEVIATE)
+## Design system — LIGHT (DO NOT DEVIATE)
+> Pivoting from the dark ops-room theme to a clean light theme. Tokens live in
+> `src/theme.js` (`import { theme }`). Reusable primitives in `src/components/ui/`.
+> Migration is screen-by-screen, anchored on ContainerLogView first. Screens not
+> yet migrated still read the legacy dark `TOKENS` from `src/data/statusHelpers.js`
+> — DO NOT mix the two palettes inside one screen.
+
 ```
-Colors:
-  --void:    #030508   background
-  --surface: #0a1020   cards, panels
-  --border:  #102030   dividers, hairlines
-  --amber:   #e8930a   primary accent (dock floodlight)
-  --green:   #0b6b50   sealed/confirmed state
-  --steel:   #8a9aaa   muted text, labels
+Colors (theme.color.*):
+  canvas        #f6f7f9   page background
+  surface       #ffffff   cards, panels
+  surfaceMuted  #f1f3f6   inset wells, sibling-strip track
+  border        #e6eaf0   hairlines, dividers
+  borderStrong  #d7dde6   input borders, rest focus rings
+  ink           #0f172a   primary text
+  inkSoft       #334155   secondary text
+  slate         #64748b   muted + italic spec labels
+  slateFaint    #94a3b8   placeholder, disabled
+  amber         #e8930a   primary accent
+  green         #0b6b50   sealed / confirmed
+  red           #dc2626   over-capacity / error
+
+Radii (theme.radius.*):   sm 8 · input 12 · pill 999 · card 20
+Shadows (theme.shadow.*): card · pill · raised  (soft, low-contrast)
 
 Fonts (loaded in index.html):
-  Barlow Condensed 700/800  → headers, numbers, container IDs
-  JetBrains Mono 400/600    → all data values, codes, weights
-  System UI                 → form inputs, body text
+  Barlow Condensed 300/400/500/700/800
+    300 → huge light-weight hero numbers
+    500 → sibling-card numbers; 700/800 → dense headers
+  JetBrains Mono 400/600  → all data values, codes, weights, labels
+  System UI (italic)      → SpecLabel labels, body text
 
-Scanline texture on body background:
-  background-image: repeating-linear-gradient(
-    0deg, transparent, transparent 1px, rgba(255,255,255,0.012) 1px, rgba(255,255,255,0.012) 2px
-  );
+NO scanline texture, NO dark void background. Light surfaces only.
+```
+
+### Primitives (`src/components/ui/`, barrel: `index.js`)
+```
+Card        20px radius, hairline border, soft shadow. inset=muted well, raised=higher elevation
+Pill        rounded dropdown (native <select> + chevron), amber focus ring
+Input       12px radius text field, optional mono-caps label, hint, invalid state
+StatusBadge coloured dot + label, tinted by status; size="sm" for strips
+SpecLabel   italic slate label over mono value; tone "over" (red) / "ok" (green)
+```
+
+### Status palette (theme.status.* → { dot, label, fill })
+```js
+EMPTY:    { dot: '#94a3b8', label: '#64748b', fill: '#f1f3f6' }
+STUFFING: { dot: '#e8930a', label: '#b3700a', fill: '#fdf0d8' }
+FULL:     { dot: '#ea7a0c', label: '#b85f08', fill: '#fdece0' }
+OVER:     { dot: '#dc2626', label: '#b91c1c', fill: '#fde4e4' }
+SEALED:   { dot: '#0b6b50', label: '#0b6b50', fill: '#e2f0ea' }
 ```
 
 ## File structure
@@ -45,6 +77,8 @@ Scanline texture on body background:
 src/
   main.jsx
   App.jsx                  ← state, routing, auth gate
+  theme.js                 ← LIGHT design tokens (color/radius/shadow/status)
+  components/ui/           ← light primitives: Card, Pill, Input, StatusBadge, SpecLabel
   lib/
     supabase.js            ← supabase client init
     realtime.js            ← subscription helpers
@@ -80,7 +114,10 @@ See SPEC.md → Schema section for full SQL.
 Key relationships: voyage → containers (many) → stuffing_lines (many)
 Realtime enabled on: containers, stuffing_lines, user_presence
 
-## Status colors
+## Status colors — LEGACY DARK (unmigrated screens only)
+> Light status palette is under Design system → Status palette above. The hull
+> tones below remain in `data/statusHelpers.js` (`CONTAINER_COLORS`) for the dark
+> screens not yet ported. New light work uses `theme.status.*`.
 ```js
 EMPTY:    { hull: '#1a2535', label: '#475569' }
 STUFFING: { hull: '#3a2008', label: '#e8930a' }

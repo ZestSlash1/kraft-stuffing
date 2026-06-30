@@ -8,23 +8,23 @@ import CreateVoyageModal from "../components/CreateVoyageModal";
 import ConfirmDialog from "../components/ConfirmDialog";
 import { useToast } from "../components/Toast";
 import {
-  TOKENS,
   voyageStats,
   VOYAGE_STATUS_COLORS,
   VOYAGE_STATUS_CYCLE,
 } from "../data/statusHelpers";
+import { theme } from "../theme";
 
 const iconBtn = {
-  background: "none",
-  border: `1px solid ${TOKENS.border}`,
-  color: TOKENS.steel,
-  borderRadius: 4,
+  background: theme.color.surface,
+  border: `1px solid ${theme.color.borderStrong}`,
+  color: theme.color.inkSoft,
+  borderRadius: theme.radius.input,
   padding: "7px 9px",
   cursor: "pointer",
   display: "flex",
   alignItems: "center",
   gap: 6,
-  fontFamily: TOKENS.mono,
+  fontFamily: theme.font.mono,
   fontSize: 11,
 };
 
@@ -93,9 +93,9 @@ export default function VoyageDetailView({ app, voyageId }) {
   }
   if (!voyage) {
     return (
-      <div style={{ padding: 40, fontFamily: TOKENS.mono, color: TOKENS.steel }}>
+      <div style={{ minHeight: "100%", background: theme.color.canvas, padding: 40, fontFamily: theme.font.mono, color: theme.color.slate }}>
         Voyage not found.{" "}
-        <button onClick={() => navigate("voyages")} style={{ color: TOKENS.amber, background: "none", border: "none", cursor: "pointer" }}>
+        <button onClick={() => navigate("voyages")} style={{ color: theme.color.amber, background: "none", border: "none", cursor: "pointer" }}>
           ← Back to voyages
         </button>
       </div>
@@ -127,21 +127,22 @@ export default function VoyageDetailView({ app, voyageId }) {
     }
   };
 
-  const statusColor = VOYAGE_STATUS_COLORS[voyage.status] || TOKENS.steel;
+  const statusColor = VOYAGE_STATUS_COLORS[voyage.status] || theme.color.slate;
   const canDelete = voyage.status === "DRAFT" || voyage.status === "ARCHIVED";
 
   return (
+    <div style={{ minHeight: "100%", background: theme.color.canvas, color: theme.color.ink }}>
     <div style={{ maxWidth: 1200, margin: "0 auto", padding: "14px 18px 40px" }}>
       {/* Breadcrumb */}
-      <div style={{ fontFamily: TOKENS.mono, fontSize: 11, color: TOKENS.steel, marginBottom: 10 }}>
+      <div style={{ fontFamily: theme.font.mono, fontSize: 11, color: theme.color.slate, marginBottom: 10 }}>
         <button
           onClick={() => navigate("voyages")}
-          style={{ background: "none", border: "none", color: TOKENS.steel, cursor: "pointer", fontFamily: TOKENS.mono, fontSize: 11, padding: 0 }}
+          style={{ background: "none", border: "none", color: theme.color.slate, cursor: "pointer", fontFamily: theme.font.mono, fontSize: 11, padding: 0 }}
         >
           Voyages
         </button>{" "}
-        / <span style={{ color: "#cbd5e1" }}>{voyage.voyageNo}</span>
-        <span style={{ marginLeft: 10, color: online ? TOKENS.green : TOKENS.steel }}>
+        / <span style={{ color: theme.color.inkSoft }}>{voyage.voyageNo}</span>
+        <span style={{ marginLeft: 10, color: online ? theme.color.green : theme.color.slate }}>
           {online ? "● LIVE" : "○ SYNCING"}
         </span>
       </div>
@@ -149,10 +150,10 @@ export default function VoyageDetailView({ app, voyageId }) {
       {/* Title row */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
         <div>
-          <div style={{ fontFamily: TOKENS.condensed, fontWeight: 800, fontSize: 30, color: "#e8eef4", lineHeight: 1 }}>
+          <div style={{ fontFamily: theme.font.condensed, fontWeight: 800, fontSize: 30, color: theme.color.ink, lineHeight: 1 }}>
             {voyage.vessel}
           </div>
-          <div style={{ fontFamily: TOKENS.mono, fontSize: 12, color: TOKENS.steel, marginTop: 4 }}>
+          <div style={{ fontFamily: theme.font.mono, fontSize: 12, color: theme.color.slate, marginTop: 4 }}>
             {voyage.voyageNo} · {voyage.pol} → {voyage.pod} · {voyage.date}
           </div>
         </div>
@@ -165,7 +166,7 @@ export default function VoyageDetailView({ app, voyageId }) {
           <button onClick={onShare} style={iconBtn}><Share2 size={14} /> Share</button>
           <ExportMenu onExportXlsx={() => exportXlsx(voyage)} onExportPdf={() => exportPdf(voyage)} />
           {canDelete && (
-            <button onClick={() => setConfirmingDelete(true)} style={{ ...iconBtn, color: TOKENS.red, borderColor: "#3a0808" }}>
+            <button onClick={() => setConfirmingDelete(true)} style={{ ...iconBtn, color: theme.color.red, borderColor: "#f3c7c7" }}>
               <Trash2 size={14} />
             </button>
           )}
@@ -187,13 +188,13 @@ export default function VoyageDetailView({ app, voyageId }) {
       )}
 
       {/* Status / progress bar */}
-      <div style={{ marginTop: 16, background: TOKENS.surface, border: `1px solid ${TOKENS.border}`, borderRadius: 10, padding: "12px 16px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", fontFamily: TOKENS.mono, fontSize: 11, color: TOKENS.steel }}>
+      <div style={{ marginTop: 16, background: theme.color.surface, border: `1px solid ${theme.color.border}`, borderRadius: theme.radius.card, boxShadow: theme.shadow.card, padding: "12px 16px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", fontFamily: theme.font.mono, fontSize: 11, color: theme.color.slate }}>
           <span>{s.sealed} of {s.total} containers sealed</span>
-          <span style={{ color: TOKENS.amber }}>{pct}%</span>
+          <span style={{ color: theme.color.amber }}>{pct}%</span>
         </div>
-        <div style={{ height: 8, background: TOKENS.bg, borderRadius: 4, marginTop: 8, overflow: "hidden" }}>
-          <div ref={barRef} style={{ height: "100%", width: `${pct}%`, background: TOKENS.amber, borderRadius: 4 }} />
+        <div style={{ height: 8, background: theme.color.surfaceMuted, borderRadius: 4, marginTop: 8, overflow: "hidden" }}>
+          <div ref={barRef} style={{ height: "100%", width: `${pct}%`, background: theme.color.amber, borderRadius: 4 }} />
         </div>
       </div>
 
@@ -201,12 +202,12 @@ export default function VoyageDetailView({ app, voyageId }) {
       <div style={{ marginTop: 16 }}>
         {voyage.containers.length === 0 ? (
           <div style={{ textAlign: "center", padding: "50px 20px" }}>
-            <div style={{ fontFamily: TOKENS.condensed, fontWeight: 800, fontSize: 24, color: "#1c2d42" }}>
+            <div style={{ fontFamily: theme.font.condensed, fontWeight: 800, fontSize: 24, color: theme.color.slateFaint }}>
               NO CONTAINERS — tap + to add one
             </div>
             <button
               onClick={() => addContainerEntry(voyage.id)}
-              style={{ marginTop: 16, ...iconBtn, color: TOKENS.amber, borderColor: TOKENS.amber }}
+              style={{ marginTop: 16, ...iconBtn, color: theme.color.amber, borderColor: theme.color.amber }}
             >
               <Plus size={14} /> Add container
             </button>
@@ -216,7 +217,7 @@ export default function VoyageDetailView({ app, voyageId }) {
             <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
               <button
                 onClick={() => addContainerEntry(voyage.id)}
-                style={{ ...iconBtn, color: TOKENS.amber, borderColor: TOKENS.amber }}
+                style={{ ...iconBtn, color: theme.color.amber, borderColor: theme.color.amber }}
               >
                 <Plus size={14} /> Add container
               </button>
@@ -255,6 +256,7 @@ export default function VoyageDetailView({ app, voyageId }) {
           }}
         />
       )}
+    </div>
     </div>
   );
 }

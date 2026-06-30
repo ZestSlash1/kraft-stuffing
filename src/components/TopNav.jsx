@@ -2,13 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { useRouter } from "../context/RouterContext";
 import { useAuth } from "../context/AuthContext";
-import { TOKENS } from "../data/statusHelpers";
+import { theme } from "../theme";
 
 const LINKS = [
   { page: "dashboard", label: "Dashboard" },
   { page: "voyages", label: "Voyages" },
   { page: "masters", label: "Masters" },
   { page: "manifest", label: "Manifest" },
+  { page: "expenses", label: "Expenses" },
   { page: "settings", label: "Settings" },
 ];
 
@@ -20,6 +21,7 @@ const GROUP = {
   "container-log": "voyages",
   masters: "masters",
   manifest: "manifest",
+  expenses: "expenses",
   settings: "settings",
 };
 
@@ -54,8 +56,8 @@ export default function TopNav() {
         zIndex: 100,
         height: 52,
         flexShrink: 0,
-        background: TOKENS.bg,
-        borderBottom: `1px solid ${TOKENS.border}`,
+        background: theme.color.surface,
+        borderBottom: `1px solid ${theme.color.border}`,
         display: "flex",
         alignItems: "center",
         padding: "0 16px",
@@ -71,7 +73,7 @@ export default function TopNav() {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            background: "#e8eef4",
+            background: theme.color.surfaceMuted,
             borderRadius: "50%",
             padding: 2,
           }}
@@ -91,9 +93,9 @@ export default function TopNav() {
               style={{
                 background: "none",
                 border: "none",
-                borderBottom: active ? `2px solid ${TOKENS.amber}` : "2px solid transparent",
-                color: active ? TOKENS.amber : TOKENS.steel,
-                fontFamily: TOKENS.condensed,
+                borderBottom: active ? `2px solid ${theme.color.amber}` : "2px solid transparent",
+                color: active ? theme.color.amber : theme.color.slate,
+                fontFamily: theme.font.condensed,
                 fontWeight: 700,
                 fontSize: 15,
                 letterSpacing: "0.04em",
@@ -123,7 +125,7 @@ export default function TopNav() {
         >
           <span
             className="topnav-username"
-            style={{ fontFamily: TOKENS.mono, fontSize: 12, color: TOKENS.steel }}
+            style={{ fontFamily: theme.font.mono, fontSize: 12, color: theme.color.slate }}
           >
             {displayName}
           </span>
@@ -132,9 +134,9 @@ export default function TopNav() {
               width: 28,
               height: 28,
               borderRadius: "50%",
-              background: TOKENS.amber,
-              color: TOKENS.bg,
-              fontFamily: TOKENS.condensed,
+              background: theme.color.amber,
+              color: theme.color.white,
+              fontFamily: theme.font.condensed,
               fontWeight: 800,
               fontSize: 12,
               display: "flex",
@@ -152,11 +154,13 @@ export default function TopNav() {
               position: "absolute",
               top: 40,
               right: 0,
-              background: TOKENS.surface,
-              border: `1px solid ${TOKENS.border}`,
+              background: theme.color.surface,
+              border: `1px solid ${theme.color.border}`,
+              borderRadius: theme.radius.sm,
               minWidth: 140,
-              boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+              boxShadow: theme.shadow.raised,
               zIndex: 200,
+              overflow: "hidden",
             }}
           >
             {[
@@ -172,8 +176,8 @@ export default function TopNav() {
                   textAlign: "left",
                   background: "none",
                   border: "none",
-                  color: label === "Sign out" ? TOKENS.red : "#e2e8f0",
-                  fontFamily: TOKENS.mono,
+                  color: label === "Sign out" ? theme.color.red : theme.color.ink,
+                  fontFamily: theme.font.mono,
                   fontSize: 12,
                   padding: "10px 14px",
                   cursor: "pointer",

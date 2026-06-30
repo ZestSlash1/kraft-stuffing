@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Pencil, Trash2 } from "lucide-react";
-import { TOKENS } from "../data/statusHelpers";
+import { theme } from "../theme";
 import { countShipperUsage, countConsigneeUsage } from "../lib/db";
 import { useToast } from "../components/Toast";
 import ConfirmDialog from "../components/ConfirmDialog";
@@ -8,12 +8,12 @@ import ConfirmDialog from "../components/ConfirmDialog";
 const input = {
   width: "100%",
   boxSizing: "border-box",
-  background: TOKENS.bg,
-  border: `1px solid ${TOKENS.border}`,
-  borderRadius: 0,
-  color: "#e2e8f0",
+  background: theme.color.surface,
+  border: `1px solid ${theme.color.border}`,
+  borderRadius: 12,
+  color: theme.color.ink,
   padding: "10px 12px",
-  fontFamily: TOKENS.mono,
+  fontFamily: theme.font.mono,
   fontSize: 13,
   outline: "none",
 };
@@ -33,7 +33,7 @@ const CONSIGNEE_FIELDS = [
 function InlineForm({ fields, initial, onSave, onCancel }) {
   const [form, setForm] = useState(initial);
   return (
-    <div style={{ background: TOKENS.surface, border: `1px solid ${TOKENS.border}`, borderRadius: 8, padding: 14, marginTop: 12 }}>
+    <div style={{ background: theme.color.surface, border: `1px solid ${theme.color.border}`, borderRadius: 8, padding: 14, marginTop: 12 }}>
       <div className="form-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
         {fields.map((f) => (
           <div key={f.key} style={f.key === "address" ? { gridColumn: "1 / -1" } : undefined}>
@@ -42,19 +42,19 @@ function InlineForm({ fields, initial, onSave, onCancel }) {
               style={input}
               value={form[f.key] || ""}
               onChange={(e) => setForm((s) => ({ ...s, [f.key]: e.target.value }))}
-              onFocus={(e) => (e.target.style.borderColor = TOKENS.amber)}
-              onBlur={(e) => (e.target.style.borderColor = TOKENS.border)}
+              onFocus={(e) => (e.target.style.borderColor = theme.color.amber)}
+              onBlur={(e) => (e.target.style.borderColor = theme.color.border)}
             />
           </div>
         ))}
       </div>
       <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-        <button onClick={onCancel} style={{ background: "none", border: `1px solid ${TOKENS.border}`, color: TOKENS.steel, fontFamily: TOKENS.mono, fontSize: 11, padding: "8px 14px", cursor: "pointer" }}>
+        <button onClick={onCancel} style={{ background: "none", border: `1px solid ${theme.color.border}`, color: theme.color.slate, fontFamily: theme.font.mono, fontSize: 11, padding: "8px 14px", cursor: "pointer" }}>
           CANCEL
         </button>
         <button
           onClick={() => form.name?.trim() && onSave(form)}
-          style={{ background: TOKENS.amber, border: "none", color: TOKENS.bg, fontFamily: TOKENS.condensed, fontWeight: 700, fontSize: 13, textTransform: "uppercase", padding: "8px 18px", cursor: "pointer" }}
+          style={{ background: theme.color.amber, border: "none", color: theme.color.surface, fontFamily: theme.font.condensed, fontWeight: 700, fontSize: 13, textTransform: "uppercase", padding: "8px 18px", cursor: "pointer" }}
         >
           SAVE
         </button>
@@ -104,9 +104,10 @@ export default function MastersView({ app }) {
   };
 
   return (
+    <div style={{ minHeight: "100%", background: theme.color.canvas, color: theme.color.ink }}>
     <div style={{ maxWidth: 1000, margin: "0 auto", padding: "20px 18px 40px" }}>
       {/* Tabs */}
-      <div style={{ display: "flex", gap: 20, borderBottom: `1px solid ${TOKENS.border}` }}>
+      <div style={{ display: "flex", gap: 20, borderBottom: `1px solid ${theme.color.border}` }}>
         {["SHIPPERS", "CONSIGNEES"].map((t) => (
           <button
             key={t}
@@ -114,9 +115,9 @@ export default function MastersView({ app }) {
             style={{
               background: "none",
               border: "none",
-              borderBottom: tab === t ? `2px solid ${TOKENS.amber}` : "2px solid transparent",
-              color: tab === t ? TOKENS.amber : TOKENS.steel,
-              fontFamily: TOKENS.condensed,
+              borderBottom: tab === t ? `2px solid ${theme.color.amber}` : "2px solid transparent",
+              color: tab === t ? theme.color.amber : theme.color.slate,
+              fontFamily: theme.font.condensed,
               fontWeight: 700,
               fontSize: 18,
               letterSpacing: "0.04em",
@@ -138,7 +139,7 @@ export default function MastersView({ app }) {
         />
         <button
           onClick={() => setEditing("new")}
-          style={{ background: TOKENS.amber, border: "none", color: TOKENS.bg, fontFamily: TOKENS.condensed, fontWeight: 700, fontSize: 13, textTransform: "uppercase", padding: "10px 16px", cursor: "pointer", whiteSpace: "nowrap" }}
+          style={{ background: theme.color.amber, border: "none", color: theme.color.surface, fontFamily: theme.font.condensed, fontWeight: 700, fontSize: 13, textTransform: "uppercase", padding: "10px 16px", cursor: "pointer", whiteSpace: "nowrap" }}
         >
           + Add {isShipper ? "Shipper" : "Consignee"}
         </button>
@@ -156,7 +157,7 @@ export default function MastersView({ app }) {
       {/* List */}
       <div style={{ marginTop: 16 }}>
         {filtered.length === 0 ? (
-          <div style={{ fontFamily: TOKENS.condensed, fontWeight: 800, fontSize: 22, color: "#1c2d42", textAlign: "center", padding: "40px 0" }}>
+          <div style={{ fontFamily: theme.font.condensed, fontWeight: 800, fontSize: 22, color: theme.color.slateFaint, textAlign: "center", padding: "40px 0" }}>
             {isShipper ? "NO SHIPPERS SAVED — add your first one" : "NO CONSIGNEES SAVED — add your first one"}
           </div>
         ) : (
@@ -164,14 +165,14 @@ export default function MastersView({ app }) {
             <div key={row.id}>
               <div
                 className="master-row"
-                style={{ display: "grid", gridTemplateColumns: "1.5fr 1.2fr 1fr 70px", gap: 12, alignItems: "center", padding: "12px 4px", borderBottom: `1px solid ${TOKENS.border}` }}
+                style={{ display: "grid", gridTemplateColumns: "1.5fr 1.2fr 1fr 70px", gap: 12, alignItems: "center", padding: "12px 4px", borderBottom: `1px solid ${theme.color.border}` }}
               >
-                <div style={{ fontFamily: TOKENS.condensed, fontWeight: 700, fontSize: 15, color: "#e8eef4" }}>{row.name}</div>
-                <div style={{ fontFamily: TOKENS.mono, fontSize: 11, color: TOKENS.steel }}>{isShipper ? row.gstin : row.country}</div>
-                <div style={{ fontFamily: TOKENS.mono, fontSize: 11, color: TOKENS.steel }}>{isShipper ? row.iecCode : ""}</div>
+                <div style={{ fontFamily: theme.font.condensed, fontWeight: 700, fontSize: 15, color: "#e8eef4" }}>{row.name}</div>
+                <div style={{ fontFamily: theme.font.mono, fontSize: 11, color: theme.color.slate }}>{isShipper ? row.gstin : row.country}</div>
+                <div style={{ fontFamily: theme.font.mono, fontSize: 11, color: theme.color.slate }}>{isShipper ? row.iecCode : ""}</div>
                 <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                  <button onClick={() => setEditing(row.id)} style={{ background: "none", border: "none", color: TOKENS.steel, cursor: "pointer" }}><Pencil size={14} /></button>
-                  <button onClick={() => startDelete(row)} style={{ background: "none", border: "none", color: TOKENS.red, cursor: "pointer" }}><Trash2 size={14} /></button>
+                  <button onClick={() => setEditing(row.id)} style={{ background: "none", border: "none", color: theme.color.slate, cursor: "pointer" }}><Pencil size={14} /></button>
+                  <button onClick={() => startDelete(row)} style={{ background: "none", border: "none", color: theme.color.red, cursor: "pointer" }}><Trash2 size={14} /></button>
                 </div>
               </div>
               {editing === row.id && (
@@ -194,6 +195,7 @@ export default function MastersView({ app }) {
           ))
         )}
       </div>
+    </div>
     </div>
   );
 }

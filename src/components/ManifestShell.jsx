@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ClipboardList, FileText, Ship, Globe2 } from "lucide-react";
-import { TOKENS } from "../data/statusHelpers";
+import { theme } from "../theme";
 import BookingsView from "../views/BookingsView";
 import ManifestDocumentView from "../views/ManifestDocumentView";
 import VesselMovementsView from "../views/VesselMovementsView";
@@ -21,10 +21,10 @@ export default function ManifestShell({ app }) {
   const voyage = state.voyages.find((v) => v.id === state.activeVoyageId);
 
   return (
-    <div>
+    <div style={{ minHeight: "100%", background: theme.color.canvas, color: theme.color.ink }}>
       <div
         style={{
-          borderBottom: `1px solid ${TOKENS.border}`,
+          borderBottom: `1px solid ${theme.color.border}`,
           padding: "14px 18px 0",
           display: "flex",
           flexWrap: "wrap",
@@ -45,9 +45,9 @@ export default function ManifestShell({ app }) {
                 style={{
                   background: "none",
                   border: "none",
-                  borderBottom: active ? `2px solid ${TOKENS.amber}` : "2px solid transparent",
-                  color: active ? TOKENS.amber : TOKENS.steel,
-                  fontFamily: TOKENS.mono,
+                  borderBottom: active ? `2px solid ${theme.color.amber}` : "2px solid transparent",
+                  color: active ? theme.color.amber : theme.color.slate,
+                  fontFamily: theme.font.mono,
                   fontSize: 12,
                   letterSpacing: "0.06em",
                   textTransform: "uppercase",
@@ -69,10 +69,10 @@ export default function ManifestShell({ app }) {
           value={voyage?.id || ""}
           onChange={(e) => setActiveVoyage(e.target.value)}
           style={{
-            background: TOKENS.bg,
-            border: `1px solid ${TOKENS.border}`,
-            color: "#e2e8f0",
-            fontFamily: TOKENS.mono,
+            background: theme.color.surface,
+            border: `1px solid ${theme.color.border}`,
+            color: theme.color.ink,
+            fontFamily: theme.font.mono,
             fontSize: 12,
             padding: "8px 10px",
             marginBottom: 8,

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { TOKENS } from "../data/statusHelpers";
+import { theme } from "../theme";
 
 const itemStyle = {
   display: "block",
@@ -7,8 +7,8 @@ const itemStyle = {
   textAlign: "left",
   background: "none",
   border: "none",
-  color: "#e2e8f0",
-  fontFamily: TOKENS.mono,
+  color: theme.color.ink,
+  fontFamily: theme.font.mono,
   fontSize: 12,
   padding: "12px 14px",
   cursor: "pointer",
@@ -41,10 +41,10 @@ export default function ExportMenu({ onExportXlsx, onExportPdf }) {
         onClick={() => setOpen((o) => !o)}
         className="mono"
         style={{
-          background: "none",
-          border: `1px solid ${TOKENS.border}`,
-          color: "#e2e8f0",
-          borderRadius: 0,
+          background: theme.color.surface,
+          border: `1px solid ${theme.color.borderStrong}`,
+          color: theme.color.inkSoft,
+          borderRadius: theme.radius.input,
           padding: "6px 14px",
           cursor: "pointer",
           minHeight: 44,
@@ -58,10 +58,13 @@ export default function ExportMenu({ onExportXlsx, onExportPdf }) {
             position: "absolute",
             top: "calc(100% + 4px)",
             right: 0,
-            background: TOKENS.surface,
-            border: `1px solid ${TOKENS.border}`,
+            background: theme.color.surface,
+            border: `1px solid ${theme.color.border}`,
+            borderRadius: theme.radius.sm,
+            boxShadow: theme.shadow.raised,
             minWidth: 160,
             zIndex: 60,
+            overflow: "hidden",
           }}
         >
           <button
@@ -73,15 +76,17 @@ export default function ExportMenu({ onExportXlsx, onExportPdf }) {
           >
             XLSX — full export
           </button>
-          <button
-            style={{ ...itemStyle, borderTop: `1px solid ${TOKENS.border}` }}
-            onClick={() => {
-              setOpen(false);
-              onExportPdf?.();
-            }}
-          >
-            PDF — packing list
-          </button>
+          {onExportPdf && (
+            <button
+              style={{ ...itemStyle, borderTop: `1px solid ${theme.color.border}` }}
+              onClick={() => {
+                setOpen(false);
+                onExportPdf();
+              }}
+            >
+              PDF — packing list
+            </button>
+          )}
         </div>
       )}
     </div>
