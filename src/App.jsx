@@ -57,6 +57,8 @@ import { mkSeed } from "./seed";
 import { appReducer, initialState } from "./data/appReducer";
 import { AuthContext } from "./context/AuthContext";
 import { RouterContext } from "./context/RouterContext";
+import { LiveContext } from "./context/LiveContext";
+import { mailApi } from "./lib/mailApi";
 import { ToastProvider } from "./components/Toast";
 import ErrorBoundary from "./components/ErrorBoundary";
 import LoginView from "./views/LoginView";
@@ -202,7 +204,29 @@ export default function App() {
 
   // ── Routing ─────────────────────────────────────────────────────────────────
   const [route, setRoute] = useState({ page: "dashboard", params: {} });
-  const navigate = useCallback((page, params = {}) => setRoute({ page, params }), []);
+
+  // ── Live notification dots ──────────────────────────────────────────────────
+  // Sections go "dirty" on a realtime change and clear when you navigate there.
+  const [dirty, setDirty] = useState({});
+  const routeRef = useRef(route);
+  routeRef.current = route;
+  const groupOf = (page) =>
+    ({ "voyage-detail": "voyages", "container-log": "voyages" })[page] || page;
+
+  const navigate = useCallback((page, params = {}) => {
+    setRoute({ page, params });
+    setDirty((d) => (d[groupOf(page)] ? { ...d, [groupOf(page)]: false } : d));
+  }, []);
+
+  // A stuffing realtime event marks Dashboard + Voyages dirty (unless you're there).
+  const onLiveActivity = useCallback(() => {
+    const here = groupOf(routeRef.current.page);
+    setDirty((d) => ({
+      ...d,
+      dashboard: here === "dashboard" ? false : true,
+      voyages: here === "voyages" ? false : true,
+    }));
+  }, []);
 
   // App selector: shown once per session after login, before entering a section.
   const [appSelected, setAppSelected] = useState(
@@ -305,8 +329,30 @@ export default function App() {
   const { presence, track: trackPresence } = useVoyageRealtime(
     state.activeVoyageId,
     dispatch,
-    activeVoyage?.containers.map((c) => c.id) || []
+    activeVoyage?.containers.map((c) => c.id) || [],
+    onLiveActivity
   );
+
+  // ── Mail unread badge: poll the inbox while signed in (0 if no mailbox) ──────
+  const [mailUnread, setMailUnread] = useState(0);
+  useEffect(() => {
+    if (!user) return;
+    let alive = true;
+    const poll = () =>
+      mailApi
+        .list("INBOX")
+        .then((r) => alive && setMailUnread((r.messages || []).filter((m) => !m.seen).length))
+        .catch(() => alive && setMailUnread(0));
+    poll();
+    const id = setInterval(() => document.visibilityState === "visible" && poll(), 60000);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, [user]);
+
+  // Opening Mail clears its dot; track unread separately so the badge reflects IMAP.
+  const live = { dirty, online: Object.keys(presence).length, mailUnread };
 
   // Resolve which voyage a container belongs to (handlers don't rely on active).
   const voyageIdForContainer = (cid) =>
@@ -579,9 +625,11 @@ export default function App() {
     <ErrorBoundary>
       <AuthContext.Provider value={{ user, session, profile }}>
         <RouterContext.Provider value={{ route, navigate, goPortal }}>
-          <ToastProvider>
-            <AppShell app={app} />
-          </ToastProvider>
+          <LiveContext.Provider value={live}>
+            <ToastProvider>
+              <AppShell app={app} />
+            </ToastProvider>
+          </LiveContext.Provider>
         </RouterContext.Provider>
       </AuthContext.Provider>
     </ErrorBoundary>

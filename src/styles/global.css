@@ -117,13 +117,15 @@ canvas {
 }
 
 /* ── Navigation / shell ─────────────────────────────────────────────────── */
-.bottom-nav { display: none; }
+/* Desktop: top nav only. !important beats the component's inline display:flex. */
+.bottom-nav { display: none !important; }
 .app-main { padding-bottom: 0; }
 
 @media (max-width: 767px) {
   .topnav-links { display: none !important; }
   .topnav-username { display: none !important; }
   .portal-btn-label { display: none !important; }
+  .livepill-label { display: none !important; }
   .bottom-nav { display: flex !important; }
   .app-main { padding-bottom: calc(56px + env(safe-area-inset-bottom)); }
   /* Launcher stacks to a single column on phones. */

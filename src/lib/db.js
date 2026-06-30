@@ -503,22 +503,45 @@ export async function flushQueue() {
 }
 
 // ── Profiles ──────────────────────────────────────────────────────────────────
-// Ensure an authenticated user has a profile row (idempotent upsert).
+// Permanent super-admins, keyed by email. These accounts are always promoted to
+// the admin role on login regardless of what the DB row says — so the director's
+// access can never be accidentally downgraded. Mirrored server-side in
+// api/_lib/auth.js (keep the two lists in sync).
+export const ADMIN_EMAILS = ["shahzeb@shafrina.com"];
+export const isAdminEmail = (email) => ADMIN_EMAILS.includes((email || "").trim().toLowerCase());
+
+// Ensure an authenticated user has a profile row (idempotent upsert). Hardcoded
+// admins are promoted (and given a default title) if their row says otherwise.
 export async function ensureProfile(user) {
   if (!user) return { data: null, error: new Error("no user") };
+  const admin = isAdminEmail(user.email);
   const { data: existing, error: selErr } = await supabase
     .from("profiles")
     .select("*")
     .eq("id", user.id)
     .maybeSingle();
   if (selErr) return { data: null, error: selErr };
-  if (existing) return { data: existing, error: null };
+
+  if (existing) {
+    // Force-promote a hardcoded admin whose stored role drifted.
+    if (admin && existing.role !== "admin") {
+      const { data, error } = await supabase
+        .from("profiles")
+        .update({ role: "admin", title: existing.title || "Director" })
+        .eq("id", user.id)
+        .select()
+        .single();
+      return { data: data || existing, error };
+    }
+    return { data: existing, error: null };
+  }
 
   const profile = {
     id: user.id,
     org_id: KRAFT_ORG_ID,
     display_name: user.email || "",
-    role: "staff",
+    role: admin ? "admin" : "staff",
+    title: admin ? "Director" : null,
   };
   const { data, error } = await supabase
     .from("profiles")

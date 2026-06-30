@@ -4,7 +4,7 @@ import { requireUser, requireAdmin, adminClient, httpError, withErrors, readJson
 export default withErrors(async (req, res) => {
   if (req.method !== "PUT") throw httpError(405, "Method not allowed");
   const user = await requireUser(req);
-  const adminProfile = await requireAdmin(user.id);
+  const adminProfile = await requireAdmin(user);
   const id = (req.query.id || "").toString();
   if (!id) throw httpError(400, "profile id is required");
 

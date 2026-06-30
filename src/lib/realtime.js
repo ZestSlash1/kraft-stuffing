@@ -7,10 +7,13 @@ import { fromDbContainer, fromDbLine } from "./db";
 // `containerIds` should be the live list of container ids for this voyage (from
 // app state) so stuffing_lines events can be filtered without an extra fetch.
 // Returns { presence, track } — presence is userId -> {userId, displayName, containerId, lastSeen}.
-export function useVoyageRealtime(voyageId, dispatch, containerIds = []) {
+export function useVoyageRealtime(voyageId, dispatch, containerIds = [], onActivity) {
   const channelRef = useRef(null);
   const containerIdsRef = useRef(new Set());
   const [presence, setPresence] = useState({});
+  const activityRef = useRef(onActivity);
+  activityRef.current = onActivity;
+  const ping = () => activityRef.current?.();
 
   // Keep the filter set current as containers are added/removed locally.
   useEffect(() => {
@@ -28,6 +31,7 @@ export function useVoyageRealtime(voyageId, dispatch, containerIds = []) {
         "postgres_changes",
         { event: "*", schema: "public", table: "containers", filter: `voyage_id=eq.${voyageId}` },
         (payload) => {
+          ping();
           if (payload.eventType === "INSERT") {
             const container = fromDbContainer(payload.new);
             containerIdsRef.current.add(container.id);
@@ -53,6 +57,7 @@ export function useVoyageRealtime(voyageId, dispatch, containerIds = []) {
         (payload) => {
           const row = payload.new;
           if (!containerIdsRef.current.has(row.container_id)) return;
+          ping();
           const line = fromDbLine(row);
           dispatch({
             type: "ADD_LINE",

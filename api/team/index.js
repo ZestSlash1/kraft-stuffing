@@ -6,7 +6,7 @@ import { requireUser, requireAdmin, adminClient, httpError, withErrors, readJson
 
 export default withErrors(async (req, res) => {
   const user = await requireUser(req);
-  const adminProfile = await requireAdmin(user.id);
+  const adminProfile = await requireAdmin(user);
   const supabase = adminClient();
 
   if (req.method === "GET") {

@@ -12,6 +12,10 @@ import { createClient } from "@supabase/supabase-js";
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
+// Permanent super-admins by email (keep in sync with src/lib/db.js ADMIN_EMAILS).
+const ADMIN_EMAILS = ["shahzeb@shafrina.com"];
+const isAdminEmail = (email) => ADMIN_EMAILS.includes((email || "").trim().toLowerCase());
+
 // Admin client — bypasses RLS. Use only after the caller is verified + scope every
 // query to their own user_id (or an explicit admin role check).
 export function adminClient() {
@@ -48,8 +52,20 @@ export async function requireProfile(userId) {
   return data;
 }
 
-export async function requireAdmin(userId) {
-  const profile = await requireProfile(userId);
+// Accepts the auth user (from requireUser). Hardcoded admin emails are always
+// allowed and self-heal their DB row to role=admin; everyone else needs role=admin.
+export async function requireAdmin(user) {
+  const profile = await requireProfile(user.id);
+  if (isAdminEmail(user.email)) {
+    if (profile.role !== "admin") {
+      await adminClient()
+        .from("profiles")
+        .update({ role: "admin", title: profile.title || "Director" })
+        .eq("id", user.id);
+      profile.role = "admin";
+    }
+    return profile;
+  }
   if (profile.role !== "admin") throw httpError(403, "Admin role required");
   return profile;
 }

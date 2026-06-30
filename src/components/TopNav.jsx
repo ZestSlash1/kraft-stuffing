@@ -1,20 +1,31 @@
 import { useEffect, useRef, useState } from "react";
-import { LayoutGrid } from "lucide-react";
+import {
+  LayoutGrid,
+  LayoutDashboard,
+  Ship,
+  FileText,
+  Receipt,
+  Mail,
+  Users,
+  Settings,
+} from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useRouter } from "../context/RouterContext";
 import { useAuth } from "../context/AuthContext";
+import { useLive } from "../context/LiveContext";
 import { theme } from "../theme";
 
-const LINKS = [
-  { page: "dashboard", label: "Dashboard" },
-  { page: "voyages", label: "Voyages" },
-  { page: "masters", label: "Masters" },
-  { page: "manifest", label: "Manifest" },
-  { page: "expenses", label: "Expenses" },
-  { page: "settings", label: "Settings" },
+const NAV = [
+  { page: "dashboard", label: "Dashboard", Icon: LayoutDashboard },
+  { page: "voyages", label: "Voyages", Icon: Ship },
+  { page: "manifest", label: "Manifest", Icon: FileText },
+  { page: "expenses", label: "Expenses", Icon: Receipt },
+  { page: "mail", label: "Mail", Icon: Mail },
+  { page: "masters", label: "Masters", Icon: Users },
+  { page: "settings", label: "Settings", Icon: Settings },
 ];
 
-// Which top-level link should appear active for a given page.
+// Which top-level item lights up for a given page.
 const GROUP = {
   dashboard: "dashboard",
   voyages: "voyages",
@@ -23,17 +34,20 @@ const GROUP = {
   masters: "masters",
   manifest: "manifest",
   expenses: "expenses",
+  mail: "mail",
   settings: "settings",
 };
 
 export default function TopNav() {
   const { route, navigate, goPortal } = useRouter();
   const { user, profile } = useAuth();
+  const { dirty, online, mailUnread } = useLive();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
 
   const activeGroup = GROUP[route.page] || "dashboard";
   const displayName = profile?.displayName || (user?.email || "").split("@")[0] || "user";
+  const title = profile?.title || (profile?.role === "admin" ? "Admin" : "Staff");
   const initials = displayName.slice(0, 2).toUpperCase();
 
   useEffect(() => {
@@ -49,127 +63,111 @@ export default function TopNav() {
     await supabase.auth.signOut();
   };
 
+  const badgeFor = (page) => (page === "mail" ? mailUnread : dirty[page] ? -1 : 0);
+
   return (
     <div
       style={{
         position: "sticky",
         top: 0,
         zIndex: 100,
-        height: 52,
+        height: 56,
         flexShrink: 0,
-        background: theme.color.surface,
+        background: "rgba(255,255,255,0.85)",
+        backdropFilter: "blur(12px)",
+        WebkitBackdropFilter: "blur(12px)",
         borderBottom: `1px solid ${theme.color.border}`,
         display: "flex",
         alignItems: "center",
-        padding: "0 16px",
+        padding: "0 14px",
+        gap: 8,
       }}
     >
-      {/* Left: logo */}
+      {/* Left: logo + Portal */}
       <button
         onClick={() => navigate("dashboard")}
         style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", padding: 0 }}
       >
-        <span
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            background: theme.color.surfaceMuted,
-            borderRadius: "50%",
-            padding: 2,
-          }}
-        >
-          <img src="/kraft-logo.png" height="36" alt="Kraft" style={{ display: "block" }} />
-        </span>
+        <img src="/kraft-logo.png" height="34" alt="Kraft" style={{ display: "block" }} />
       </button>
-
-      {/* Portal: jump back to the app launcher without signing out. */}
       <button
         onClick={goPortal}
         title="Portal — all sections"
         style={{
           display: "flex",
           alignItems: "center",
-          gap: 6,
-          background: "none",
+          justifyContent: "center",
+          width: 34,
+          height: 34,
+          background: theme.color.surfaceMuted,
           border: `1px solid ${theme.color.border}`,
-          borderRadius: theme.radius.pill,
+          borderRadius: 10,
           color: theme.color.slate,
-          fontFamily: theme.font.condensed,
-          fontWeight: 700,
-          fontSize: 12,
-          letterSpacing: "0.06em",
-          textTransform: "uppercase",
-          padding: "6px 12px",
-          marginLeft: 12,
           cursor: "pointer",
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.borderColor = theme.color.amber;
-          e.currentTarget.style.color = theme.color.amber;
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.borderColor = theme.color.border;
-          e.currentTarget.style.color = theme.color.slate;
+          flexShrink: 0,
         }}
       >
-        <LayoutGrid size={15} />
-        <span className="portal-btn-label">Portal</span>
+        <LayoutGrid size={16} />
       </button>
 
-      {/* Center: nav links (desktop) */}
-      <div className="topnav-links" style={{ display: "flex", gap: 4, margin: "0 auto" }}>
-        {LINKS.map((l) => {
-          const active = activeGroup === l.page;
+      {/* Center: nav items (desktop) */}
+      <div className="topnav-links" style={{ display: "flex", gap: 2, margin: "0 auto", alignItems: "center" }}>
+        {NAV.map(({ page, label, Icon }) => {
+          const active = activeGroup === page;
+          const badge = badgeFor(page);
           return (
             <button
-              key={l.page}
-              onClick={() => navigate(l.page)}
+              key={page}
+              onClick={() => navigate(page)}
+              title={label}
               style={{
-                background: "none",
+                position: "relative",
+                display: "flex",
+                alignItems: "center",
+                gap: 7,
+                background: active ? theme.color.amberSoft : "transparent",
                 border: "none",
-                borderBottom: active ? `2px solid ${theme.color.amber}` : "2px solid transparent",
-                color: active ? theme.color.amber : theme.color.slate,
+                borderRadius: theme.radius.pill,
+                color: active ? "#b3700a" : theme.color.slate,
                 fontFamily: theme.font.condensed,
                 fontWeight: 700,
-                fontSize: 15,
+                fontSize: 13.5,
                 letterSpacing: "0.04em",
                 textTransform: "uppercase",
-                padding: "16px 12px",
+                padding: "8px 13px",
                 cursor: "pointer",
+                transition: "background .15s ease, color .15s ease",
               }}
+              onMouseEnter={(e) => !active && (e.currentTarget.style.color = theme.color.ink)}
+              onMouseLeave={(e) => !active && (e.currentTarget.style.color = theme.color.slate)}
             >
-              {l.label}
+              <span style={{ position: "relative", display: "flex" }}>
+                <Icon size={16} color={active ? theme.color.amber : "currentColor"} />
+                <NavDot badge={badge} />
+              </span>
+              <span className="topnav-label">{label}</span>
             </button>
           );
         })}
       </div>
 
-      {/* Right: user */}
-      <div ref={menuRef} style={{ position: "relative", marginLeft: "auto" }}>
+      {/* Right: live presence + user */}
+      <LivePill online={online} />
+      <div ref={menuRef} style={{ position: "relative" }}>
         <button
           onClick={() => setMenuOpen((o) => !o)}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-          }}
+          style={{ display: "flex", alignItems: "center", gap: 9, background: "none", border: "none", cursor: "pointer" }}
         >
-          <span
-            className="topnav-username"
-            style={{ fontFamily: theme.font.mono, fontSize: 12, color: theme.color.slate }}
-          >
-            {displayName}
+          <span className="topnav-username" style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", lineHeight: 1.15 }}>
+            <span style={{ fontFamily: theme.font.mono, fontSize: 12, color: theme.color.ink }}>{displayName}</span>
+            <span style={{ fontFamily: theme.font.mono, fontSize: 9, color: theme.color.slate, letterSpacing: "0.04em" }}>{title}</span>
           </span>
           <span
             style={{
-              width: 28,
-              height: 28,
+              width: 30,
+              height: 30,
               borderRadius: "50%",
-              background: theme.color.amber,
+              background: profile?.role === "admin" ? theme.color.ink : theme.color.amber,
               color: theme.color.white,
               fontFamily: theme.font.condensed,
               fontWeight: 800,
@@ -187,12 +185,12 @@ export default function TopNav() {
           <div
             style={{
               position: "absolute",
-              top: 40,
+              top: 44,
               right: 0,
               background: theme.color.surface,
               border: `1px solid ${theme.color.border}`,
               borderRadius: theme.radius.sm,
-              minWidth: 140,
+              minWidth: 150,
               boxShadow: theme.shadow.raised,
               zIndex: 200,
               overflow: "hidden",
@@ -224,6 +222,82 @@ export default function TopNav() {
           </div>
         )}
       </div>
+
+      <style>{`
+        @keyframes navPulse { 0% { box-shadow: 0 0 0 0 rgba(220,38,38,.45); } 70% { box-shadow: 0 0 0 5px rgba(220,38,38,0); } 100% { box-shadow: 0 0 0 0 rgba(220,38,38,0); } }
+        @keyframes livePulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+        @media (max-width: 1100px) { .topnav-label { display: none !important; } }
+      `}</style>
     </div>
+  );
+}
+
+// badge: positive number = unread count; -1 = generic live dot; 0 = none.
+export function NavDot({ badge }) {
+  if (!badge) return null;
+  const count = badge > 0 ? badge : null;
+  return (
+    <span
+      style={{
+        position: "absolute",
+        top: -5,
+        right: -6,
+        minWidth: count ? 15 : 9,
+        height: count ? 15 : 9,
+        padding: count ? "0 3px" : 0,
+        boxSizing: "border-box",
+        borderRadius: 999,
+        background: theme.color.red,
+        color: theme.color.white,
+        border: `1.5px solid ${theme.color.surface}`,
+        fontFamily: theme.font.mono,
+        fontSize: 9,
+        fontWeight: 600,
+        lineHeight: count ? "12px" : 1,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        animation: "navPulse 1.8s infinite",
+      }}
+    >
+      {count && count < 100 ? count : count ? "99+" : ""}
+    </span>
+  );
+}
+
+// Small "LIVE · n" presence pill — green when others are online, grey when alone.
+function LivePill({ online }) {
+  const others = Math.max(0, online - 1);
+  const on = others > 0;
+  return (
+    <span
+      title={on ? `${others} other ${others === 1 ? "person" : "people"} online` : "Realtime connected"}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        background: on ? theme.color.greenSoft : theme.color.surfaceMuted,
+        border: `1px solid ${on ? "#bfe0d3" : theme.color.border}`,
+        borderRadius: theme.radius.pill,
+        padding: "5px 10px",
+        flexShrink: 0,
+      }}
+    >
+      <span
+        style={{
+          width: 7,
+          height: 7,
+          borderRadius: "50%",
+          background: on ? theme.color.green : theme.color.slateFaint,
+          animation: "livePulse 1.6s infinite",
+        }}
+      />
+      <span
+        className="livepill-label"
+        style={{ fontFamily: theme.font.mono, fontSize: 10, letterSpacing: "0.1em", color: on ? theme.color.green : theme.color.slate }}
+      >
+        {on ? `LIVE · ${others}` : "LIVE"}
+      </span>
+    </span>
   );
 }
