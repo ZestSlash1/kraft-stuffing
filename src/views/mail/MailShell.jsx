@@ -1,17 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
-import { Inbox, Send, PenSquare, Settings as SettingsIcon, Users } from "lucide-react";
+import { Inbox, Send, PenSquare, Settings as SettingsIcon } from "lucide-react";
 import { theme } from "../../theme";
 import { mailApi } from "../../lib/mailApi";
 import InboxView from "./InboxView";
 import ConnectView from "./ConnectView";
 import ComposeView from "./ComposeView";
 import MailSettingsView from "./MailSettingsView";
-import TeamView from "./TeamView";
 
 // Mail has its own internal navigation (the app router only knows page="mail").
-// sub: { view: 'inbox'|'sent'|'compose'|'settings'|'team', params }
-export default function MailShell({ app }) {
-  const isAdmin = app?.profile?.role === "admin";
+// sub: { view: 'inbox'|'sent'|'compose'|'settings', params }. Team management now
+// lives in Settings (admin-only), not here.
+export default function MailShell() {
   const [sub, setSub] = useState({ view: "inbox", params: {} });
   const [connected, setConnected] = useState(null); // null = unknown, false/true known
   const go = useCallback((view, params = {}) => setSub({ view, params }), []);
@@ -33,7 +32,6 @@ export default function MailShell({ app }) {
     { view: "sent", label: "Sent", Icon: Send },
     { view: "compose", label: "Compose", Icon: PenSquare },
     { view: "settings", label: "Settings", Icon: SettingsIcon },
-    ...(isAdmin ? [{ view: "team", label: "Team", Icon: Users }] : []),
   ];
 
   // Not connected yet → force the connect flow regardless of which view is picked.
@@ -54,9 +52,6 @@ export default function MailShell({ app }) {
         break;
       case "settings":
         content = <MailSettingsView connected={connected} onConnect={() => go("inbox")} />;
-        break;
-      case "team":
-        content = isAdmin ? <TeamView /> : <Centered>Admins only.</Centered>;
         break;
       case "inbox":
       default:

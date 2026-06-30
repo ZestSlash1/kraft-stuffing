@@ -4,6 +4,7 @@ import { saveOrgSettings, KRAFT_ORG_ID } from "../lib/db";
 import { theme } from "../theme";
 import { useToast } from "../components/Toast";
 import { useAuth } from "../context/AuthContext";
+import TeamPanel from "./TeamPanel";
 
 const input = {
   width: "100%",
@@ -164,6 +165,12 @@ export default function SettingsView({ app }) {
           {pwError && <span style={{ fontFamily: theme.font.mono, fontSize: 12, color: theme.color.red }}>{pwError}</span>}
         </div>
       </Section>
+
+      {profile?.role === "admin" && (
+        <Section title="TEAM MANAGEMENT">
+          <TeamPanel />
+        </Section>
+      )}
 
       <Section title="ORGANISATION">
         <Row label="Org name">

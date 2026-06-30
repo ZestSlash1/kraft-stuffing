@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
 import { UserPlus, Check } from "lucide-react";
-import { theme } from "../../theme";
-import { mailApi } from "../../lib/mailApi";
+import { theme } from "../theme";
+import { mailApi } from "../lib/mailApi";
 
+// Admin-only team management, embedded inside Settings. Lets an admin invite
+// members and edit everyone's name / title / role. Mailbox credentials are never
+// exposed — only a connected yes/no flag. Backed by the /api/team routes.
 const cell = {
   fontFamily: theme.font.mono,
   fontSize: 12,
@@ -24,11 +27,12 @@ const editInput = {
   outline: "none",
 };
 
-export default function TeamView() {
+export default function TeamPanel() {
   const [team, setTeam] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [savingId, setSavingId] = useState(null);
+  const [savedId, setSavedId] = useState(null);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviting, setInviting] = useState(false);
 
@@ -48,8 +52,11 @@ export default function TeamView() {
 
   const save = async (m) => {
     setSavingId(m.id);
+    setError("");
     try {
       await mailApi.updateMember(m.id, { full_name: m.full_name, title: m.title, role: m.role });
+      setSavedId(m.id);
+      setTimeout(() => setSavedId((s) => (s === m.id ? null : s)), 1500);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -73,31 +80,19 @@ export default function TeamView() {
   };
 
   return (
-    <div style={{ maxWidth: 880, margin: "0 auto", padding: "32px 24px" }}>
-      <div
-        style={{
-          fontFamily: theme.font.condensed,
-          fontWeight: 800,
-          fontSize: 24,
-          letterSpacing: "0.02em",
-          color: theme.color.ink,
-          marginBottom: 6,
-        }}
-      >
-        TEAM
-      </div>
-      <div style={{ fontFamily: theme.font.mono, fontSize: 12, color: theme.color.slate, marginBottom: 20 }}>
-        Manage names, titles and roles. Mailbox credentials stay private — never shown here.
+    <div>
+      <div style={{ fontFamily: theme.font.mono, fontSize: 12, color: theme.color.slate, marginBottom: 16 }}>
+        Invite members and manage names, titles and roles. Mailbox credentials stay private.
       </div>
 
       {/* Invite */}
-      <div style={{ display: "flex", gap: 10, marginBottom: 22 }}>
+      <div style={{ display: "flex", gap: 10, marginBottom: 18 }}>
         <input
           placeholder="new.member@shafrina.com"
           value={inviteEmail}
           onChange={(e) => setInviteEmail(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && !inviting && invite()}
-          style={{ ...editInput, maxWidth: 320, padding: "10px 12px", fontSize: 13 }}
+          style={{ ...editInput, padding: "9px 12px", fontSize: 13 }}
         />
         <button
           onClick={invite}
@@ -116,6 +111,7 @@ export default function TeamView() {
             letterSpacing: "0.04em",
             textTransform: "uppercase",
             padding: "0 16px",
+            whiteSpace: "nowrap",
             cursor: inviting ? "wait" : "pointer",
           }}
         >
@@ -127,8 +123,8 @@ export default function TeamView() {
       {loading ? (
         <div style={{ fontFamily: theme.font.mono, fontSize: 12, color: theme.color.slate }}>Loading team…</div>
       ) : (
-        <div style={{ border: `1px solid ${theme.color.border}`, borderRadius: theme.radius.card, overflow: "hidden", background: theme.color.surface }}>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <div style={{ border: `1px solid ${theme.color.border}`, borderRadius: theme.radius.card, overflow: "auto", background: theme.color.surface }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 480 }}>
             <thead>
               <tr>
                 {["Name", "Title", "Role", "Mail", ""].map((h) => (
@@ -185,10 +181,10 @@ export default function TeamView() {
                         display: "flex",
                         alignItems: "center",
                         gap: 5,
-                        background: theme.color.surface,
-                        border: `1px solid ${theme.color.borderStrong}`,
+                        background: savedId === m.id ? theme.color.greenSoft : theme.color.surface,
+                        border: `1px solid ${savedId === m.id ? "#bfe0d3" : theme.color.borderStrong}`,
                         borderRadius: theme.radius.sm,
-                        color: theme.color.inkSoft,
+                        color: savedId === m.id ? theme.color.green : theme.color.inkSoft,
                         fontFamily: theme.font.condensed,
                         fontWeight: 700,
                         fontSize: 12,
@@ -197,7 +193,7 @@ export default function TeamView() {
                         cursor: "pointer",
                       }}
                     >
-                      <Check size={13} /> {savingId === m.id ? "…" : "Save"}
+                      <Check size={13} /> {savingId === m.id ? "…" : savedId === m.id ? "Saved" : "Save"}
                     </button>
                   </td>
                 </tr>
