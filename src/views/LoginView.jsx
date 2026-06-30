@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Ship, ArrowRight } from "lucide-react";
 import { supabase } from "../lib/supabase";
+import { KRAFT_ORG_ID, isAdminEmail } from "../lib/db";
 import { theme } from "../theme";
 
 // Email + password sign-in. A "forgot password" mode sends a reset link, which is
@@ -18,9 +19,25 @@ export default function LoginView() {
     setError("");
     if (!email.includes("@") || !password) return setError("Enter your email and password.");
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      setLoading(false);
+      return setError("Incorrect email or password.");
+    }
+    // Guarantee a profile row exists — every write FKs to profiles(id), so a
+    // missing one silently rejects all inserts (expenses, voyages, etc.).
+    if (data?.user) {
+      await supabase.from("profiles").upsert(
+        {
+          id: data.user.id,
+          org_id: KRAFT_ORG_ID,
+          display_name: (data.user.email || email).split("@")[0],
+          role: isAdminEmail(data.user.email) ? "admin" : "staff",
+        },
+        { onConflict: "id", ignoreDuplicates: true }
+      );
+    }
     setLoading(false);
-    if (error) return setError("Incorrect email or password.");
     // onAuthStateChange swaps to the portal.
   };
 

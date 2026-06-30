@@ -52,5 +52,26 @@ export default withErrors(async (req, res) => {
     return res.status(200).json({ ok: true, id: data.user.id });
   }
 
+  if (req.method === "PUT") {
+    // Update a member's name/title/role. Member id comes in as ?id= (avoids a
+    // dynamic /api/team/[id] route, which is fragile behind the SPA rewrite).
+    const id = (req.query.id || "").toString();
+    if (!id) throw httpError(400, "profile id is required");
+    const { full_name, title, role } = readJsonBody(req);
+    const patch = {};
+    if (full_name !== undefined) patch.display_name = full_name;
+    if (title !== undefined) patch.title = title;
+    if (role !== undefined) patch.role = role === "admin" ? "admin" : "staff";
+    if (!Object.keys(patch).length) throw httpError(400, "Nothing to update");
+
+    const { error } = await supabase
+      .from("profiles")
+      .update(patch)
+      .eq("id", id)
+      .eq("org_id", adminProfile.org_id);
+    if (error) throw httpError(500, "Could not update profile");
+    return res.status(200).json({ ok: true });
+  }
+
   throw httpError(405, "Method not allowed");
 });

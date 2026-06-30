@@ -37,7 +37,7 @@ export const mailApi = {
   saveSignature: (signature_html) => req("/api/mail/settings", { method: "PUT", body: { signature_html } }),
   team: () => req("/api/team"),
   invite: (payload) => req("/api/team", { method: "POST", body: payload }),
-  updateMember: (id, patch) => req(`/api/team/${id}`, { method: "PUT", body: patch }),
+  updateMember: (id, patch) => req(`/api/team?id=${encodeURIComponent(id)}`, { method: "PUT", body: patch }),
 };
 
 export default mailApi;
