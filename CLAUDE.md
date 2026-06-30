@@ -15,7 +15,7 @@ Multi-user real-time: dockside staff log simultaneously. Voyage supervisor views
 - NO Tailwind, NO three.js, NO react-router (hash-based nav via useState)
 
 ## Supabase project
-- Project ref: [ADD AFTER SUPABASE PROJECT CREATED]
+- Project ref: xdacidevdepagyrnebhh
 - Region: ap-south-1 (Mumbai)
 - Env vars in .env: VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY
 

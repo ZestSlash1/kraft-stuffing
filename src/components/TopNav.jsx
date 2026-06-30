@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { LayoutGrid } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useRouter } from "../context/RouterContext";
 import { useAuth } from "../context/AuthContext";
@@ -26,7 +27,7 @@ const GROUP = {
 };
 
 export default function TopNav() {
-  const { route, navigate } = useRouter();
+  const { route, navigate, goPortal } = useRouter();
   const { user, profile } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
@@ -80,6 +81,40 @@ export default function TopNav() {
         >
           <img src="/kraft-logo.png" height="36" alt="Kraft" style={{ display: "block" }} />
         </span>
+      </button>
+
+      {/* Portal: jump back to the app launcher without signing out. */}
+      <button
+        onClick={goPortal}
+        title="Portal — all sections"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          background: "none",
+          border: `1px solid ${theme.color.border}`,
+          borderRadius: theme.radius.pill,
+          color: theme.color.slate,
+          fontFamily: theme.font.condensed,
+          fontWeight: 700,
+          fontSize: 12,
+          letterSpacing: "0.06em",
+          textTransform: "uppercase",
+          padding: "6px 12px",
+          marginLeft: 12,
+          cursor: "pointer",
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.borderColor = theme.color.amber;
+          e.currentTarget.style.color = theme.color.amber;
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.borderColor = theme.color.border;
+          e.currentTarget.style.color = theme.color.slate;
+        }}
+      >
+        <LayoutGrid size={15} />
+        <span className="portal-btn-label">Portal</span>
       </button>
 
       {/* Center: nav links (desktop) */}

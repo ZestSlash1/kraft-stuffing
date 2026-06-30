@@ -15,19 +15,36 @@ export default function InboxView({ folder = "INBOX", onReply }) {
   const [selected, setSelected] = useState(null); // parsed thread
   const [loadingBody, setLoadingBody] = useState(false);
 
-  const load = () => {
-    setLoading(true);
+  // `background` reloads skip the loading spinner so polling doesn't flicker the list.
+  const load = (background = false) => {
+    if (!background) setLoading(true);
     setError("");
-    mailApi
+    return mailApi
       .list(folder)
       .then((r) => setMessages(r.messages || []))
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
+      .catch((e) => !background && setError(e.message))
+      .finally(() => !background && setLoading(false));
   };
 
   useEffect(() => {
     setSelected(null);
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [folder]);
+
+  // Near-real-time: poll every 30s while mounted, and refresh whenever the tab
+  // regains focus. (True push needs a long-lived IMAP IDLE connection, which the
+  // serverless API can't hold — polling is the pragmatic equivalent.)
+  useEffect(() => {
+    const tick = () => document.visibilityState === "visible" && load(true);
+    const interval = setInterval(tick, 30000);
+    window.addEventListener("focus", tick);
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("focus", tick);
+      document.removeEventListener("visibilitychange", tick);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [folder]);
 

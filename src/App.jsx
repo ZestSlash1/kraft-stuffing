@@ -213,6 +213,12 @@ export default function App() {
     [navigate]
   );
 
+  // Return to the launcher from anywhere in the shell.
+  const goPortal = useCallback(() => {
+    sessionStorage.removeItem("kraft_app_selected");
+    setAppSelected(false);
+  }, []);
+
   // ── App data ────────────────────────────────────────────────────────────────
   const [state, dispatch] = useReducer(appReducer, initialState);
   const [orgSettings, setOrgSettings] = useState(null);
@@ -561,7 +567,7 @@ export default function App() {
   return (
     <ErrorBoundary>
       <AuthContext.Provider value={{ user, session, profile }}>
-        <RouterContext.Provider value={{ route, navigate }}>
+        <RouterContext.Provider value={{ route, navigate, goPortal }}>
           <ToastProvider>
             <AppShell app={app} />
           </ToastProvider>

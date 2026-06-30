@@ -4,6 +4,7 @@ import { createContext, useContext } from "react";
 export const RouterContext = createContext({
   route: { page: "dashboard", params: {} },
   navigate: () => {},
+  goPortal: () => {}, // return to the app launcher (clears section selection)
 });
 
 export const useRouter = () => useContext(RouterContext);
