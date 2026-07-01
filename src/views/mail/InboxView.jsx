@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { RefreshCw, CornerUpLeft } from "lucide-react";
 import { theme } from "../../theme";
 import { mailApi } from "../../lib/mailApi";
+import { useIsMobile } from "../../hooks/useIsMobile";
 
 const IST = (d) =>
   d
@@ -14,6 +15,7 @@ export default function InboxView({ folder = "INBOX", onReply }) {
   const [error, setError] = useState("");
   const [selected, setSelected] = useState(null); // parsed thread
   const [loadingBody, setLoadingBody] = useState(false);
+  const isMobile = useIsMobile();
 
   // `background` reloads skip the loading spinner so polling doesn't flicker the list.
   const load = (background = false) => {
@@ -60,10 +62,23 @@ export default function InboxView({ folder = "INBOX", onReply }) {
       .finally(() => setLoadingBody(false));
   };
 
+  // On mobile the two panes become a master-detail: the list fills the screen,
+  // and opening a message swaps to a full-width reading pane with a back button.
+  const showList = !isMobile || !selected;
+  const showPane = !isMobile || !!selected || loadingBody;
+
   return (
     <div style={{ display: "flex", height: "100%" }}>
       {/* Message list */}
-      <div style={{ width: 340, flexShrink: 0, borderRight: `1px solid ${theme.color.border}`, overflowY: "auto" }}>
+      <div
+        style={{
+          width: isMobile ? "100%" : 340,
+          flexShrink: 0,
+          borderRight: isMobile ? "none" : `1px solid ${theme.color.border}`,
+          overflowY: "auto",
+          display: showList ? "block" : "none",
+        }}
+      >
         <Header title={folder === "Sent" ? "Sent" : "Inbox"} onRefresh={load} />
         {loading && <Note>Loading messages…</Note>}
         {error && <Note tone="red">{error}</Note>}
@@ -124,7 +139,27 @@ export default function InboxView({ folder = "INBOX", onReply }) {
       </div>
 
       {/* Reading pane */}
-      <div style={{ flex: 1, minWidth: 0, overflowY: "auto", padding: 24 }}>
+      <div style={{ flex: 1, minWidth: 0, overflowY: "auto", padding: isMobile ? 16 : 24, display: showPane ? "block" : "none" }}>
+        {isMobile && selected && (
+          <button
+            onClick={() => setSelected(null)}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              background: "none",
+              border: "none",
+              color: theme.color.slate,
+              fontFamily: theme.font.mono,
+              fontSize: 12,
+              cursor: "pointer",
+              padding: "4px 0",
+              marginBottom: 8,
+            }}
+          >
+            <CornerUpLeft size={14} /> Back
+          </button>
+        )}
         {loadingBody && <Note>Opening…</Note>}
         {!loadingBody && !selected && <Note>Select a message to read.</Note>}
         {!loadingBody && selected && (
@@ -132,8 +167,8 @@ export default function InboxView({ folder = "INBOX", onReply }) {
             <div style={{ fontFamily: theme.font.condensed, fontWeight: 800, fontSize: 24, color: theme.color.ink }}>
               {selected.subject}
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "10px 0 18px" }}>
-              <div style={{ fontFamily: theme.font.mono, fontSize: 12, color: theme.color.slate }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", margin: "10px 0 18px" }}>
+              <div style={{ fontFamily: theme.font.mono, fontSize: 12, color: theme.color.slate, minWidth: 0, overflowWrap: "break-word", wordBreak: "break-word" }}>
                 {selected.from?.name ? `${selected.from.name} · ` : ""}
                 {selected.from?.address} — {IST(selected.date)}
               </div>

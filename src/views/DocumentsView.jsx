@@ -73,7 +73,7 @@ export default function DocumentsView({ app }) {
           House Bills of Lading, Arrival Notices &amp; Delivery Orders — issued documents are frozen snapshots.
         </div>
 
-        <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 16 }}>
           <Pill
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
@@ -100,11 +100,11 @@ export default function DocumentsView({ app }) {
             {documents.map((doc) => {
               const voyage = state.voyages.find((v) => v.id === doc.voyageId);
               return (
-                <Card key={doc.id} style={{ padding: "12px 16px", display: "flex", alignItems: "center", gap: 14, opacity: doc.status === "void" ? 0.6 : 1 }}>
+                <Card key={doc.id} style={{ padding: "12px 16px", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 14, opacity: doc.status === "void" ? 0.6 : 1 }}>
                   <div style={{ width: 110, fontFamily: theme.font.mono, fontSize: 11, color: theme.color.slate }}>
                     {TYPE_LABELS[doc.type]}
                   </div>
-                  <div style={{ flex: 1, fontFamily: theme.font.mono, fontSize: 13, textDecoration: doc.status === "void" ? "line-through" : "none" }}>
+                  <div style={{ flex: 1, minWidth: 140, overflowWrap: "break-word", fontFamily: theme.font.mono, fontSize: 13, textDecoration: doc.status === "void" ? "line-through" : "none" }}>
                     {doc.number || "— draft —"}
                     <div style={{ fontSize: 11, color: theme.color.slate, marginTop: 2 }}>
                       {voyage?.voyageNo || "—"} {voyage ? `· ${voyage.vessel}` : ""}

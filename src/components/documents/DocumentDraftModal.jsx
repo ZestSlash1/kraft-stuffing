@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { theme } from "../../theme";
+import { useIsMobile } from "../../hooks/useIsMobile";
 import { Pill, Input } from "../ui";
 import { useToast } from "../Toast";
 import {
@@ -54,6 +55,7 @@ export default function DocumentDraftModal({ app, voyage, type, initialContainer
   const [issuing, setIssuing] = useState(false);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [online, setOnline] = useState(typeof navigator !== "undefined" ? navigator.onLine : true);
+  const isMobile = useIsMobile();
 
   const container = voyage.containers.find((c) => c.id === containerId) || null;
   const line = container?.lines?.[0] || null;
@@ -164,7 +166,7 @@ export default function DocumentDraftModal({ app, voyage, type, initialContainer
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        padding: 20,
+        padding: isMobile ? 0 : 20,
       }}
     >
       <div
@@ -172,10 +174,11 @@ export default function DocumentDraftModal({ app, voyage, type, initialContainer
         style={{
           width: "100%",
           maxWidth: 920,
-          maxHeight: "92vh",
+          maxHeight: isMobile ? "100dvh" : "92vh",
+          height: isMobile ? "100dvh" : undefined,
+          borderRadius: isMobile ? 0 : theme.radius.card,
           background: theme.color.surface,
           border: `1px solid ${theme.color.border}`,
-          borderRadius: theme.radius.card,
           boxShadow: theme.shadow.raised,
           display: "flex",
           flexDirection: "column",
@@ -202,8 +205,20 @@ export default function DocumentDraftModal({ app, voyage, type, initialContainer
           </button>
         </div>
 
-        <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
-          <div style={{ width: 280, padding: 18, borderRight: `1px solid ${theme.color.border}`, overflowY: "auto", display: "flex", flexDirection: "column", gap: 14 }}>
+        <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", flex: 1, minHeight: 0 }}>
+          <div
+            style={{
+              width: isMobile ? "100%" : 280,
+              flexShrink: 0,
+              padding: 18,
+              borderRight: isMobile ? "none" : `1px solid ${theme.color.border}`,
+              borderBottom: isMobile ? `1px solid ${theme.color.border}` : "none",
+              overflowY: "auto",
+              display: "flex",
+              flexDirection: "column",
+              gap: 14,
+            }}
+          >
             <Field label="Container">
               <Pill
                 value={containerId}
@@ -306,7 +321,7 @@ export default function DocumentDraftModal({ app, voyage, type, initialContainer
             </div>
           </div>
 
-          <div style={{ flex: 1, background: theme.color.canvas, padding: 12 }}>
+          <div style={{ flex: 1, minHeight: isMobile ? 360 : 0, background: theme.color.canvas, padding: 12 }}>
             {previewUrl ? (
               <iframe title="Document preview" src={previewUrl} style={{ width: "100%", height: "100%", border: `1px solid ${theme.color.border}`, borderRadius: theme.radius.sm, background: "#fff" }} />
             ) : (

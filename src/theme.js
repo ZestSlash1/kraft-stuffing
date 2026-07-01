@@ -58,6 +58,14 @@ export const theme = {
   },
 
   space: (n) => n * 4, // 4px base scale
+
+  // Responsive breakpoints (px). `mobile` is the phone cutoff used by
+  // useIsMobile() and the global.css media queries. Branch inline styles on
+  // useIsMobile() rather than hardcoding desktop dimensions.
+  breakpoints: {
+    mobile: 640, // phones: single-column, bottom-nav, full-screen sheets
+    tablet: 900, // narrow tablets / small laptops
+  },
 };
 
 // Resolve a status key (falls back to EMPTY) → { dot, label, fill }.

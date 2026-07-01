@@ -142,7 +142,7 @@ export default function ShipperConsigneeSelect({
             flexDirection: "column",
             gap: 6,
             boxShadow: theme.shadow.raised,
-            width: 260,
+            width: "min(260px, calc(100vw - 32px))",
           }}
         >
           <input
