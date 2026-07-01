@@ -268,6 +268,16 @@ export async function fetchExpenses(orgId) {
   return { data, error };
 }
 
+// Expenses tagged to one voyage — powers the P&L strip on the Voyage detail page.
+export async function fetchExpensesByVoyage(voyageId) {
+  const { data, error } = await supabase
+    .from("expenses")
+    .select("*")
+    .eq("voyage_id", voyageId)
+    .order("expense_date", { ascending: false });
+  return { data, error };
+}
+
 // Partial-patch mappers: translate only the keys present in `patch` (camelCase)
 // to DB columns, so updates never accidentally null untouched columns.
 const mapKeys = (patch, keymap) => {
@@ -747,6 +757,40 @@ export async function fetchRecentActivity(limit = 12) {
     .order("changed_at", { ascending: false })
     .limit(limit);
   return { data: data || [], error };
+}
+
+// Cursor-paginated audit feed for the Activity section. `cursor` is a
+// changed_at ISO string — rows strictly older than it are returned (keyset
+// pagination). `tables` narrows by table_name; `changedBy` by actor; `from`/`to`
+// bound the changed_at range (ISO). Page size defaults to 30.
+export async function fetchActivityPage({
+  cursor = null,
+  tables = null,
+  changedBy = null,
+  from = null,
+  to = null,
+  limit = 30,
+} = {}) {
+  let q = supabase
+    .from("audit_log")
+    .select("*")
+    .order("changed_at", { ascending: false })
+    .limit(limit);
+  if (cursor) q = q.lt("changed_at", cursor);
+  if (tables?.length) q = q.in("table_name", tables);
+  if (changedBy) q = q.eq("changed_by", changedBy);
+  if (from) q = q.gte("changed_at", from);
+  if (to) q = q.lt("changed_at", to);
+  const { data, error } = await q;
+  return { data: data || [], error };
+}
+
+// ── Global search (Phase 5C) ──────────────────────────────────────────────────
+// Prefer the server-side global_search() RPC (small payload, one round-trip).
+// If the function isn't deployed yet (PGRST202) or we're offline, the caller
+// falls back to a client-side scan — see lib/search.js.
+export async function globalSearchRpc(q) {
+  return supabase.rpc("global_search", { q });
 }
 
 // ── Org settings (key/value store) ────────────────────────────────────────────

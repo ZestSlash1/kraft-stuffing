@@ -74,6 +74,26 @@ const uid = () =>
 
 const todayISODate = () => new Date().toISOString().slice(0, 10);
 
+// ── Discovery dots (Manifest / Expenses) ────────────────────────────────────
+// Per-section "last seen" timestamps persisted so a cleared dot stays cleared
+// across reloads. A section is "unseen" when a row newer than its lastSeen
+// lands from another user.
+const lastSeenKey = (section) => `lastSeen:${section}`;
+const getLastSeen = (section) => {
+  try {
+    return localStorage.getItem(lastSeenKey(section)) || "";
+  } catch {
+    return "";
+  }
+};
+const setLastSeenNow = (section) => {
+  try {
+    localStorage.setItem(lastSeenKey(section), new Date().toISOString());
+  } catch {
+    // storage unavailable — dot just won't persist across reload
+  }
+};
+
 // Never let a hung network call (e.g. a stale/unreachable Supabase project)
 // leave the UI stuck on a loading screen forever.
 const withTimeout = (promise, ms, label) =>
@@ -215,7 +235,10 @@ export default function App() {
 
   const navigate = useCallback((page, params = {}) => {
     setRoute({ page, params });
-    setDirty((d) => (d[groupOf(page)] ? { ...d, [groupOf(page)]: false } : d));
+    const g = groupOf(page);
+    setDirty((d) => (d[g] ? { ...d, [g]: false } : d));
+    // Entering a discovery section marks everything up to now as seen.
+    if (g === "manifest" || g === "expenses") setLastSeenNow(g);
   }, []);
 
   // A stuffing realtime event marks Dashboard + Voyages dirty (unless you're there).
@@ -349,6 +372,48 @@ export default function App() {
       alive = false;
       clearInterval(id);
     };
+  }, [user]);
+
+  // ── Discovery dots: Manifest (bookings + vessel_movements) + Expenses ────────
+  // A separate realtime channel purely for nav notification dots. Self-writes
+  // are suppressed by comparing the row actor to the signed-in user.
+  useEffect(() => {
+    if (!user) return;
+    // First-ever visit: treat existing data as seen so we don't light up history.
+    ["manifest", "expenses"].forEach((s) => {
+      if (!getLastSeen(s)) setLastSeenNow(s);
+    });
+
+    const mark = (section, row) => {
+      if (!row) return; // DELETE payloads carry no new row — ignore
+      const actor = row.created_by || row.logged_by || row.user_id || null;
+      if (actor && actor === user.id) return; // suppress own writes
+      const ts = row.updated_at || row.created_at || null;
+      const seen = getLastSeen(section);
+      if (ts && seen && ts <= seen) return; // already accounted for
+      if (groupOf(routeRef.current.page) === section) {
+        setLastSeenNow(section); // we're looking at it — stay clear
+        return;
+      }
+      setDirty((d) => (d[section] ? d : { ...d, [section]: true }));
+    };
+
+    const channel = supabase.channel("discovery");
+    for (const [table, section] of [
+      ["bookings", "manifest"],
+      ["vessel_movements", "manifest"],
+      ["expenses", "expenses"],
+    ]) {
+      for (const event of ["INSERT", "UPDATE"]) {
+        channel.on(
+          "postgres_changes",
+          { event, schema: "public", table },
+          (payload) => mark(section, payload.new)
+        );
+      }
+    }
+    channel.subscribe();
+    return () => supabase.removeChannel(channel);
   }, [user]);
 
   // Opening Mail clears its dot; track unread separately so the badge reflects IMAP.

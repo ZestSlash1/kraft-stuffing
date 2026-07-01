@@ -6,6 +6,7 @@ import ContainerInfoOverlay from "../components/ContainerInfoOverlay";
 import ExportMenu from "../components/ExportMenu";
 import CreateVoyageModal from "../components/CreateVoyageModal";
 import ConfirmDialog from "../components/ConfirmDialog";
+import VoyagePnlStrip from "../components/expenses/VoyagePnlStrip";
 import { useToast } from "../components/Toast";
 import {
   voyageStats,
@@ -197,6 +198,12 @@ export default function VoyageDetailView({ app, voyageId }) {
           <div ref={barRef} style={{ height: "100%", width: `${pct}%`, background: theme.color.amber, borderRadius: 4 }} />
         </div>
       </div>
+
+      {/* Voyage P&L strip (Phase 6) */}
+      <VoyagePnlStrip
+        voyageId={voyage.id}
+        onAddEntry={() => navigate("expenses", { addForVoyage: voyage.id })}
+      />
 
       {/* Manifest */}
       <div style={{ marginTop: 16 }}>

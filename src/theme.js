@@ -23,6 +23,7 @@ export const theme = {
     green: "#0b6b50", // sealed / confirmed
     greenSoft: "#e2f0ea", // green tint fill
     red: "#dc2626", // over-capacity / error
+    redSoft: "#fde4e4", // red tint fill (negative margin, over-capacity)
     white: "#ffffff",
   },
 

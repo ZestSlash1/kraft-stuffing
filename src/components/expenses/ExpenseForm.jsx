@@ -23,6 +23,7 @@ export default function ExpenseForm({
   onSubmit,
   submitLabel = "Log expense",
   voyages = [],
+  initialVoyageId = "",
 }) {
   const [date, setDate] = useState(initial?.expenseDate || today());
   const [description, setDescription] = useState(initial?.description || "");
@@ -32,7 +33,7 @@ export default function ExpenseForm({
   const [category, setCategory] = useState(initial?.category || CATEGORIES[0].name);
   const [type, setType] = useState(initial?.type || "expense");
   const [notes, setNotes] = useState(initial?.notes || "");
-  const [voyageId, setVoyageId] = useState(initial?.voyageId || "");
+  const [voyageId, setVoyageId] = useState(initial?.voyageId || initialVoyageId || "");
 
   // Keep type coherent with the chosen category (income categories flip the toggle).
   useEffect(() => {

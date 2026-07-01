@@ -5,9 +5,11 @@ import {
   Ship,
   FileText,
   Receipt,
+  Activity,
   Mail,
   Users,
   Settings,
+  Search,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useRouter } from "../context/RouterContext";
@@ -20,6 +22,7 @@ const NAV = [
   { page: "voyages", label: "Voyages", Icon: Ship },
   { page: "manifest", label: "Manifest", Icon: FileText },
   { page: "expenses", label: "Expenses", Icon: Receipt },
+  { page: "activity", label: "Activity", Icon: Activity },
   { page: "mail", label: "Mail", Icon: Mail },
   { page: "masters", label: "Masters", Icon: Users },
   { page: "settings", label: "Settings", Icon: Settings },
@@ -34,11 +37,12 @@ const GROUP = {
   masters: "masters",
   manifest: "manifest",
   expenses: "expenses",
+  activity: "activity",
   mail: "mail",
   settings: "settings",
 };
 
-export default function TopNav() {
+export default function TopNav({ onOpenSearch }) {
   const { route, navigate, goPortal } = useRouter();
   const { user, profile } = useAuth();
   const { dirty, online, mailUnread } = useLive();
@@ -151,7 +155,26 @@ export default function TopNav() {
         })}
       </div>
 
-      {/* Right: live presence + user */}
+      {/* Right: search + live presence + user */}
+      <button
+        onClick={onOpenSearch}
+        title="Search (⌘K)"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: 34,
+          height: 34,
+          background: theme.color.surfaceMuted,
+          border: `1px solid ${theme.color.border}`,
+          borderRadius: 10,
+          color: theme.color.slate,
+          cursor: "pointer",
+          flexShrink: 0,
+        }}
+      >
+        <Search size={16} />
+      </button>
       <LivePill online={online} />
       <div ref={menuRef} style={{ position: "relative" }}>
         <button

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { gsap } from "gsap";
 import { Ship, Box, Package, Weight } from "lucide-react";
 import {
@@ -15,12 +15,11 @@ import {
 } from "recharts";
 import {
   greeting,
-  timeAgo,
   CARGO_COLORS,
 } from "../data/statusHelpers";
 import { theme } from "../theme";
-import { fetchRecentActivity } from "../lib/db";
 import VesselHero from "../components/VesselHero";
+import { ActivityPanel } from "./ActivityFeedView";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -62,12 +61,7 @@ function chartTitle(t) {
 }
 
 export default function DashboardView({ app }) {
-  const { state, profile, navigate, profilesById } = app;
-  const [activity, setActivity] = useState([]);
-
-  useEffect(() => {
-    fetchRecentActivity(12).then(({ data }) => setActivity(data || []));
-  }, []);
+  const { state, profile, navigate } = app;
 
   const voyages = state.voyages.filter((v) => !v.archived);
   const now = new Date();
@@ -244,20 +238,7 @@ export default function DashboardView({ app }) {
 
       {/* Recent activity */}
       <div style={{ marginTop: 22 }}>
-        <div className="label-xs" style={{ marginBottom: 10 }}>RECENT ACTIVITY</div>
-        {activity.length === 0 ? (
-          <div style={{ fontFamily: theme.font.mono, fontSize: 11, color: theme.color.slate }}>No activity yet.</div>
-        ) : (
-          activity.map((e) => {
-            const who = profilesById[e.changed_by] || "Someone";
-            const detail = e.new_data?.voyage_no || e.new_data?.number || e.new_data?.cargo || e.table_name;
-            return (
-              <div key={e.id} style={{ fontFamily: theme.font.mono, fontSize: 12, color: theme.color.inkSoft, padding: "9px 0", borderBottom: `1px solid ${theme.color.border}` }}>
-                {who} {e.action?.toLowerCase()} {e.table_name} — {detail} — <span style={{ color: theme.color.slate }}>{timeAgo(e.changed_at)}</span>
-              </div>
-            );
-          })
-        )}
+        <ActivityPanel app={app} />
       </div>
 
       {/* Quick stats */}

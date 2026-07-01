@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { theme } from "../../theme";
+import { useRouter } from "../../context/RouterContext";
 import ExportMenu from "../../components/ExportMenu";
 import { exportExpensesXlsx } from "../../lib/exportXlsx";
 import ExpenseSummaryStrip from "../../components/expenses/ExpenseSummaryStrip";
@@ -9,6 +10,7 @@ import ExpenseForm from "../../components/expenses/ExpenseForm";
 import ExpenseListView from "./ExpenseListView";
 import ExpenseSummaryView from "./ExpenseSummaryView";
 import ExpenseDetailView from "./ExpenseDetailView";
+import VoyagePnlView from "./VoyagePnlView";
 import {
   KRAFT_ORG_ID,
   fetchExpenses,
@@ -63,14 +65,39 @@ export default function ExpensesShell({ app }) {
   const [expenses, setExpenses] = useState(readCache);
   const [loading, setLoading] = useState(true);
   const [syncError, setSyncError] = useState(null);
-  const [tab, setTab] = useState("ledger"); // 'ledger' | 'summary'
+  const [tab, setTab] = useState("ledger"); // 'ledger' | 'summary' | 'pnl'
   const [period, setPeriod] = useState("this-month");
   const [category, setCategory] = useState(null);
+  const [voyageFilter, setVoyageFilter] = useState(null); // ledger drill-down
   const [adding, setAdding] = useState(false);
+  const [addForVoyage, setAddForVoyage] = useState(null); // pre-tag new entry
   const [selectedId, setSelectedId] = useState(null);
 
   const userId = app?.user?.id;
   const voyages = app?.state?.voyages || [];
+  const voyagesById = useMemo(
+    () => Object.fromEntries(voyages.map((v) => [v.id, v])),
+    [voyages]
+  );
+
+  // Deep link from the Activity feed: focus a specific expense once loaded.
+  const { route } = useRouter();
+  const focusId = route?.params?.focusId;
+  useEffect(() => {
+    if (focusId) {
+      setSelectedId(focusId);
+      setPeriod("all"); // ensure it's visible in the ledger behind the detail
+    }
+  }, [focusId]);
+
+  // Deep link from a Voyage detail P&L strip: open the add form pre-tagged.
+  const addVoyageParam = route?.params?.addForVoyage;
+  useEffect(() => {
+    if (addVoyageParam) {
+      setAddForVoyage(addVoyageParam);
+      setAdding(true);
+    }
+  }, [addVoyageParam]);
 
   const load = useCallback(() => {
     fetchExpenses(KRAFT_ORG_ID)
@@ -105,11 +132,12 @@ export default function ExpensesShell({ app }) {
     const lastMonth = monthKey(-1);
     return expenses.filter((e) => {
       if (category && e.category !== category) return false;
+      if (voyageFilter && e.voyageId !== voyageFilter) return false;
       if (period === "this-month") return e.expenseDate.startsWith(thisMonth);
       if (period === "last-month") return e.expenseDate.startsWith(lastMonth);
       return true;
     });
-  }, [expenses, period, category]);
+  }, [expenses, period, category, voyageFilter]);
 
   const selected = expenses.find((e) => e.id === selectedId) || null;
 
@@ -124,6 +152,7 @@ export default function ExpensesShell({ app }) {
     const row = { ...data, id: uid(), orgId: KRAFT_ORG_ID, loggedBy: userId };
     setAndCache((rows) => [row, ...rows]);
     setAdding(false);
+    setAddForVoyage(null);
     sync(() => createExpense(toDbExpense(row)));
   };
 
@@ -219,9 +248,18 @@ export default function ExpensesShell({ app }) {
           </div>
 
           <div style={{ display: "flex", gap: 10 }}>
-            <ExportMenu onExportXlsx={() => exportExpensesXlsx(filtered, app?.profilesById)} />
+            <ExportMenu
+              onExportXlsx={() =>
+                exportExpensesXlsx(filtered, app?.profilesById, { expenses, voyages })
+              }
+            />
             <button
-              onClick={() => setAdding((v) => !v)}
+              onClick={() =>
+                setAdding((v) => {
+                  if (v) setAddForVoyage(null); // closing → clear pre-tag
+                  return !v;
+                })
+              }
               style={{
                 display: "inline-flex",
                 alignItems: "center",
@@ -249,13 +287,16 @@ export default function ExpensesShell({ app }) {
         <ExpenseSummaryStrip expenses={filtered} />
 
         {/* Add form drawer */}
-        {adding && <ExpenseForm onSubmit={addExpense} voyages={voyages} />}
+        {adding && (
+          <ExpenseForm onSubmit={addExpense} voyages={voyages} initialVoyageId={addForVoyage} />
+        )}
 
         {/* Tabs */}
         <div style={{ display: "flex", gap: 22, borderBottom: `1px solid ${theme.color.border}` }}>
           {[
             ["ledger", "Ledger"],
             ["summary", "Summary"],
+            ["pnl", "Voyage P&L"],
           ].map(([id, label]) => {
             const active = tab === id;
             return (
@@ -283,13 +324,44 @@ export default function ExpensesShell({ app }) {
           })}
         </div>
 
-        {/* Filters */}
-        <ExpenseFilters
-          period={period}
-          onPeriod={setPeriod}
-          category={category}
-          onCategory={setCategory}
-        />
+        {/* Filters — P&L rolls up all tagged data, so period/category chips
+            don't apply there. */}
+        {tab !== "pnl" && (
+          <ExpenseFilters
+            period={period}
+            onPeriod={setPeriod}
+            category={category}
+            onCategory={setCategory}
+          />
+        )}
+
+        {/* Active voyage drill-down chip (set from the P&L tab). */}
+        {tab === "ledger" && voyageFilter && (
+          <button
+            onClick={() => setVoyageFilter(null)}
+            style={{
+              alignSelf: "flex-start",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              background: theme.color.amberSoft,
+              border: `1px solid ${theme.color.amber}`,
+              color: theme.color.amber,
+              borderRadius: theme.radius.pill,
+              padding: "6px 12px",
+              fontFamily: theme.font.mono,
+              fontSize: 11,
+              letterSpacing: "0.04em",
+              textTransform: "uppercase",
+              cursor: "pointer",
+            }}
+          >
+            {voyagesById[voyageFilter]
+              ? `${voyagesById[voyageFilter].vessel} · ${voyagesById[voyageFilter].voyageNo}`
+              : "Voyage"}
+            <X size={13} />
+          </button>
+        )}
 
         {/* Body */}
         {loading && expenses.length === 0 ? (
@@ -300,8 +372,19 @@ export default function ExpensesShell({ app }) {
             selectedId={selectedId}
             onSelect={(e) => setSelectedId(e.id)}
           />
-        ) : (
+        ) : tab === "summary" ? (
           <ExpenseSummaryView expenses={filtered} />
+        ) : (
+          <VoyagePnlView
+            expenses={expenses}
+            voyages={voyages}
+            onDrill={(vid) => {
+              setVoyageFilter(vid);
+              setPeriod("all");
+              setCategory(null);
+              setTab("ledger");
+            }}
+          />
         )}
       </div>
 

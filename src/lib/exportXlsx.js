@@ -1,5 +1,6 @@
 import * as XLSX from "xlsx";
 import { containerStatus } from "../data/statusHelpers";
+import { untaggedPnl, voyagePnlRows } from "../views/expenses/expenseHelpers";
 
 const lineTotalKg = (l) => Number(l.qty || 0) * Number(l.unitWeightKg || 0);
 
@@ -181,7 +182,34 @@ function buildExpenseRows(expenses, profilesById) {
   }));
 }
 
-export function exportExpensesXlsx(expenses, profilesById = {}) {
+// ── Sheet 2: Voyage P&L roll-up (Phase 6) ─────────────────────────────────────
+// Revenue = income rows tagged to a voyage, cost = expense rows, margin = the
+// difference. Amounts are integer paise → divided to rupees at the edge, like
+// buildExpenseRows. `allExpenses` is the full (unfiltered) org set so the P&L is
+// complete regardless of the ledger's active period/category filters.
+function buildVoyagePnlRows(allExpenses, voyages) {
+  const rows = voyagePnlRows(allExpenses, voyages);
+  const out = rows.map((r) => ({
+    Voyage: r.label,
+    "Revenue (₹)": Number((r.revenue / 100).toFixed(2)),
+    "Cost (₹)": Number((r.cost / 100).toFixed(2)),
+    "Margin (₹)": Number((r.margin / 100).toFixed(2)),
+    "Margin %": r.marginPct == null ? "—" : Number(r.marginPct.toFixed(1)),
+  }));
+  const untagged = untaggedPnl(allExpenses);
+  if (untagged) {
+    out.push({
+      Voyage: "Untagged (overhead)",
+      "Revenue (₹)": Number((untagged.revenue / 100).toFixed(2)),
+      "Cost (₹)": Number((untagged.cost / 100).toFixed(2)),
+      "Margin (₹)": Number((untagged.margin / 100).toFixed(2)),
+      "Margin %": untagged.marginPct == null ? "—" : Number(untagged.marginPct.toFixed(1)),
+    });
+  }
+  return out;
+}
+
+export function exportExpensesXlsx(expenses, profilesById = {}, pnl = null) {
   if (!expenses?.length) return;
 
   const wb = XLSX.utils.book_new();
@@ -190,6 +218,18 @@ export function exportExpensesXlsx(expenses, profilesById = {}) {
     XLSX.utils.json_to_sheet(buildExpenseRows(expenses, profilesById)),
     "Expenses"
   );
+
+  // Optional Voyage P&L sheet — only when there's tagged data to roll up.
+  if (pnl?.voyages?.length && pnl?.expenses?.length) {
+    const pnlRows = buildVoyagePnlRows(pnl.expenses, pnl.voyages);
+    if (pnlRows.length) {
+      XLSX.utils.book_append_sheet(
+        wb,
+        XLSX.utils.json_to_sheet(pnlRows),
+        "Voyage P&L"
+      );
+    }
+  }
 
   const stamp = new Intl.DateTimeFormat("en-IN", {
     timeZone: "Asia/Kolkata",

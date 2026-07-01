@@ -12,6 +12,8 @@ import SettingsView from "../views/SettingsView";
 import ManifestShell from "./ManifestShell";
 import ExpensesShell from "../views/expenses/ExpensesShell";
 import MailShell from "../views/mail/MailShell";
+import ActivityFeedView from "../views/ActivityFeedView";
+import CommandPalette from "./CommandPalette";
 
 // Part 6E — persistent offline banner, dismissable, re-appears on next drop.
 function OfflineIndicator() {
@@ -74,6 +76,19 @@ function OfflineIndicator() {
 
 export default function AppShell({ app }) {
   const { route } = useRouter();
+  const [searchOpen, setSearchOpen] = useState(false);
+
+  // ⌘K / Ctrl+K toggles the command palette from anywhere in the shell.
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K")) {
+        e.preventDefault();
+        setSearchOpen((o) => !o);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   let content;
   switch (route.page) {
@@ -101,6 +116,9 @@ export default function AppShell({ app }) {
     case "mail":
       content = <MailShell app={app} />;
       break;
+    case "activity":
+      content = <ActivityFeedView app={app} />;
+      break;
     case "dashboard":
     default:
       content = <DashboardView app={app} />;
@@ -110,11 +128,12 @@ export default function AppShell({ app }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <OfflineIndicator />
-      <TopNav />
+      <TopNav onOpenSearch={() => setSearchOpen(true)} />
       <div className="app-main" style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
         {content}
       </div>
       <BottomNav />
+      <CommandPalette app={app} open={searchOpen} onClose={() => setSearchOpen(false)} />
     </div>
   );
 }
