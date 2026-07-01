@@ -1,6 +1,6 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { gsap } from "gsap";
-import { Ship, Box, Package, Weight } from "lucide-react";
+import { Ship, Box, Package, Weight, ChevronRight, ChevronDown } from "lucide-react";
 import {
   BarChart,
   Bar,
@@ -20,6 +20,8 @@ import {
 import { theme } from "../theme";
 import VesselHero from "../components/VesselHero";
 import { ActivityPanel } from "./ActivityFeedView";
+import { useLive } from "../context/LiveContext";
+import { fetchDocuments } from "../lib/documents";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -58,6 +60,111 @@ function StatCard({ label, value, sub, decimals, Icon, empty }) {
 
 function chartTitle(t) {
   return <div className="label-xs" style={{ marginBottom: 10 }}>{t}</div>;
+}
+
+// ── Action Required strip ────────────────────────────────────────────────────
+// Attention items above the stats. VGM + Interakt-notify items are omitted:
+// neither has a stored field to query (no vgm column, no notify sent-flag).
+const AR_COLLAPSED_KEY = "kraft-action-required-collapsed";
+
+function ActionRequiredStrip({ navigate }) {
+  const { mailUnread } = useLive();
+  const [staleDrafts, setStaleDrafts] = useState(0);
+  const [collapsed, setCollapsed] = useState(
+    () => localStorage.getItem(AR_COLLAPSED_KEY) === "1"
+  );
+
+  useEffect(() => {
+    let alive = true;
+    fetchDocuments({ status: "draft" }).then(({ data, error }) => {
+      if (!alive || error) return;
+      const cutoff = Date.now() - 24 * 3600 * 1000;
+      setStaleDrafts(
+        (data || []).filter((d) => d.createdAt && new Date(d.createdAt).getTime() < cutoff).length
+      );
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const toggle = () => {
+    setCollapsed((c) => {
+      localStorage.setItem(AR_COLLAPSED_KEY, c ? "0" : "1");
+      return !c;
+    });
+  };
+
+  const items = [
+    mailUnread > 0 && {
+      key: "mail",
+      count: mailUnread,
+      label: `unread mail message${mailUnread === 1 ? "" : "s"}`,
+      go: () => navigate("mail"),
+    },
+    staleDrafts > 0 && {
+      key: "drafts",
+      count: staleDrafts,
+      label: `draft document${staleDrafts === 1 ? "" : "s"} older than 24h`,
+      go: () => navigate("documents", { status: "draft" }),
+    },
+  ].filter(Boolean);
+
+  const rowStyle = {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    width: "100%",
+    background: "none",
+    border: "none",
+    padding: "8px 0",
+    cursor: "pointer",
+    fontFamily: theme.font.mono,
+    fontSize: 12,
+    color: theme.color.ink,
+    textAlign: "left",
+  };
+
+  return (
+    <div
+      style={{
+        background: theme.color.surface,
+        border: `1px solid ${theme.color.border}`,
+        borderLeft: `3px solid ${theme.color.amber}`,
+        borderRadius: 12,
+        boxShadow: theme.shadow.card,
+        padding: "10px 16px",
+        marginTop: 18,
+      }}
+    >
+      <button onClick={toggle} style={{ ...rowStyle, padding: "2px 0" }}>
+        {collapsed ? <ChevronRight size={14} color={theme.color.slate} /> : <ChevronDown size={14} color={theme.color.slate} />}
+        <span className="label-xs" style={{ flex: 1 }}>ACTION REQUIRED</span>
+        {collapsed && items.length > 0 && (
+          <span style={{ fontFamily: theme.font.mono, fontSize: 11, color: theme.color.amberText }}>
+            {items.reduce((a, i) => a + i.count, 0)}
+          </span>
+        )}
+      </button>
+      {!collapsed &&
+        (items.length === 0 ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0 4px", fontFamily: theme.font.mono, fontSize: 12, color: theme.color.slate }}>
+            <span style={{ width: 7, height: 7, borderRadius: "50%", background: theme.color.green }} />
+            All clear
+          </div>
+        ) : (
+          items.map((it) => (
+            <button key={it.key} onClick={it.go} style={rowStyle}>
+              <span style={{ fontFamily: theme.font.condensed, fontWeight: 800, fontSize: 18, color: theme.color.amberText, minWidth: 24 }}>
+                {it.count}
+              </span>
+              <span style={{ flex: 1 }}>{it.label}</span>
+              <ChevronRight size={14} color={theme.color.slate} />
+            </button>
+          ))
+        ))}
+    </div>
+  );
 }
 
 export default function DashboardView({ app }) {
@@ -161,6 +268,8 @@ export default function DashboardView({ app }) {
         <div style={{ fontFamily: theme.font.mono, fontSize: 11, color: theme.color.slate, marginTop: 2 }}>
           {new Intl.DateTimeFormat("en-IN", { weekday: "long", day: "2-digit", month: "long", year: "numeric" }).format(now)}
         </div>
+
+      <ActionRequiredStrip navigate={navigate} />
 
       {/* Stat cards */}
       <div className="stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginTop: 18 }}>

@@ -6,6 +6,7 @@ import { useToast } from "../components/Toast";
 import { fetchDocuments, getSignedDocumentUrl, voidDocument } from "../lib/documents";
 import { supabase } from "../lib/supabase";
 import { fmtIST } from "../lib/pdf/shared";
+import { useRouter } from "../context/RouterContext";
 
 const TYPE_LABELS = { hbl: "HBL", arrival_notice: "Arrival Notice", delivery_order: "Delivery Order" };
 const STATUS_COLORS = {
@@ -16,10 +17,11 @@ const STATUS_COLORS = {
 
 export default function DocumentsView({ app }) {
   const { state } = app;
+  const { route } = useRouter();
   const { showToast } = useToast();
   const [documents, setDocuments] = useState(null);
   const [typeFilter, setTypeFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState(route?.params?.status || "all");
 
   const reload = () => {
     fetchDocuments({
