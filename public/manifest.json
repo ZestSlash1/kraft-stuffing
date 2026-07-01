@@ -1,14 +1,16 @@
 {
-  "name": "Kraft Stuffing Log",
-  "short_name": "Stuffing Log",
+  "name": "Kraft Portal",
+  "short_name": "Kraft Portal",
+  "description": "Operations platform for the Kolkata–Port Blair NVOCC corridor — stuffing, manifest, expenses and mail for Kraft Shipping.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#030508",
-  "theme_color": "#030508",
+  "background_color": "#F6F3ED",
+  "theme_color": "#0B1B2E",
   "icons": [
-    { "src": "/favicon.png", "sizes": "32x32", "type": "image/png" },
+    { "src": "/favicon-32.png", "sizes": "32x32", "type": "image/png" },
     { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" },
-    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+    { "src": "/favicon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/favicon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }

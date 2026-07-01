@@ -4,6 +4,9 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
 export default defineConfig({
+  server: {
+    port: Number(process.env.PORT) || 5173,
+  },
   plugins: [
     react(),
     VitePWA({
@@ -12,7 +15,7 @@ export default defineConfig({
       includeAssets: ['favicon.svg', 'icons.svg'],
       manifest: false, // public/manifest.json is hand-authored, served as-is
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,ico}'],
+        globPatterns: ['**/*.{js,css,html,svg,png,ico,json,webmanifest}'],
         // react-globe.gl (PortGlobeView) and the html2canvas/purify chunks jsPDF
         // pulls in for its unused .html() plugin are dynamic-import-only — keep
         // them out of the eager install precache, or the SW just re-downloads

@@ -3,6 +3,7 @@ import { gsap } from "gsap";
 import { containerStatus, containerFillPct, formatIST } from "../data/statusHelpers";
 import { theme } from "../theme";
 import { fetchAuditLog, fromDbAuditEntry } from "../lib/db";
+import DocumentGenerateMenu from "./documents/DocumentGenerateMenu";
 
 const reducedMotion = () =>
   typeof window !== "undefined" &&
@@ -75,7 +76,7 @@ function AuditTab({ container, profilesById }) {
   );
 }
 
-export default function ContainerInfoOverlay({ container, onClose, onSelectLine, profilesById }) {
+export default function ContainerInfoOverlay({ container, onClose, onSelectLine, profilesById, app, voyage }) {
   const ref = useRef();
   const [tab, setTab] = useState("entries");
 
@@ -157,22 +158,27 @@ export default function ContainerInfoOverlay({ container, onClose, onSelectLine,
             · {container.size}ft · {fillPct}% FULL · {totalBags}/{container.capacityBags}
           </span>
         </div>
-        <button
-          onClick={onClose}
-          className="mono label-xs"
-          style={{
-            background: "none",
-            border: `1px solid ${theme.color.border}`,
-            color: theme.color.slate,
-            borderRadius: 0,
-            padding: "5px 12px",
-            minWidth: 44,
-            minHeight: 44,
-            cursor: "pointer",
-          }}
-        >
-          close
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {container.sealed && app && voyage && (
+            <DocumentGenerateMenu app={app} voyage={voyage} containerId={container.id} />
+          )}
+          <button
+            onClick={onClose}
+            className="mono label-xs"
+            style={{
+              background: "none",
+              border: `1px solid ${theme.color.border}`,
+              color: theme.color.slate,
+              borderRadius: 0,
+              padding: "5px 12px",
+              minWidth: 44,
+              minHeight: 44,
+              cursor: "pointer",
+            }}
+          >
+            close
+          </button>
+        </div>
       </div>
 
       <div

@@ -13,6 +13,7 @@ import ManifestShell from "./ManifestShell";
 import ExpensesShell from "../views/expenses/ExpensesShell";
 import MailShell from "../views/mail/MailShell";
 import ActivityFeedView from "../views/ActivityFeedView";
+import DocumentsView from "../views/DocumentsView";
 import CommandPalette from "./CommandPalette";
 
 // Part 6E — persistent offline banner, dismissable, re-appears on next drop.
@@ -118,6 +119,9 @@ export default function AppShell({ app }) {
       break;
     case "activity":
       content = <ActivityFeedView app={app} />;
+      break;
+    case "documents":
+      content = <DocumentsView app={app} />;
       break;
     case "dashboard":
     default:

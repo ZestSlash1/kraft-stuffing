@@ -1,26 +1,9 @@
 import { jsPDF } from "jspdf";
+import { MARGIN, INK, STEEL, SHADE, fmtIST, num } from "./pdf/shared";
 
-const MARGIN = 40;
-const INK = [10, 16, 32];
-const STEEL = [100, 116, 139];
-const SHADE = [13, 24, 40];
 const HEADER_TOP = 36;
 const CONTENT_TOP = 78;
 const FOOTER_Y = 805;
-
-const fmtIST = (iso) => {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
-  return new Intl.DateTimeFormat("en-IN", {
-    timeZone: "Asia/Kolkata",
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(d);
-};
-
-const num = (v) => (v == null || v === "" ? "—" : String(v));
 
 function drawHeader(doc, voyage) {
   doc.setFont("helvetica", "bold");

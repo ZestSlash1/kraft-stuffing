@@ -4,6 +4,7 @@ import { Pencil, Copy, Trash2, Share2, Plus } from "lucide-react";
 import ManifestTable, { ManifestSkeleton } from "../components/ManifestTable";
 import ContainerInfoOverlay from "../components/ContainerInfoOverlay";
 import ExportMenu from "../components/ExportMenu";
+import DocumentGenerateMenu from "../components/documents/DocumentGenerateMenu";
 import CreateVoyageModal from "../components/CreateVoyageModal";
 import ConfirmDialog from "../components/ConfirmDialog";
 import VoyagePnlStrip from "../components/expenses/VoyagePnlStrip";
@@ -166,6 +167,7 @@ export default function VoyageDetailView({ app, voyageId }) {
           <button onClick={onDuplicate} style={iconBtn}><Copy size={14} /></button>
           <button onClick={onShare} style={iconBtn}><Share2 size={14} /> Share</button>
           <ExportMenu onExportXlsx={() => exportXlsx(voyage)} onExportPdf={() => exportPdf(voyage)} />
+          <DocumentGenerateMenu app={app} voyage={voyage} />
           {canDelete && (
             <button onClick={() => setConfirmingDelete(true)} style={{ ...iconBtn, color: theme.color.red, borderColor: "#f3c7c7" }}>
               <Trash2 size={14} />
@@ -248,6 +250,8 @@ export default function VoyageDetailView({ app, voyageId }) {
             onClose={() => setSelectedContainerId(null)}
             onSelectLine={() => navigate("container-log", { containerId: c.id })}
             profilesById={profilesById}
+            app={app}
+            voyage={voyage}
           />
         ) : null;
       })()}
