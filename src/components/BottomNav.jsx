@@ -3,6 +3,7 @@ import { useRouter } from "../context/RouterContext";
 import { useLive } from "../context/LiveContext";
 import { theme } from "../theme";
 import { NavDot } from "./TopNav";
+import { SyncDot } from "./SyncPill";
 
 // Mobile bar: the most-used sections + Mail. Masters lives in the desktop bar /
 // portal only, to keep the phone bar to six tappable targets.
@@ -50,6 +51,7 @@ export default function BottomNav() {
         display: "flex",
       }}
     >
+      <SyncDot />
       {ITEMS.map(({ page, label, Icon }) => {
         const active = activeGroup === page;
         const color = active ? theme.color.amber : theme.color.slate;

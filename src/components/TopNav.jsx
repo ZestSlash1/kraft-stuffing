@@ -17,6 +17,7 @@ import { useRouter } from "../context/RouterContext";
 import { useAuth } from "../context/AuthContext";
 import { useLive } from "../context/LiveContext";
 import { theme } from "../theme";
+import SyncPill from "./SyncPill";
 
 const NAV = [
   { page: "dashboard", label: "Dashboard", Icon: LayoutDashboard },
@@ -179,6 +180,7 @@ export default function TopNav({ onOpenSearch }) {
         <Search size={16} />
       </button>
       <LivePill online={online} />
+      <SyncPill />
       <div ref={menuRef} style={{ position: "relative" }}>
         <button
           onClick={() => setMenuOpen((o) => !o)}

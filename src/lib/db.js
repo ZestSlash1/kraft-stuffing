@@ -410,10 +410,23 @@ const writeQueue = (q) => {
 
 export const pendingCount = () => readQueue().length;
 
+// Tiny subscription so the shell can render queue state without polling.
+// Listeners receive ({ pending, flushed }) on every enqueue and flush.
+const syncListeners = new Set();
+export const onSyncChange = (fn) => {
+  syncListeners.add(fn);
+  return () => syncListeners.delete(fn);
+};
+const emitSync = (flushed = 0) => {
+  const pending = readQueue().length;
+  for (const fn of syncListeners) fn({ pending, flushed });
+};
+
 const enqueue = (op) => {
   const q = readQueue();
   q.push({ ...op, ts: Date.now() });
   writeQueue(q);
+  emitSync();
 };
 
 // A failure is "offline-ish" if the browser is offline or the error looks like a
@@ -509,6 +522,7 @@ export async function flushQueue() {
     }
   }
   writeQueue(remaining);
+  emitSync(flushed);
   return { flushed, remaining: remaining.length };
 }
 
