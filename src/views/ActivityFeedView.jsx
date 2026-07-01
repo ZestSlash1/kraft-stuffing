@@ -187,7 +187,9 @@ export function ActivityPanel({ app, limit = 5 }) {
 }
 
 // ── Full-page section ─────────────────────────────────────────────────────────
-export default function ActivityFeedView({ app }) {
+// `voyageId` (voyage-detail Activity tab) filters loaded rows client-side to
+// this voyage's entities — the audit feed has no server-side entity filter.
+export default function ActivityFeedView({ app, voyageId, embedded }) {
   const { navigate } = useRouter();
   const ctx = useActivityCtx(app);
   const profiles = app?.state?.profiles || [];
@@ -261,19 +263,37 @@ export default function ActivityFeedView({ app }) {
     return () => supabase.removeChannel(ch);
   }, []);
 
+  // Voyage scope: keep rows touching the voyage itself, its containers, or
+  // anything tagged with its voyage_id.
+  const containerIds = voyageId
+    ? new Set(
+        (app?.state?.voyages?.find((v) => v.id === voyageId)?.containers || []).map((c) => c.id)
+      )
+    : null;
+  const visibleRows = voyageId
+    ? rows.filter((e) => {
+        const data = e.new_data || e.old_data || {};
+        if (e.table_name === "voyages" && e.row_id === voyageId) return true;
+        if (data.voyage_id === voyageId) return true;
+        if (data.container_id && containerIds.has(data.container_id)) return true;
+        if (e.table_name === "containers" && containerIds.has(e.row_id)) return true;
+        return false;
+      })
+    : rows;
+
   return (
-    <div style={{ minHeight: "100%", background: theme.color.canvas, color: theme.color.ink }}>
+    <div style={{ minHeight: embedded ? undefined : "100%", background: theme.color.canvas, color: theme.color.ink }}>
       <div
         style={{
           maxWidth: 900,
           margin: "0 auto",
-          padding: "24px 20px 60px",
+          padding: embedded ? "0 0 20px" : "24px 20px 60px",
           display: "flex",
           flexDirection: "column",
           gap: 18,
         }}
       >
-        <div>
+        {!embedded && <div>
           <div
             style={{
               fontFamily: theme.font.condensed,
@@ -297,7 +317,7 @@ export default function ActivityFeedView({ app }) {
           >
             What changed across the corridor
           </div>
-        </div>
+        </div>}
 
         {/* Filters */}
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
@@ -355,16 +375,16 @@ export default function ActivityFeedView({ app }) {
             padding: "6px 16px",
           }}
         >
-          {loading && rows.length === 0 ? (
+          {loading && visibleRows.length === 0 ? (
             <div style={{ padding: "24px 0", fontFamily: theme.font.mono, fontSize: 12, color: theme.color.slate }}>
               Loading…
             </div>
-          ) : rows.length === 0 ? (
+          ) : visibleRows.length === 0 ? (
             <div style={{ padding: "24px 0", fontFamily: theme.font.mono, fontSize: 12, color: theme.color.slate }}>
               No activity matches these filters.
             </div>
           ) : (
-            rows.map((e) => (
+            visibleRows.map((e) => (
               <ActivityRow key={e.id} entry={e} ctx={ctx} onNavigate={navigate} />
             ))
           )}

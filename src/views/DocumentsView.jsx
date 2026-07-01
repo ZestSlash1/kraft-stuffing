@@ -15,7 +15,8 @@ const STATUS_COLORS = {
   void: theme.color.red,
 };
 
-export default function DocumentsView({ app }) {
+// `voyageId` scopes the list to one voyage (voyage-detail Documents tab).
+export default function DocumentsView({ app, voyageId }) {
   const { state } = app;
   const { route } = useRouter();
   const { showToast } = useToast();
@@ -25,6 +26,7 @@ export default function DocumentsView({ app }) {
 
   const reload = () => {
     fetchDocuments({
+      voyageId: voyageId || undefined,
       type: typeFilter === "all" ? undefined : typeFilter,
       status: statusFilter === "all" ? undefined : statusFilter,
     }).then(({ data, error }) => {
@@ -37,7 +39,7 @@ export default function DocumentsView({ app }) {
     });
   };
 
-  useEffect(reload, [typeFilter, statusFilter]);
+  useEffect(reload, [typeFilter, statusFilter, voyageId]);
 
   const download = async (doc) => {
     if (!doc.pdfPath) return;
