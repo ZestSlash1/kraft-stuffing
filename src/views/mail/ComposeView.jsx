@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Send } from "lucide-react";
 import { theme } from "../../theme";
 import { mailApi } from "../../lib/mailApi";
+import { useDirtyGuard } from "../../lib/useDirtyGuard";
 
 const field = {
   width: "100%",
@@ -23,6 +24,7 @@ export default function ComposeView({ reply, onSent }) {
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
   const bodyRef = useRef(null);
+  const { markDirty, markClean } = useDirtyGuard();
 
   // Pre-fill the body: signature appended below, cursor placed above it. In reply
   // mode also quote the original. Signature comes from /api/mail/settings.
@@ -62,6 +64,7 @@ export default function ComposeView({ reply, onSent }) {
         html: bodyRef.current?.innerHTML || "",
         replyToUid: reply?.uid,
       });
+      markClean();
       setDone(true);
       setTimeout(() => onSent?.(), 700);
     } catch (e) {
@@ -86,12 +89,13 @@ export default function ComposeView({ reply, onSent }) {
         {reply ? "REPLY" : "NEW MESSAGE"}
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <input placeholder="To" value={to} onChange={(e) => setTo(e.target.value)} style={field} />
-        <input placeholder="Subject" value={subject} onChange={(e) => setSubject(e.target.value)} style={field} />
+        <input placeholder="To" value={to} onChange={(e) => { markDirty(); setTo(e.target.value); }} style={field} />
+        <input placeholder="Subject" value={subject} onChange={(e) => { markDirty(); setSubject(e.target.value); }} style={field} />
         <div
           ref={bodyRef}
           contentEditable
           suppressContentEditableWarning
+          onInput={markDirty}
           style={{
             ...field,
             minHeight: 220,

@@ -233,7 +233,29 @@ export default function App() {
   const groupOf = (page) =>
     ({ "voyage-detail": "voyages", "container-log": "voyages" })[page] || page;
 
+  // Dirty-form guard: forms flag unsaved edits via setDirty(true); navigation
+  // then asks for confirmation. Ref (not state) — no re-render needed.
+  const formDirtyRef = useRef(false);
+  const setFormDirty = useCallback((v) => {
+    formDirtyRef.current = !!v;
+  }, []);
+
+  useEffect(() => {
+    const onBeforeUnload = (e) => {
+      if (formDirtyRef.current) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, []);
+
   const navigate = useCallback((page, params = {}) => {
+    if (formDirtyRef.current) {
+      if (!window.confirm("Unsaved changes — leave?")) return;
+      formDirtyRef.current = false;
+    }
     setRoute({ page, params });
     const g = groupOf(page);
     setDirty((d) => (d[g] ? { ...d, [g]: false } : d));
@@ -689,7 +711,7 @@ export default function App() {
   return (
     <ErrorBoundary>
       <AuthContext.Provider value={{ user, session, profile }}>
-        <RouterContext.Provider value={{ route, navigate, goPortal }}>
+        <RouterContext.Provider value={{ route, navigate, goPortal, setDirty: setFormDirty }}>
           <LiveContext.Provider value={live}>
             <ToastProvider>
               <AppShell app={app} />

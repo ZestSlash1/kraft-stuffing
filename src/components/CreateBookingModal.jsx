@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { theme } from "../theme";
 import ShipperConsigneeSelect from "./ShipperConsigneeSelect";
+import { useDirtyGuard } from "../lib/useDirtyGuard";
 
 const label = {
   fontFamily: theme.font.mono,
@@ -63,10 +64,15 @@ export default function CreateBookingModal({
     notes: booking?.notes || "",
   });
 
-  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const { markDirty, markClean } = useDirtyGuard();
+  const set = (k) => (e) => {
+    markDirty();
+    setForm((f) => ({ ...f, [k]: e.target.value }));
+  };
 
   const submit = () => {
     if (!form.bookingDate) return;
+    markClean();
     onSubmit({
       shipperId: form.shipperId,
       consigneeId: form.consigneeId,

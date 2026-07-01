@@ -3,6 +3,7 @@ import { theme } from "../theme";
 import InvoiceFields from "./InvoiceFields";
 import ShipperConsigneeSelect from "./ShipperConsigneeSelect";
 import BookingSelect from "./BookingSelect";
+import { useDirtyGuard } from "../lib/useDirtyGuard";
 
 export const CARGO_UNITS = [
   "Bags",
@@ -69,10 +70,12 @@ export default function AddForm({
   const [truckNo, setTruckNo] = useState("");
   const [bookingId, setBookingId] = useState(null);
   const [invoice, setInvoice] = useState(emptyInvoice);
+  const { markDirty, markClean } = useDirtyGuard();
 
   const submit = (e) => {
     e.preventDefault();
     if (!qty || Number(qty) <= 0) return;
+    markClean();
     onAddLine({
       cargo,
       qty: Number(qty),
@@ -133,7 +136,7 @@ export default function AddForm({
         <input
           type="number"
           value={qty}
-          onChange={(e) => setQty(e.target.value)}
+          onChange={(e) => { markDirty(); setQty(e.target.value); }}
           style={inputStyle}
         />
       </Field>
@@ -171,7 +174,7 @@ export default function AddForm({
         />
       </Field>
       <Field label="truck no">
-        <input value={truckNo} onChange={(e) => setTruckNo(e.target.value)} style={inputStyle} />
+        <input value={truckNo} onChange={(e) => { markDirty(); setTruckNo(e.target.value); }} style={inputStyle} />
       </Field>
       <Field label="link to booking">
         <BookingSelect

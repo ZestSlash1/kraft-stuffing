@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { theme } from "../../theme";
 import { Input, Pill } from "../ui";
 import { CATEGORIES, categoryType } from "../../views/expenses/expenseHelpers";
+import { useDirtyGuard } from "../../lib/useDirtyGuard";
 
 // ExpenseForm — add/edit an expense. No <form> tag (CLAUDE.md convention): plain
 // divs + an onClick submit. Amounts entered in rupees, emitted as integer paise.
@@ -34,6 +35,7 @@ export default function ExpenseForm({
   const [type, setType] = useState(initial?.type || "expense");
   const [notes, setNotes] = useState(initial?.notes || "");
   const [voyageId, setVoyageId] = useState(initial?.voyageId || initialVoyageId || "");
+  const { markDirty, markClean } = useDirtyGuard();
 
   // Keep type coherent with the chosen category (income categories flip the toggle).
   useEffect(() => {
@@ -44,6 +46,7 @@ export default function ExpenseForm({
 
   const submit = () => {
     if (!valid) return;
+    markClean();
     onSubmit({
       ...(initial?.id ? { id: initial.id } : {}),
       ...(initial?.referenceNo ? { referenceNo: initial.referenceNo } : {}),
@@ -107,7 +110,7 @@ export default function ExpenseForm({
           label="date"
           type="date"
           value={date}
-          onChange={(e) => setDate(e.target.value)}
+          onChange={(e) => { markDirty(); setDate(e.target.value); }}
           style={{ width: 150 }}
         />
         <Input
@@ -115,7 +118,7 @@ export default function ExpenseForm({
           type="number"
           placeholder="0"
           value={amountRs}
-          onChange={(e) => setAmountRs(e.target.value)}
+          onChange={(e) => { markDirty(); setAmountRs(e.target.value); }}
           style={{ width: 130 }}
         />
         <div>
@@ -145,7 +148,7 @@ export default function ExpenseForm({
         label="description"
         placeholder="What was this for?"
         value={description}
-        onChange={(e) => setDescription(e.target.value)}
+        onChange={(e) => { markDirty(); setDescription(e.target.value); }}
         onKeyDown={(e) => e.key === "Enter" && submit()}
       />
 
@@ -153,7 +156,7 @@ export default function ExpenseForm({
         <label style={labelStyle}>notes (optional)</label>
         <textarea
           value={notes}
-          onChange={(e) => setNotes(e.target.value)}
+          onChange={(e) => { markDirty(); setNotes(e.target.value); }}
           rows={2}
           style={{
             width: "100%",
