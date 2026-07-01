@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { fetchActivityPage } from "../lib/db";
 import { theme } from "../theme";
-import { timeAgo } from "../data/statusHelpers";
+import { formatRelative } from "../lib/format";
 import { useRouter } from "../context/RouterContext";
 import {
   formatActivity,
@@ -122,7 +122,7 @@ function ActivityRow({ entry, ctx, onNavigate, dense }) {
           color: theme.color.slate,
         }}
       >
-        {timeAgo(entry.changed_at)}
+        {formatRelative(entry.changed_at)}
       </span>
     </button>
   );
@@ -162,7 +162,7 @@ export function ActivityPanel({ app, limit = 5 }) {
           style={{
             background: "none",
             border: "none",
-            color: theme.color.amber,
+            color: theme.color.amberText,
             fontFamily: theme.font.mono,
             fontSize: 10,
             letterSpacing: "0.06em",
@@ -403,7 +403,7 @@ function Chip({ label, active, onClick }) {
       style={{
         background: active ? theme.color.amberSoft : theme.color.surface,
         border: `1px solid ${active ? theme.color.amber : theme.color.border}`,
-        color: active ? theme.color.amber : theme.color.inkSoft,
+        color: active ? theme.color.amberText : theme.color.inkSoft,
         borderRadius: theme.radius.pill,
         padding: "7px 14px",
         fontFamily: theme.font.mono,

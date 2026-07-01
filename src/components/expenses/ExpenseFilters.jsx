@@ -16,7 +16,7 @@ function Chip({ label, active, onClick }) {
         flex: "0 0 auto",
         background: active ? theme.color.amberSoft : theme.color.surface,
         border: `1px solid ${active ? theme.color.amber : theme.color.border}`,
-        color: active ? theme.color.amber : theme.color.inkSoft,
+        color: active ? theme.color.amberText : theme.color.inkSoft,
         borderRadius: theme.radius.pill,
         padding: "7px 14px",
         minHeight: 36,

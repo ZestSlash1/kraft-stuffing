@@ -178,7 +178,7 @@ export default function DashboardView({ app }) {
             style={{
               background: "none",
               border: `1px solid ${theme.color.amber}`,
-              color: theme.color.amber,
+              color: theme.color.amberText,
               fontFamily: theme.font.condensed,
               fontWeight: 700,
               fontSize: 14,

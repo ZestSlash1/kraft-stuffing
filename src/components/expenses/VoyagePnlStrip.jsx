@@ -110,7 +110,7 @@ export default function VoyagePnlStrip({ voyageId, onAddEntry }) {
           gap: 6,
           background: theme.color.surface,
           border: `1px solid ${theme.color.amber}`,
-          color: theme.color.amber,
+          color: theme.color.amberText,
           borderRadius: theme.radius.input,
           padding: "8px 12px",
           fontFamily: theme.font.mono,

@@ -116,7 +116,7 @@ export default function ShipperConsigneeSelect({
               padding: "7px 10px",
               fontFamily: theme.font.mono,
               fontSize: 12,
-              color: theme.color.amber,
+              color: theme.color.amberText,
               cursor: "pointer",
               borderTop: matches.length ? `1px solid ${theme.color.border}` : "none",
             }}

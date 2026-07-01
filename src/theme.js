@@ -18,7 +18,8 @@ export const theme = {
     inkSoft: "#334155", // secondary text
     slate: "#64748b", // muted labels, italic spec labels
     slateFaint: "#94a3b8", // placeholder, disabled
-    amber: "#e8930a", // primary accent
+    amber: "#e8930a", // primary accent — fills/borders only, never text on light
+    amberText: "#b3700a", // accessible amber for text on light surfaces
     amberSoft: "#fdf0d8", // amber tint fill
     green: "#0b6b50", // sealed / confirmed
     greenSoft: "#e2f0ea", // green tint fill

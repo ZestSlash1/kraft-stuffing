@@ -3,11 +3,7 @@ import { RefreshCw, CornerUpLeft } from "lucide-react";
 import { theme } from "../../theme";
 import { mailApi } from "../../lib/mailApi";
 import { useIsMobile } from "../../hooks/useIsMobile";
-
-const IST = (d) =>
-  d
-    ? new Date(d).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" })
-    : "";
+import { formatRelative, formatAbsolute } from "../../lib/format";
 
 export default function InboxView({ folder = "INBOX", onReply }) {
   const [messages, setMessages] = useState([]);
@@ -131,7 +127,7 @@ export default function InboxView({ folder = "INBOX", onReply }) {
                 {m.subject}
               </div>
               <div style={{ fontFamily: theme.font.mono, fontSize: 10, color: theme.color.slateFaint, marginTop: 4 }}>
-                {IST(m.date)}
+                {formatRelative(m.date)}
               </div>
             </button>
           );
@@ -170,7 +166,7 @@ export default function InboxView({ folder = "INBOX", onReply }) {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", margin: "10px 0 18px" }}>
               <div style={{ fontFamily: theme.font.mono, fontSize: 12, color: theme.color.slate, minWidth: 0, overflowWrap: "break-word", wordBreak: "break-word" }}>
                 {selected.from?.name ? `${selected.from.name} · ` : ""}
-                {selected.from?.address} — {IST(selected.date)}
+                {selected.from?.address} — {formatAbsolute(selected.date)}
               </div>
               <button
                 onClick={() => onReply?.(selected)}

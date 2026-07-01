@@ -52,7 +52,7 @@ export default class ErrorBoundary extends Component {
             padding: "10px 20px",
             border: `1px solid ${theme.color.borderStrong}`,
             borderRadius: theme.radius.input,
-            color: theme.color.amber,
+            color: theme.color.amberText,
             fontSize: 11,
             letterSpacing: "0.1em",
             cursor: "pointer",

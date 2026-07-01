@@ -194,7 +194,7 @@ export default function VoyageDetailView({ app, voyageId }) {
       <div style={{ marginTop: 16, background: theme.color.surface, border: `1px solid ${theme.color.border}`, borderRadius: theme.radius.card, boxShadow: theme.shadow.card, padding: "12px 16px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", fontFamily: theme.font.mono, fontSize: 11, color: theme.color.slate }}>
           <span>{s.sealed} of {s.total} containers sealed</span>
-          <span style={{ color: theme.color.amber }}>{pct}%</span>
+          <span style={{ color: theme.color.amberText }}>{pct}%</span>
         </div>
         <div style={{ height: 8, background: theme.color.surfaceMuted, borderRadius: 4, marginTop: 8, overflow: "hidden" }}>
           <div ref={barRef} style={{ height: "100%", width: `${pct}%`, background: theme.color.amber, borderRadius: 4 }} />

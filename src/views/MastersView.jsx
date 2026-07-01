@@ -116,7 +116,7 @@ export default function MastersView({ app }) {
               background: "none",
               border: "none",
               borderBottom: tab === t ? `2px solid ${theme.color.amber}` : "2px solid transparent",
-              color: tab === t ? theme.color.amber : theme.color.slate,
+              color: tab === t ? theme.color.amberText : theme.color.slate,
               fontFamily: theme.font.condensed,
               fontWeight: 700,
               fontSize: 18,

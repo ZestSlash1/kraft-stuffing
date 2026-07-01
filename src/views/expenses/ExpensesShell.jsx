@@ -346,7 +346,7 @@ export default function ExpensesShell({ app }) {
               gap: 8,
               background: theme.color.amberSoft,
               border: `1px solid ${theme.color.amber}`,
-              color: theme.color.amber,
+              color: theme.color.amberText,
               borderRadius: theme.radius.pill,
               padding: "6px 12px",
               fontFamily: theme.font.mono,

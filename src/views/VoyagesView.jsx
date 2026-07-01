@@ -54,7 +54,7 @@ function VoyageRow({ voyage, onOpen }) {
       <div style={{ fontFamily: theme.font.mono, fontSize: 11, color: theme.color.inkSoft }}>
         {s.sealed} sealed / {s.total}
       </div>
-      <div style={{ fontFamily: theme.font.condensed, fontWeight: 700, fontSize: 16, color: theme.color.amber }}>
+      <div style={{ fontFamily: theme.font.condensed, fontWeight: 700, fontSize: 16, color: theme.color.amberText }}>
         {s.mt.toFixed(1)}
       </div>
       <StatusBadge status={voyage.status} />
@@ -93,7 +93,7 @@ function VoyageCard({ voyage, onOpen }) {
         <span style={{ fontFamily: theme.font.mono, fontSize: 11, color: theme.color.inkSoft }}>
           {s.sealed} sealed / {s.total}
         </span>
-        <span style={{ fontFamily: theme.font.condensed, fontWeight: 700, fontSize: 16, color: theme.color.amber }}>
+        <span style={{ fontFamily: theme.font.condensed, fontWeight: 700, fontSize: 16, color: theme.color.amberText }}>
           {s.mt.toFixed(1)} MT
         </span>
       </div>
@@ -179,7 +179,7 @@ export default function VoyagesView({ app }) {
                 background: "none",
                 border: "none",
                 borderBottom: tab === t ? `2px solid ${theme.color.amber}` : "2px solid transparent",
-                color: tab === t ? theme.color.amber : theme.color.slate,
+                color: tab === t ? theme.color.amberText : theme.color.slate,
                 fontFamily: theme.font.mono,
                 fontSize: 12,
                 padding: "8px 2px",

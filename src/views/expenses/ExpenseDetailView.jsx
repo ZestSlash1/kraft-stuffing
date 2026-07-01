@@ -6,6 +6,7 @@ import { SpecLabel } from "../../components/ui";
 import CategoryBadge from "../../components/expenses/CategoryBadge";
 import ExpenseForm from "../../components/expenses/ExpenseForm";
 import { fmtPaise, fmtDateHeader } from "./expenseHelpers";
+import { formatAbsolute } from "../../lib/format";
 import { fetchAuditLog, fromDbAuditEntry } from "../../lib/db";
 
 function diffFields(oldData, newData) {
@@ -56,7 +57,7 @@ function AuditTab({ expenseId, profilesById }) {
             style={{ padding: "10px 0", borderBottom: `1px solid ${theme.color.border}` }}
           >
             <div style={{ fontSize: 12 }}>
-              {e.action} by {who} — {new Date(e.changedAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}
+              {e.action} by {who} — {formatAbsolute(e.changedAt)}
             </div>
             {diffs.length > 0 && (
               <div style={{ marginLeft: 14, marginTop: 4, display: "flex", flexDirection: "column", gap: 2 }}>

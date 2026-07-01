@@ -7,17 +7,9 @@ export const INK = [10, 16, 32];
 export const STEEL = [100, 116, 139];
 export const SHADE = [13, 24, 40];
 
-export const fmtIST = (iso) => {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
-  return new Intl.DateTimeFormat("en-IN", {
-    timeZone: "Asia/Kolkata",
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(d);
-};
+import { formatAbsolute } from "../format";
+
+export const fmtIST = (iso) => formatAbsolute(iso);
 
 export const num = (v) => (v == null || v === "" ? "—" : String(v));
 

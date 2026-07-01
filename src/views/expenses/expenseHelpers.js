@@ -20,11 +20,8 @@ export const categoryType = (name) =>
   CATEGORIES.find((c) => c.name === name)?.type || "expense";
 
 // ── Money helpers ───────────────────────────────────────────────────────────
-// All amounts are stored as integer paise. Display divides by 100.
-export const fmtPaise = (paise) =>
-  new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(
-    Math.round(Number(paise || 0) / 100)
-  );
+// All amounts are stored as integer paise. Formatting lives in lib/format.js.
+export { formatINRCompact as fmtPaise } from "../../lib/format";
 
 // "DD/MM" short stamp for dense rows; "DD MMM YYYY" for group headers.
 export const fmtDay = (iso) => {

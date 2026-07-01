@@ -46,7 +46,7 @@ function BookingRow({ booking, shipper, consignee, onOpen }) {
       <div style={{ fontFamily: theme.font.mono, fontSize: 12, color: theme.color.slate }}>{consignee?.name || "—"}</div>
       <Badge status={booking.freightStatus} colors={FREIGHT_STATUS_COLORS} />
       <Badge status={booking.paymentStatus} colors={PAYMENT_STATUS_COLORS} />
-      <div style={{ fontFamily: theme.font.condensed, fontWeight: 700, fontSize: 14, color: theme.color.amber }}>
+      <div style={{ fontFamily: theme.font.condensed, fontWeight: 700, fontSize: 14, color: theme.color.amberText }}>
         {booking.freightAmount != null ? `${booking.freightAmount} ${booking.freightCurrency}` : "—"}
       </div>
       <ChevronRight size={16} color={theme.color.slate} />

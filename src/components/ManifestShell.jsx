@@ -46,7 +46,7 @@ export default function ManifestShell({ app }) {
                   background: "none",
                   border: "none",
                   borderBottom: active ? `2px solid ${theme.color.amber}` : "2px solid transparent",
-                  color: active ? theme.color.amber : theme.color.slate,
+                  color: active ? theme.color.amberText : theme.color.slate,
                   fontFamily: theme.font.mono,
                   fontSize: 12,
                   letterSpacing: "0.06em",
