@@ -4,6 +4,46 @@ import { theme } from "../../theme";
 import { mailApi } from "../../lib/mailApi";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import { formatRelative, formatAbsolute } from "../../lib/format";
+import { useRouter } from "../../context/RouterContext";
+import { globalSearch, ROUTE_FOR } from "../../lib/search";
+
+// Entity refs detected in mail text: container numbers (ABCD1234567) and
+// document numbers from next_doc_number() ("KRAFT/HBL/2026/0001").
+const REF_RE = /\b[A-Z]{4}\d{7}\b|\bKRAFT\/(?:HBL|AN|DO)\/\d{4}\/\d{4}\b/g;
+
+// Highlight refs inside PLAIN text only (React-escaped) — never raw HTML.
+// Click runs global_search for the ref and jumps to the first hit.
+function RefText({ text, onRef, style }) {
+  if (!text) return null;
+  const parts = String(text).split(REF_RE);
+  const refs = String(text).match(REF_RE) || [];
+  if (refs.length === 0) return <span style={style}>{text}</span>;
+  const out = [];
+  parts.forEach((p, i) => {
+    out.push(<span key={`t${i}`}>{p}</span>);
+    if (refs[i] !== undefined)
+      out.push(
+        <span
+          key={`r${i}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onRef(refs[i]);
+          }}
+          style={{
+            fontFamily: theme.font.mono,
+            color: theme.color.ink,
+            textDecoration: "underline",
+            textDecorationColor: theme.color.amber,
+            textDecorationThickness: 2,
+            cursor: "pointer",
+          }}
+        >
+          {refs[i]}
+        </span>
+      );
+  });
+  return <span style={style}>{out}</span>;
+}
 
 export default function InboxView({ folder = "INBOX", onReply }) {
   const [messages, setMessages] = useState([]);
@@ -12,6 +52,16 @@ export default function InboxView({ folder = "INBOX", onReply }) {
   const [selected, setSelected] = useState(null); // parsed thread
   const [loadingBody, setLoadingBody] = useState(false);
   const isMobile = useIsMobile();
+  const { navigate } = useRouter();
+
+  // Ref click → global_search → first hit's route.
+  const openRef = async (ref) => {
+    const { rows } = await globalSearch(ref, { voyages: [], shippers: [], consignees: [], expenses: [] });
+    const hit = rows?.[0];
+    if (!hit) return;
+    const target = ROUTE_FOR[hit.type] || { page: "dashboard" };
+    navigate(target.page, target.param ? { [target.param]: hit.id } : {});
+  };
 
   // `background` reloads skip the loading spinner so polling doesn't flicker the list.
   const load = (background = false) => {
@@ -96,13 +146,16 @@ export default function InboxView({ folder = "INBOX", onReply }) {
                 cursor: "pointer",
               }}
             >
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 8, minWidth: 0 }}>
+                {!m.seen && <span style={{ width: 7, height: 7, borderRadius: "50%", background: theme.color.amber, flexShrink: 0, alignSelf: "center" }} />}
                 <span
                   style={{
                     fontFamily: theme.font.mono,
                     fontSize: 12,
-                    fontWeight: m.seen ? 400 : 600,
+                    fontWeight: 700,
                     color: theme.color.ink,
+                    flexShrink: 0,
+                    maxWidth: 130,
                     overflow: "hidden",
                     textOverflow: "ellipsis",
                     whiteSpace: "nowrap",
@@ -110,24 +163,24 @@ export default function InboxView({ folder = "INBOX", onReply }) {
                 >
                   {m.from?.name || m.from?.address || "Unknown"}
                 </span>
-                {!m.seen && <span style={{ width: 7, height: 7, borderRadius: "50%", background: theme.color.amber, flexShrink: 0, marginTop: 4 }} />}
-              </div>
-              <div
-                style={{
-                  fontFamily: theme.font.body,
-                  fontSize: 13,
-                  fontWeight: m.seen ? 400 : 600,
-                  color: theme.color.inkSoft,
-                  marginTop: 2,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {m.subject}
-              </div>
-              <div style={{ fontFamily: theme.font.mono, fontSize: 10, color: theme.color.slateFaint, marginTop: 4 }}>
-                {formatRelative(m.date)}
+                <span
+                  style={{
+                    flex: 1,
+                    fontFamily: theme.font.body,
+                    fontSize: 13,
+                    fontWeight: m.seen ? 400 : 600,
+                    color: theme.color.inkSoft,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    minWidth: 0,
+                  }}
+                >
+                  <RefText text={m.subject} onRef={openRef} />
+                </span>
+                <span style={{ fontFamily: theme.font.mono, fontSize: 10, color: theme.color.slateFaint, flexShrink: 0 }}>
+                  {formatRelative(m.date)}
+                </span>
               </div>
             </button>
           );
@@ -161,7 +214,7 @@ export default function InboxView({ folder = "INBOX", onReply }) {
         {!loadingBody && selected && (
           <div>
             <div style={{ fontFamily: theme.font.condensed, fontWeight: 800, fontSize: 24, color: theme.color.ink }}>
-              {selected.subject}
+              <RefText text={selected.subject} onRef={openRef} />
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", margin: "10px 0 18px" }}>
               <div style={{ fontFamily: theme.font.mono, fontSize: 12, color: theme.color.slate, minWidth: 0, overflowWrap: "break-word", wordBreak: "break-word" }}>
@@ -201,7 +254,7 @@ export default function InboxView({ folder = "INBOX", onReply }) {
               }}
               {...(selected.html
                 ? { dangerouslySetInnerHTML: { __html: selected.html } }
-                : { children: selected.text })}
+                : { children: <RefText text={selected.text} onRef={openRef} /> })}
             />
           </div>
         )}
