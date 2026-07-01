@@ -16,6 +16,7 @@ export const fromDbDocument = (r) => ({
   issuedBy: r.issued_by,
   pdfPath: r.pdf_path || "",
   createdAt: r.created_at,
+  supersededBy: r.superseded_by || null,
 });
 
 export const toDbDocument = (d) => ({

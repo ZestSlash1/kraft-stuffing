@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Download, Send, Ban } from "lucide-react";
 import { theme } from "../theme";
-import { Card, Pill } from "../components/ui";
+import { Card, Pill, StatusBadge } from "../components/ui";
 import { useToast } from "../components/Toast";
 import { fetchDocuments, getSignedDocumentUrl, voidDocument } from "../lib/documents";
 import { supabase } from "../lib/supabase";
@@ -9,12 +9,6 @@ import { fmtIST } from "../lib/pdf/shared";
 import { useRouter } from "../context/RouterContext";
 
 const TYPE_LABELS = { hbl: "HBL", arrival_notice: "Arrival Notice", delivery_order: "Delivery Order" };
-const STATUS_COLORS = {
-  draft: theme.color.slate,
-  issued: theme.color.green,
-  void: theme.color.red,
-};
-
 // `voyageId` scopes the list to one voyage (voyage-detail Documents tab).
 export default function DocumentsView({ app, voyageId }) {
   const { state } = app;
@@ -113,9 +107,14 @@ export default function DocumentsView({ app, voyageId }) {
                     <div style={{ fontSize: 11, color: theme.color.slate, marginTop: 2 }}>
                       {voyage?.voyageNo || "—"} {voyage ? `· ${voyage.vessel}` : ""}
                     </div>
+                    {doc.supersededBy && (
+                      <div style={{ fontSize: 11, color: theme.color.amberText, marginTop: 2, textDecoration: "none" }}>
+                        Superseded by {documents.find((d) => d.id === doc.supersededBy)?.number || doc.supersededBy.slice(0, 8)}
+                      </div>
+                    )}
                   </div>
-                  <div style={{ width: 110, fontFamily: theme.font.mono, fontSize: 11, color: STATUS_COLORS[doc.status] }}>
-                    {doc.status.toUpperCase()}
+                  <div style={{ width: 110 }}>
+                    <StatusBadge status={doc.status.toUpperCase()} size="sm" />
                   </div>
                   <div style={{ width: 100, fontFamily: theme.font.mono, fontSize: 11, color: theme.color.slate }}>
                     {doc.issuedAt ? fmtIST(doc.issuedAt) : "—"}

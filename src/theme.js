@@ -36,6 +36,10 @@ export const theme = {
     FULL: { dot: "#ea7a0c", label: "#b85f08", fill: "#fdece0" },
     OVER: { dot: "#dc2626", label: "#b91c1c", fill: "#fde4e4" },
     SEALED: { dot: "#0b6b50", label: "#0b6b50", fill: "#e2f0ea" },
+    // Document lifecycle (Documents section)
+    DRAFT: { dot: "#94a3b8", label: "#64748b", fill: "#f1f3f6" },
+    ISSUED: { dot: "#0b6b50", label: "#0b6b50", fill: "#e2f0ea" },
+    VOID: { dot: "#dc2626", label: "#b91c1c", fill: "#fde4e4" },
   },
 
   font: {
