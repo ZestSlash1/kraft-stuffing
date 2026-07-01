@@ -136,7 +136,7 @@ export default function AppShell({ app }) {
       <div className="app-main" style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
         {content}
       </div>
-      <BottomNav />
+      <BottomNav onOpenSearch={() => setSearchOpen(true)} />
       <CommandPalette app={app} open={searchOpen} onClose={() => setSearchOpen(false)} />
     </div>
   );

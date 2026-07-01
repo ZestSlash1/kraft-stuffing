@@ -8,6 +8,7 @@ import LineCard from "../components/LineCard";
 import SealConfirmDialog from "../components/SealConfirmDialog";
 import { useToast } from "../components/Toast";
 import { containerStatus, containerFillPct } from "../data/statusHelpers";
+import { recordEntityVisit } from "../lib/recentEntities";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ContainerLogView — light anchor, now fully functional. Layout:
@@ -69,6 +70,11 @@ export default function ContainerLogView({ app, containerId }) {
     shipperName: shipperName(b.shipperId),
     consigneeName: consigneeName(b.consigneeId),
   }));
+
+  useEffect(() => {
+    if (container)
+      recordEntityVisit({ type: "container", id: container.id, label: container.number || "Container" });
+  }, [container?.id]);
 
   // Presence: tell other users which container this user is logging.
   useEffect(() => {

@@ -14,6 +14,7 @@ import ActivityFeedView from "./ActivityFeedView";
 import ExpenseListView from "./expenses/ExpenseListView";
 import { fetchExpensesByVoyage, fromDbExpense } from "../lib/db";
 import { useRouter } from "../context/RouterContext";
+import { recordEntityVisit } from "../lib/recentEntities";
 import { useToast } from "../components/Toast";
 import {
   voyageStats,
@@ -81,6 +82,10 @@ export default function VoyageDetailView({ app, voyageId }) {
   useEffect(() => {
     if (voyageId) setActiveVoyage(voyageId);
   }, [voyageId, setActiveVoyage]);
+
+  useEffect(() => {
+    if (voyage) recordEntityVisit({ type: "voyage", id: voyage.id, label: `${voyage.vessel} · ${voyage.voyageNo}` });
+  }, [voyage?.id]);
 
   useEffect(() => {
     if (tab !== "P&L" || !voyageId) return;

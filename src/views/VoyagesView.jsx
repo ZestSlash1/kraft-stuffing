@@ -4,6 +4,7 @@ import { voyageStats, VOYAGE_STATUS_COLORS } from "../data/statusHelpers";
 import { theme } from "../theme";
 import CreateVoyageModal from "../components/CreateVoyageModal";
 import { useToast } from "../components/Toast";
+import { useRouter } from "../context/RouterContext";
 
 const TABS = ["All", "Loading", "Completed", "Archived"];
 
@@ -129,9 +130,10 @@ const primaryBtn = {
 
 export default function VoyagesView({ app }) {
   const { state, navigate, createVoyageEntry, orgSettings } = app;
+  const { route } = useRouter();
   const { showToast } = useToast();
   const [tab, setTab] = useState("All");
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState(!!route.params?.create);
 
   const voyages = state.voyages.filter((v) => {
     if (tab === "Archived") return v.archived;

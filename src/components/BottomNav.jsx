@@ -1,4 +1,4 @@
-import { LayoutDashboard, Ship, FileText, Receipt, Mail, Settings } from "lucide-react";
+import { LayoutDashboard, Ship, FileText, Receipt, Mail, Settings, Search } from "lucide-react";
 import { useRouter } from "../context/RouterContext";
 import { useLive } from "../context/LiveContext";
 import { theme } from "../theme";
@@ -28,7 +28,7 @@ const GROUP = {
   settings: "settings",
 };
 
-export default function BottomNav() {
+export default function BottomNav({ onOpenSearch }) {
   const { route, navigate } = useRouter();
   const { dirty, mailUnread } = useLive();
   const activeGroup = GROUP[route.page] || "dashboard";
@@ -105,6 +105,26 @@ export default function BottomNav() {
           </button>
         );
       })}
+      <button
+        onClick={onOpenSearch}
+        style={{
+          flex: 1,
+          background: "none",
+          border: "none",
+          cursor: "pointer",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 3,
+          color: theme.color.slate,
+        }}
+      >
+        <Search size={20} color={theme.color.slate} />
+        <span style={{ fontFamily: theme.font.mono, fontSize: 9, letterSpacing: "0.06em", textTransform: "uppercase" }}>
+          Search
+        </span>
+      </button>
     </div>
   );
 }

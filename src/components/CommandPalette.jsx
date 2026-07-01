@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Search, Box, Ship, FileText, Users, Receipt, CornerDownLeft } from "lucide-react";
+import { Search, Box, Ship, FileText, Users, Receipt, CornerDownLeft, Clock, Plus } from "lucide-react";
 import { theme } from "../theme";
 import { useRouter } from "../context/RouterContext";
 import { globalSearch, ROUTE_FOR } from "../lib/search";
+import { readRecentEntities } from "../lib/recentEntities";
+import { useIsMobile } from "../hooks/useIsMobile";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CommandPalette — ⌘K / Ctrl+K global search. Frosted modal matching the light
@@ -39,6 +41,7 @@ export default function CommandPalette({ app, open, onClose }) {
   const [cursor, setCursor] = useState(0);
   const inputRef = useRef(null);
   const debounceRef = useRef(null);
+  const isMobile = useIsMobile();
 
   const fallbackData = useMemo(
     () => ({
@@ -137,20 +140,24 @@ export default function CommandPalette({ app, open, onClose }) {
         display: "flex",
         alignItems: "flex-start",
         justifyContent: "center",
-        paddingTop: "12vh",
+        paddingTop: isMobile ? 0 : "12vh",
       }}
     >
       <div
         onMouseDown={(e) => e.stopPropagation()}
         style={{
-          width: "min(560px, 92vw)",
+          width: isMobile ? "100%" : "min(560px, 92vw)",
+          height: isMobile ? "100dvh" : undefined,
+          borderRadius: isMobile ? 0 : theme.radius.card,
           background: "rgba(255,255,255,0.92)",
           backdropFilter: "blur(20px)",
           WebkitBackdropFilter: "blur(20px)",
           border: `1px solid ${theme.color.border}`,
-          borderRadius: theme.radius.card,
+
           boxShadow: theme.shadow.raised,
           overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
         }}
       >
         {/* Search field */}
@@ -195,7 +202,7 @@ export default function CommandPalette({ app, open, onClose }) {
         </div>
 
         {/* Results */}
-        <div style={{ maxHeight: "52vh", overflowY: "auto", padding: "6px 0" }}>
+        <div style={{ maxHeight: isMobile ? "none" : "52vh", flex: isMobile ? 1 : undefined, overflowY: "auto", padding: "6px 0" }}>
           {offline && (
             <div
               style={{
@@ -215,7 +222,7 @@ export default function CommandPalette({ app, open, onClose }) {
           {loading && ordered.length === 0 ? (
             <Empty text="Searching…" />
           ) : !q.trim() ? (
-            <Empty text="Type to search across every section" />
+            <IdleState app={app} onClose={onClose} navigate={navigate} go={go} />
           ) : ordered.length === 0 ? (
             <Empty text={`No results for “${q}”`} />
           ) : (
@@ -306,6 +313,89 @@ export default function CommandPalette({ app, open, onClose }) {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// Empty-query state: last 5 visited entities + static quick actions.
+function IdleState({ app, onClose, navigate, go }) {
+  const recents = readRecentEntities();
+
+  const activeVoyage =
+    (app?.state?.voyages || []).find((v) => v.status === "LOADING" && !v.archived) ||
+    (app?.state?.voyages || []).find((v) => !v.archived);
+
+  const actions = [
+    {
+      label: "New Booking",
+      run: () =>
+        activeVoyage
+          ? navigate("voyage-detail", { voyageId: activeVoyage.id, tab: "Bookings" })
+          : navigate("voyages"),
+    },
+    { label: "New Expense", run: () => navigate("expenses") },
+    { label: "Compose Mail", run: () => navigate("mail", { compose: true }) },
+    { label: "New Voyage", run: () => navigate("voyages", { create: true }) },
+  ];
+
+  const rowStyle = {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    width: "100%",
+    textAlign: "left",
+    background: "transparent",
+    border: "none",
+    padding: "10px 16px",
+    cursor: "pointer",
+    fontFamily: theme.font.mono,
+    fontSize: 13,
+    color: theme.color.ink,
+  };
+  const groupLabel = {
+    fontFamily: theme.font.mono,
+    fontSize: 9,
+    letterSpacing: "0.14em",
+    textTransform: "uppercase",
+    color: theme.color.slate,
+    padding: "8px 16px 4px",
+  };
+
+  return (
+    <div>
+      {recents.length > 0 && (
+        <>
+          <div style={groupLabel}>Recent</div>
+          {recents.map((r) => (
+            <button
+              key={`${r.type}-${r.id}`}
+              onClick={() => go({ type: r.type, id: r.id })}
+              style={rowStyle}
+              onMouseEnter={(e) => (e.currentTarget.style.background = theme.color.amberSoft)}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+            >
+              <Clock size={15} color={theme.color.slate} />
+              <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.label || r.id}</span>
+            </button>
+          ))}
+        </>
+      )}
+      <div style={groupLabel}>Quick actions</div>
+      {actions.map((a) => (
+        <button
+          key={a.label}
+          onClick={() => {
+            onClose();
+            a.run();
+          }}
+          style={rowStyle}
+          onMouseEnter={(e) => (e.currentTarget.style.background = theme.color.amberSoft)}
+          onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+        >
+          <Plus size={15} color={theme.color.amber} />
+          {a.label}
+        </button>
+      ))}
     </div>
   );
 }

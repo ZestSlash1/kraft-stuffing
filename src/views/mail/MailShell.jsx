@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Inbox, Send, PenSquare, Settings as SettingsIcon } from "lucide-react";
 import { theme } from "../../theme";
 import { mailApi } from "../../lib/mailApi";
+import { useRouter } from "../../context/RouterContext";
 import InboxView from "./InboxView";
 import ConnectView from "./ConnectView";
 import ComposeView from "./ComposeView";
@@ -11,7 +12,8 @@ import MailSettingsView from "./MailSettingsView";
 // sub: { view: 'inbox'|'sent'|'compose'|'settings', params }. Team management now
 // lives in Settings (admin-only), not here.
 export default function MailShell() {
-  const [sub, setSub] = useState({ view: "inbox", params: {} });
+  const { route } = useRouter();
+  const [sub, setSub] = useState({ view: route?.params?.compose ? "compose" : "inbox", params: {} });
   const [connected, setConnected] = useState(null); // null = unknown, false/true known
   const go = useCallback((view, params = {}) => setSub({ view, params }), []);
 
