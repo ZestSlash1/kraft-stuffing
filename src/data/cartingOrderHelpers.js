@@ -6,29 +6,27 @@
 //   { slNo, containerNo, sizeType, cargoGrWtKgs, tareWtKgs, vgmWtKgs,
 //     cargoType, valuePaise, packageLines: [{ qty, unit }] }
 
-// Merge package lines across a group of containers, summing qty for lines that
-// share a `unit`, preserving first-seen order. Mirrors the reference doc's
-// "471 PC, 45 PKGs, 18 PKGs" — units are matched case-insensitively but the
-// first-seen label is kept for display.
+// Concatenate every package line across a group's containers, in first-seen
+// order, WITHOUT collapsing entries that share a unit. This mirrors the
+// reference doc exactly ("471 PC, 45 PKGs, 18 PKGs" — the two PKGs entries stay
+// separate), which the acceptance test requires to match line-for-line.
+//
+// NOTE: Section 3 of the spec is internally contradictory here — it also says
+// to "sum matching units". We preserve entries because the reference PDF (the
+// stated ground truth for acceptance #1) shows them un-summed. If cross-
+// container same-unit summing is ever desired, it belongs behind an explicit
+// option, not as the default that would break the reference reproduction.
 function mergePackageLines(containers) {
-  const order = [];
-  const byUnit = new Map();
+  const out = [];
   for (const c of containers || []) {
     for (const line of c.packageLines || []) {
       const qty = Number(line?.qty || 0);
       const unit = (line?.unit ?? "").toString();
-      const key = unit.trim().toLowerCase();
-      if (!key && !qty) continue;
-      if (byUnit.has(key)) {
-        byUnit.get(key).qty += qty;
-      } else {
-        const entry = { qty, unit };
-        byUnit.set(key, entry);
-        order.push(entry);
-      }
+      if (!unit.trim() && !qty) continue;
+      out.push({ qty, unit });
     }
   }
-  return order.map((e) => ({ qty: e.qty, unit: e.unit }));
+  return out;
 }
 
 // Group containers by cargo_type (first-seen order) → one summary block each.
