@@ -55,9 +55,8 @@ export default function TopNav({ onOpenSearch }) {
   const menuRef = useRef(null);
 
   const activeGroup = GROUP[route.page] || "dashboard";
-  // Loadex dark-marine variant: dashboard route only — every other screen keeps
-  // the light nav. Presentational switch; all handlers identical in both modes.
-  const dark = route.page === "dashboard";
+  // Loadex dark-marine variant, app-wide (LOADEX_UIUX_MASTER.md).
+  const dark = true;
   const displayName = profile?.displayName || (user?.email || "").split("@")[0] || "user";
   const title = profile?.title || (profile?.role === "admin" ? "Admin" : "Staff");
   const initials = displayName.slice(0, 2).toUpperCase();
