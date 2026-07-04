@@ -20,12 +20,15 @@ Multi-user real-time: dockside staff log simultaneously. Voyage supervisor views
 - Region: ap-south-1 (Mumbai)
 - Env vars in .env: VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY
 
-## Design system — LIGHT (DO NOT DEVIATE)
-> Pivoting from the dark ops-room theme to a clean light theme. Tokens live in
-> `src/theme.js` (`import { theme }`). Reusable primitives in `src/components/ui/`.
-> Migration is screen-by-screen, anchored on ContainerLogView first. Screens not
-> yet migrated still read the legacy dark `TOKENS` from `src/data/statusHelpers.js`
-> — DO NOT mix the two palettes inside one screen.
+## Design system — "LOADEX" DARK MARINE GLASS (app-wide, Jul 2026)
+> The entire app now uses the dark Loadex system per LOADEX_UIUX_MASTER.md
+> (supersedes both the light pivot and the dashboard-only exception).
+> Canonical tokens: `src/ui/theme.js` — C, GLOW, R, SP, F, WASH, glass(),
+> label(), num(), input(), pillNav(), tableRow(), statusColor(), plus a
+> dark-remapped `theme`/`statusTone` compat layer. `src/theme.js` is now a
+> re-export shim for legacy `from '../theme'` imports — new work imports
+> from `src/ui/theme.js` directly. Never re-type a hex that has a token.
+> The LIGHT palette below is HISTORICAL — do not use it for new work.
 
 ```
 Colors (theme.color.*):
@@ -52,12 +55,9 @@ Fonts (loaded in index.html):
   JetBrains Mono 400/600  → all data values, codes, weights, labels
   System UI (italic)      → SpecLabel labels, body text
 
-NO scanline texture, NO dark void background. Light surfaces only.
-
-EXCEPTION (Jul 2026): the Dashboard screen intentionally uses the dark
-"Loadex" marine-glass system (LOADEX_UI_PASS.md, tokens in src/ui/theme.js),
-including a route-aware dark TopNav/BottomNav variant on that route only.
-Every other screen stays light. Never mix the two palettes inside one screen.
+SUPERSEDED (Jul 2026): the whole app now uses the dark Loadex system
+(LOADEX_UIUX_MASTER.md, tokens in src/ui/theme.js). TopNav/BottomNav run
+the dark variant on every route. The light values above are historical.
 ```
 
 ### Primitives (`src/components/ui/`, barrel: `index.js`)
