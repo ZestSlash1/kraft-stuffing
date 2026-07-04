@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { theme } from "../theme";
+import { glass } from "../ui/theme";
 
 const ToastContext = createContext({ showToast: () => {} });
 export const useToast = () => useContext(ToastContext);
@@ -33,8 +34,7 @@ function ToastItem({ toast, onDismiss }) {
       ref={ref}
       onClick={() => onDismiss(toast.id)}
       style={{
-        background: theme.color.surface,
-        border: `1px solid ${theme.color.border}`,
+        ...glass(theme.radius.input),
         borderLeft: `3px solid ${BORDER_COLOR[toast.type] || theme.color.amber}`,
         color: theme.color.ink,
         padding: "11px 16px",
