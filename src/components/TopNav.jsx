@@ -17,6 +17,7 @@ import { useRouter } from "../context/RouterContext";
 import { useAuth } from "../context/AuthContext";
 import { useLive } from "../context/LiveContext";
 import { theme } from "../theme";
+import { C } from "../ui/theme";
 import SyncPill from "./SyncPill";
 
 const NAV = [
@@ -54,6 +55,9 @@ export default function TopNav({ onOpenSearch }) {
   const menuRef = useRef(null);
 
   const activeGroup = GROUP[route.page] || "dashboard";
+  // Loadex dark-marine variant: dashboard route only — every other screen keeps
+  // the light nav. Presentational switch; all handlers identical in both modes.
+  const dark = route.page === "dashboard";
   const displayName = profile?.displayName || (user?.email || "").split("@")[0] || "user";
   const title = profile?.title || (profile?.role === "admin" ? "Admin" : "Staff");
   const initials = displayName.slice(0, 2).toUpperCase();
@@ -81,10 +85,10 @@ export default function TopNav({ onOpenSearch }) {
         zIndex: 100,
         height: 56,
         flexShrink: 0,
-        background: "rgba(255,255,255,0.85)",
+        background: dark ? "rgba(4,10,14,0.72)" : "rgba(255,255,255,0.85)",
         backdropFilter: "blur(12px)",
         WebkitBackdropFilter: "blur(12px)",
-        borderBottom: `1px solid ${theme.color.border}`,
+        borderBottom: `1px solid ${dark ? C.hair : theme.color.border}`,
         display: "flex",
         alignItems: "center",
         padding: "0 14px",
@@ -107,10 +111,10 @@ export default function TopNav({ onOpenSearch }) {
           justifyContent: "center",
           width: 34,
           height: 34,
-          background: theme.color.surfaceMuted,
-          border: `1px solid ${theme.color.border}`,
-          borderRadius: 10,
-          color: theme.color.slate,
+          background: dark ? "rgba(255,255,255,0.06)" : theme.color.surfaceMuted,
+          border: `1px solid ${dark ? C.hair : theme.color.border}`,
+          borderRadius: dark ? 999 : 10,
+          color: dark ? C.inkDim : theme.color.slate,
           cursor: "pointer",
           flexShrink: 0,
         }}
@@ -119,10 +123,27 @@ export default function TopNav({ onOpenSearch }) {
       </button>
 
       {/* Center: nav items (desktop) */}
-      <div className="topnav-links" style={{ display: "flex", gap: 2, margin: "0 auto", alignItems: "center" }}>
+      <div
+        className="topnav-links"
+        style={{
+          display: "flex",
+          gap: 2,
+          margin: "0 auto",
+          alignItems: "center",
+          // Dark mode: the links group itself becomes the floating glass pill.
+          ...(dark && {
+            background: "rgba(255,255,255,0.04)",
+            border: `1px solid ${C.hair}`,
+            borderRadius: 999,
+            padding: 3,
+          }),
+        }}
+      >
         {NAV.map(({ page, label, Icon }) => {
           const active = activeGroup === page;
           const badge = badgeFor(page);
+          const restColor = dark ? C.inkDim : theme.color.slate;
+          const hoverColor = dark ? C.ink : theme.color.ink;
           return (
             <button
               key={page}
@@ -133,10 +154,10 @@ export default function TopNav({ onOpenSearch }) {
                 display: "flex",
                 alignItems: "center",
                 gap: 7,
-                background: active ? theme.color.amberSoft : "transparent",
+                background: active ? (dark ? "#fff" : theme.color.amberSoft) : "transparent",
                 border: "none",
                 borderRadius: theme.radius.pill,
-                color: active ? "#b3700a" : theme.color.slate,
+                color: active ? (dark ? C.void : "#b3700a") : restColor,
                 fontFamily: theme.font.condensed,
                 fontWeight: 700,
                 fontSize: 13.5,
@@ -146,11 +167,11 @@ export default function TopNav({ onOpenSearch }) {
                 cursor: "pointer",
                 transition: "background .15s ease, color .15s ease",
               }}
-              onMouseEnter={(e) => !active && (e.currentTarget.style.color = theme.color.ink)}
-              onMouseLeave={(e) => !active && (e.currentTarget.style.color = theme.color.slate)}
+              onMouseEnter={(e) => !active && (e.currentTarget.style.color = hoverColor)}
+              onMouseLeave={(e) => !active && (e.currentTarget.style.color = restColor)}
             >
               <span style={{ position: "relative", display: "flex" }}>
-                <Icon size={16} color={active ? theme.color.amber : "currentColor"} />
+                <Icon size={16} color={active ? (dark ? C.void : theme.color.amber) : "currentColor"} />
                 <NavDot badge={badge} />
               </span>
               <span className="topnav-label">{label}</span>
@@ -169,17 +190,17 @@ export default function TopNav({ onOpenSearch }) {
           justifyContent: "center",
           width: 34,
           height: 34,
-          background: theme.color.surfaceMuted,
-          border: `1px solid ${theme.color.border}`,
-          borderRadius: 10,
-          color: theme.color.slate,
+          background: dark ? "rgba(255,255,255,0.06)" : theme.color.surfaceMuted,
+          border: `1px solid ${dark ? C.hair : theme.color.border}`,
+          borderRadius: dark ? 999 : 10,
+          color: dark ? C.inkDim : theme.color.slate,
           cursor: "pointer",
           flexShrink: 0,
         }}
       >
         <Search size={16} />
       </button>
-      <LivePill online={online} />
+      <LivePill online={online} dark={dark} />
       <SyncPill />
       <div ref={menuRef} style={{ position: "relative" }}>
         <button
@@ -187,16 +208,16 @@ export default function TopNav({ onOpenSearch }) {
           style={{ display: "flex", alignItems: "center", gap: 9, background: "none", border: "none", cursor: "pointer" }}
         >
           <span className="topnav-username" style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", lineHeight: 1.15 }}>
-            <span style={{ fontFamily: theme.font.mono, fontSize: 12, color: theme.color.ink }}>{displayName}</span>
-            <span style={{ fontFamily: theme.font.mono, fontSize: 9, color: theme.color.slate, letterSpacing: "0.04em" }}>{title}</span>
+            <span style={{ fontFamily: theme.font.mono, fontSize: 12, color: dark ? C.ink : theme.color.ink }}>{displayName}</span>
+            <span style={{ fontFamily: theme.font.mono, fontSize: 9, color: dark ? C.inkDim : theme.color.slate, letterSpacing: "0.04em" }}>{title}</span>
           </span>
           <span
             style={{
               width: 30,
               height: 30,
               borderRadius: "50%",
-              background: profile?.role === "admin" ? theme.color.ink : theme.color.amber,
-              color: theme.color.white,
+              background: profile?.role === "admin" ? (dark ? "#fff" : theme.color.ink) : theme.color.amber,
+              color: profile?.role === "admin" && dark ? C.void : theme.color.white,
               fontFamily: theme.font.condensed,
               fontWeight: 800,
               fontSize: 12,
@@ -215,8 +236,8 @@ export default function TopNav({ onOpenSearch }) {
               position: "absolute",
               top: 44,
               right: 0,
-              background: theme.color.surface,
-              border: `1px solid ${theme.color.border}`,
+              background: dark ? C.surface : theme.color.surface,
+              border: `1px solid ${dark ? C.border : theme.color.border}`,
               borderRadius: theme.radius.sm,
               minWidth: 150,
               boxShadow: theme.shadow.raised,
@@ -237,7 +258,7 @@ export default function TopNav({ onOpenSearch }) {
                   textAlign: "left",
                   background: "none",
                   border: "none",
-                  color: label === "Sign out" ? theme.color.red : theme.color.ink,
+                  color: label === "Sign out" ? theme.color.red : dark ? C.ink : theme.color.ink,
                   fontFamily: theme.font.mono,
                   fontSize: 12,
                   padding: "10px 14px",
@@ -294,9 +315,18 @@ export function NavDot({ badge }) {
 }
 
 // Small "LIVE · n" presence pill — green when others are online, grey when alone.
-function LivePill({ online }) {
+function LivePill({ online, dark = false }) {
   const others = Math.max(0, online - 1);
   const on = others > 0;
+  const bg = dark
+    ? on ? "rgba(18,184,134,0.12)" : "rgba(255,255,255,0.05)"
+    : on ? theme.color.greenSoft : theme.color.surfaceMuted;
+  const border = dark
+    ? on ? "rgba(18,184,134,0.35)" : C.hair
+    : on ? "#bfe0d3" : theme.color.border;
+  const fg = dark
+    ? on ? C.optimized : C.inkDim
+    : on ? theme.color.green : theme.color.slate;
   return (
     <span
       title={on ? `${others} other ${others === 1 ? "person" : "people"} online` : "Realtime connected"}
@@ -304,8 +334,8 @@ function LivePill({ online }) {
         display: "flex",
         alignItems: "center",
         gap: 6,
-        background: on ? theme.color.greenSoft : theme.color.surfaceMuted,
-        border: `1px solid ${on ? "#bfe0d3" : theme.color.border}`,
+        background: bg,
+        border: `1px solid ${border}`,
         borderRadius: theme.radius.pill,
         padding: "5px 10px",
         flexShrink: 0,
@@ -316,13 +346,13 @@ function LivePill({ online }) {
           width: 7,
           height: 7,
           borderRadius: "50%",
-          background: on ? theme.color.green : theme.color.slateFaint,
+          background: dark ? (on ? C.optimized : C.inkFaint) : on ? theme.color.green : theme.color.slateFaint,
           animation: "livePulse 1.6s infinite",
         }}
       />
       <span
         className="livepill-label"
-        style={{ fontFamily: theme.font.mono, fontSize: 10, letterSpacing: "0.1em", color: on ? theme.color.green : theme.color.slate }}
+        style={{ fontFamily: theme.font.mono, fontSize: 10, letterSpacing: "0.1em", color: fg }}
       >
         {on ? `LIVE · ${others}` : "LIVE"}
       </span>
