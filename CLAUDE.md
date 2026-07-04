@@ -52,6 +52,11 @@ Fonts (loaded in index.html):
   System UI (italic)      → SpecLabel labels, body text
 
 NO scanline texture, NO dark void background. Light surfaces only.
+
+EXCEPTION (Jul 2026): the Dashboard screen intentionally uses the dark
+"Loadex" marine-glass system (LOADEX_UI_PASS.md, tokens in src/ui/theme.js),
+including a route-aware dark TopNav/BottomNav variant on that route only.
+Every other screen stays light. Never mix the two palettes inside one screen.
 ```
 
 ### Primitives (`src/components/ui/`, barrel: `index.js`)
