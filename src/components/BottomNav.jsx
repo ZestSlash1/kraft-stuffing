@@ -33,8 +33,8 @@ export default function BottomNav({ onOpenSearch }) {
   const { route, navigate } = useRouter();
   const { dirty, mailUnread } = useLive();
   const activeGroup = GROUP[route.page] || "dashboard";
-  // Loadex dark variant on the dashboard route only (matches TopNav).
-  const dark = route.page === "dashboard";
+  // Loadex dark variant app-wide (matches TopNav).
+  const dark = true;
 
   return (
     <div
@@ -76,7 +76,13 @@ export default function BottomNav({ onOpenSearch }) {
               color,
             }}
           >
-            <span style={{ position: "relative", display: "flex" }}>
+            <span
+              style={{
+                position: "relative",
+                display: "flex",
+                filter: active ? "drop-shadow(0 0 8px rgba(232,147,10,0.55))" : "none",
+              }}
+            >
               <Icon size={20} color={color} />
               <NavDot badge={badge} />
               {active && (
