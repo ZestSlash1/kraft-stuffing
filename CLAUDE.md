@@ -2,7 +2,8 @@
 > Claude Code reads this file automatically every session. Keep it updated.
 
 ## What this is
-Container stuffing log for Kraft Shipping & Logistics, deployed at stuff.shafrina.com.
+Container stuffing log for Kraft Shipping & Logistics, deployed at portal.shafrina.com
+(via `vercel deploy --prod`; no git-push auto-deploy. The old stuff.shafrina.com domain is dead).
 Logs what cargo goes into which container per voyage (MV APJ Karan 2, Kolkata → Port Blair).
 Multi-user real-time: dockside staff log simultaneously. Voyage supervisor views live from office.
 
