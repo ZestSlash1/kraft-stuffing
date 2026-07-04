@@ -84,6 +84,17 @@ export default function DocumentGenerateMenu({ app, voyage, containerId }) {
               Generate {label}
             </button>
           ))}
+          {/* The Export Carting Order is order-level (multi-container), so it has
+              its own standalone module rather than the container draft modal. */}
+          <button
+            style={{ ...itemStyle, borderTop: `1px solid ${theme.color.border}`, color: theme.color.amberText }}
+            onClick={() => {
+              setOpen(false);
+              app.navigate("carting", { voyageId: voyage.id });
+            }}
+          >
+            Export Carting Order →
+          </button>
         </div>
       )}
 

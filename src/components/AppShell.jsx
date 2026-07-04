@@ -14,6 +14,8 @@ import ExpensesShell from "../views/expenses/ExpensesShell";
 import MailShell from "../views/mail/MailShell";
 import ActivityFeedView from "../views/ActivityFeedView";
 import DocumentsView from "../views/DocumentsView";
+import CartingOrdersView from "../views/CartingOrdersView";
+import CartingOrderDetailView from "../views/CartingOrderDetailView";
 import CommandPalette from "./CommandPalette";
 
 // Part 6E — persistent offline banner, dismissable, re-appears on next drop.
@@ -123,6 +125,18 @@ export default function AppShell({ app }) {
       break;
     case "documents":
       content = <DocumentsView app={app} />;
+      break;
+    case "carting":
+      content = <CartingOrdersView app={app} />;
+      break;
+    case "carting-detail":
+      content = (
+        <CartingOrderDetailView
+          app={app}
+          orderId={route.params.orderId}
+          voyageId={route.params.voyageId}
+        />
+      );
       break;
     case "dashboard":
     default:
