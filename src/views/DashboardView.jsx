@@ -1,12 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { gsap } from "gsap";
-import { Ship, Box, Package, Weight, ChevronRight, ChevronDown } from "lucide-react";
+import { Ship, ChevronRight, ChevronDown, AlertTriangle, Loader, Lock, CircleDot } from "lucide-react";
 import {
   BarChart,
   Bar,
-  PieChart,
-  Pie,
-  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -16,14 +13,26 @@ import {
 import {
   greeting,
   CARGO_COLORS,
+  containerStatus,
+  containerFillPct,
+  voyageStats,
 } from "../data/statusHelpers";
-import { theme } from "../theme";
-import VesselHero from "../components/VesselHero";
+import { C, GLOW, R, SP, F, WASH, glass, label, num, statusColor, SEV, reduceMotion } from "../ui/theme";
+import BayHero from "../ui/BayHero";
 import { ActivityPanel } from "./ActivityFeedView";
 import { useLive } from "../context/LiveContext";
 import { fetchDocuments } from "../lib/documents";
 
+// ─────────────────────────────────────────────────────────────────────────────
+// DashboardView — Loadex dark-marine composition (LOADEX_UI_PASS.md).
+// Presentational relayout only: every derived value shown by the previous
+// light layout is still shown, restyled. No new queries, writes, or handlers.
+// ─────────────────────────────────────────────────────────────────────────────
+
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+// Section label — spec label() bumped to inkDim for 4.5:1 contrast on glass.
+const lbl = () => ({ ...label(), color: C.inkDim });
 
 // GSAP count-up from 0 → value on mount.
 function CountUp({ value, decimals = 0 }) {
@@ -43,28 +52,9 @@ function CountUp({ value, decimals = 0 }) {
   return <span ref={ref}>0</span>;
 }
 
-function StatCard({ label, value, sub, decimals, Icon, empty }) {
-  return (
-    <div style={{ background: theme.color.surface, border: `1px solid ${theme.color.border}`, borderRadius: 12, padding: "16px 20px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-        <div className="label-xs">{label}</div>
-        <Icon size={18} color={theme.color.amber} />
-      </div>
-      <div style={{ fontFamily: theme.font.condensed, fontWeight: 800, fontSize: 40, color: theme.color.ink, lineHeight: 1.1, marginTop: 6 }}>
-        {empty ? "—" : <CountUp value={value} decimals={decimals} />}
-      </div>
-      <div style={{ fontFamily: theme.font.mono, fontSize: 10, color: theme.color.slate, marginTop: 2 }}>{sub}</div>
-    </div>
-  );
-}
-
-function chartTitle(t) {
-  return <div className="label-xs" style={{ marginBottom: 10 }}>{t}</div>;
-}
-
 // ── Action Required strip ────────────────────────────────────────────────────
-// Attention items above the stats. VGM + Interakt-notify items are omitted:
-// neither has a stored field to query (no vgm column, no notify sent-flag).
+// Attention items surfaced in the monitor rail. VGM + Interakt-notify items are
+// omitted: neither has a stored field to query (no vgm column, no notify flag).
 const AR_COLLAPSED_KEY = "kraft-action-required-collapsed";
 
 function ActionRequiredStrip({ navigate }) {
@@ -119,53 +109,132 @@ function ActionRequiredStrip({ navigate }) {
     border: "none",
     padding: "8px 0",
     cursor: "pointer",
-    fontFamily: theme.font.mono,
+    fontFamily: F.mono,
     fontSize: 12,
-    color: theme.color.ink,
+    color: C.ink,
     textAlign: "left",
   };
 
   return (
     <div
       style={{
-        background: theme.color.surface,
-        border: `1px solid ${theme.color.border}`,
-        borderLeft: `3px solid ${theme.color.amber}`,
-        borderRadius: 12,
-        boxShadow: theme.shadow.card,
-        padding: "10px 16px",
-        marginTop: 18,
+        background: "rgba(255,255,255,0.03)",
+        border: `1px solid ${C.hair}`,
+        borderLeft: `3px solid ${C.dockAmber}`,
+        borderRadius: R.chip,
+        padding: "8px 14px",
       }}
     >
       <button onClick={toggle} style={{ ...rowStyle, padding: "2px 0" }}>
-        {collapsed ? <ChevronRight size={14} color={theme.color.slate} /> : <ChevronDown size={14} color={theme.color.slate} />}
-        <span className="label-xs" style={{ flex: 1 }}>ACTION REQUIRED</span>
+        {collapsed ? <ChevronRight size={14} color={C.inkDim} /> : <ChevronDown size={14} color={C.inkDim} />}
+        <span style={{ ...lbl(), flex: 1 }}>ACTION REQUIRED</span>
         {collapsed && items.length > 0 && (
-          <span style={{ fontFamily: theme.font.mono, fontSize: 11, color: theme.color.amberText }}>
+          <span style={{ fontFamily: F.mono, fontSize: 11, color: C.dockAmber, fontVariantNumeric: "tabular-nums" }}>
             {items.reduce((a, i) => a + i.count, 0)}
           </span>
         )}
       </button>
       {!collapsed &&
         (items.length === 0 ? (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0 4px", fontFamily: theme.font.mono, fontSize: 12, color: theme.color.slate }}>
-            <span style={{ width: 7, height: 7, borderRadius: "50%", background: theme.color.green }} />
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0 4px", fontFamily: F.mono, fontSize: 12, color: C.inkDim }}>
+            <span style={{ width: 7, height: 7, borderRadius: "50%", background: C.optimized }} />
             All clear
           </div>
         ) : (
           items.map((it) => (
             <button key={it.key} onClick={it.go} style={rowStyle}>
-              <span style={{ fontFamily: theme.font.condensed, fontWeight: 800, fontSize: 18, color: theme.color.amberText, minWidth: 24 }}>
+              <span style={{ fontFamily: F.head, fontWeight: 800, fontSize: 18, color: C.dockAmber, minWidth: 24, fontVariantNumeric: "tabular-nums" }}>
                 {it.count}
               </span>
               <span style={{ flex: 1 }}>{it.label}</span>
-              <ChevronRight size={14} color={theme.color.slate} />
+              <ChevronRight size={14} color={C.inkDim} />
             </button>
           ))
         ))}
     </div>
   );
 }
+
+// ── Left rail: vessel/container status card ─────────────────────────────────
+const STATUS_VIEW = {
+  STUFFING: { text: "Loading", Icon: Loader, spin: true },
+  FULL: { text: "Loaded", Icon: CircleDot },
+  OVER: { text: "Error", Icon: AlertTriangle },
+  SEALED: { text: "Sealed", Icon: Lock },
+  EMPTY: { text: "Queued", Icon: CircleDot },
+};
+
+function RailCard({ container, index, onClick }) {
+  const status = containerStatus(container);
+  const view = STATUS_VIEW[status] || STATUS_VIEW.EMPTY;
+  const sev = SEV[status];
+  const color = sev === "neutral" ? C.inkDim : statusColor(sev);
+  const pct = Math.round(containerFillPct(container) * 100);
+  const bags = (container.lines || []).reduce((a, l) => a + Number(l.qty || 0), 0);
+  const mt = (container.lines || []).reduce((a, l) => a + (Number(l.qty || 0) * Number(l.unitWeightKg || 0)) / 1000, 0);
+  const Icon = view.Icon;
+  return (
+    <button
+      className="ldx-panel ldx-card"
+      onClick={() => onClick?.(container.id)}
+      style={{ ...glass(R.card), textAlign: "left", padding: "12px 14px", cursor: "pointer", width: "100%", display: "block", minHeight: 44 }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 7, minWidth: 0 }}>
+          <Ship size={13} color={C.inkDim} style={{ flexShrink: 0 }} />
+          <span style={{ fontFamily: F.head, fontWeight: 700, fontSize: 17, color: C.ink, letterSpacing: "0.02em", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {container.number || `SLOT-${String(index + 1).padStart(2, "0")}`}
+          </span>
+        </span>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontFamily: F.mono, fontSize: 10.5, color, flexShrink: 0 }}>
+          <Icon size={12} className={view.spin ? "vessel-spin" : undefined} />
+          {view.text}
+        </span>
+      </div>
+      <div style={{ marginTop: 9, fontFamily: F.mono, fontSize: 10, color: C.inkDim, fontVariantNumeric: "tabular-nums" }}>
+        {status === "EMPTY" ? "Awaiting cargo" : `${pct}% · ${bags} bags · ${mt.toFixed(1)} MT`}
+      </div>
+      <div style={{ marginTop: 6, height: 3, borderRadius: 3, background: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
+        <div style={{ height: "100%", width: `${Math.min(100, pct)}%`, background: color, borderRadius: 3, boxShadow: sev === "critical" ? GLOW.critical : "none" }} />
+      </div>
+    </button>
+  );
+}
+
+// ── Bottom strip: arc gauge ──────────────────────────────────────────────────
+function ArcGauge({ pct }) {
+  const arcLen = Math.PI * 64;
+  const clamped = Math.max(0, Math.min(100, pct));
+  return (
+    <div style={{ position: "relative", width: 168, margin: "14px auto 0" }}>
+      <svg viewBox="0 0 168 96" width="168" height="96" role="img" aria-label={`Average utilization ${clamped}%`}>
+        <path d="M 20 88 A 64 64 0 0 1 148 88" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="10" strokeLinecap="round" />
+        <path
+          d="M 20 88 A 64 64 0 0 1 148 88"
+          fill="none"
+          stroke={C.dockAmber}
+          strokeWidth="10"
+          strokeLinecap="round"
+          strokeDasharray={`${(clamped / 100) * arcLen} ${arcLen}`}
+        />
+      </svg>
+      <div style={{ position: "absolute", left: 0, right: 0, bottom: 4, textAlign: "center" }}>
+        <span style={num(30)}>
+          <CountUp value={clamped} />
+        </span>
+        <span style={{ ...num(14), color: C.inkDim }}>%</span>
+      </div>
+    </div>
+  );
+}
+
+// ── Right rail: legend chips for the monitor panel ──────────────────────────
+const LEGEND = [
+  ["Critical", "critical"],
+  ["Warning", "warning"],
+  ["Minor", "minor"],
+  ["Optimized", "optimized"],
+];
 
 export default function DashboardView({ app }) {
   const { state, profile, navigate } = app;
@@ -243,127 +312,289 @@ export default function DashboardView({ app }) {
   }
   const avgUtil = utilCount > 0 ? Math.round((utilSum / utilCount) * 100) : 0;
 
+  // Over-capacity containers across active voyages — display-only issues list
+  // for the monitor rail (pure derived state, no fetch, no persistence).
+  const overContainers = [];
+  for (const v of voyages) for (const c of v.containers) if (containerStatus(c) === "OVER") overContainers.push(c);
+
   const greetName = (profile?.displayName || "there").toUpperCase();
+  const railContainers = (activeVoyage?.containers || []).slice(0, 4);
+  const vStats = voyageStats(activeVoyage);
+
+  // Entrance: panels rise 16px with a 0.06 stagger, once on mount. Transform-only
+  // (never opacity) so an interrupted tween can't leave a panel invisible.
+  const rootRef = useRef(null);
+  useLayoutEffect(() => {
+    if (reduceMotion()) return;
+    const ctx = gsap.context(() => {
+      const panels = rootRef.current?.querySelectorAll(".ldx-panel");
+      if (panels?.length) gsap.from(panels, { y: 16, stagger: 0.06, duration: 0.6, ease: "power3.out", clearProps: "transform" });
+    }, rootRef);
+    return () => ctx.revert();
+  }, []);
 
   const tooltipStyle = {
-    background: theme.color.surface,
-    border: `1px solid ${theme.color.border}`,
-    fontFamily: theme.font.mono,
+    background: C.surface,
+    border: `1px solid ${C.border}`,
+    fontFamily: F.mono,
     fontSize: 11,
-    color: theme.color.ink,
+    color: C.ink,
+  };
+
+  const issueRowStyle = {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    width: "100%",
+    background: "none",
+    border: "none",
+    padding: "8px 0",
+    cursor: "pointer",
+    fontFamily: F.mono,
+    fontSize: 12,
+    color: C.ink,
+    textAlign: "left",
   };
 
   return (
-    <div style={{ width: "100%", minHeight: "100%", background: theme.color.canvas, color: theme.color.ink }}>
-      {/* ── Vessel hero — port operations display ── */}
-      <VesselHero
-        voyage={activeVoyage}
-        onContainerClick={(containerId) => navigate("container-log", { containerId })}
-      />
-
-      <div style={{ maxWidth: 1200, margin: "0 auto", padding: "24px 20px 50px" }}>
-        <div style={{ fontFamily: theme.font.condensed, fontWeight: 700, fontSize: 28, color: theme.color.ink }}>
-          GOOD {greeting()}, {greetName}
+    <div ref={rootRef} style={{ width: "100%", minHeight: "100%", background: WASH, color: C.ink }}>
+      <div style={{ maxWidth: 1440, margin: "0 auto", padding: "28px 24px 64px" }}>
+        {/* ── Header row ── */}
+        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: SP.lg, flexWrap: "wrap" }}>
+          <div>
+            <div style={{ fontFamily: F.head, fontWeight: 700, fontSize: 28, color: C.ink, letterSpacing: "0.01em" }}>
+              GOOD {greeting()}, {greetName}
+            </div>
+            <div style={{ fontFamily: F.mono, fontSize: 11, color: C.inkDim, marginTop: 2 }}>
+              {new Intl.DateTimeFormat("en-IN", { weekday: "long", day: "2-digit", month: "long", year: "numeric" }).format(now)}
+            </div>
+          </div>
+          {activeVoyage && (
+            <button
+              className="ldx-card"
+              onClick={() => navigate("voyage-detail", { voyageId: activeVoyage.id })}
+              style={{
+                background: "rgba(232,147,10,0.10)",
+                border: `1px solid ${C.dockAmber}66`,
+                color: C.dockAmber,
+                fontFamily: F.head,
+                fontWeight: 700,
+                fontSize: 14,
+                textTransform: "uppercase",
+                letterSpacing: "0.06em",
+                padding: "11px 18px",
+                borderRadius: R.pill,
+                cursor: "pointer",
+              }}
+            >
+              Open Voyage →
+            </button>
+          )}
         </div>
-        <div style={{ fontFamily: theme.font.mono, fontSize: 11, color: theme.color.slate, marginTop: 2 }}>
-          {new Intl.DateTimeFormat("en-IN", { weekday: "long", day: "2-digit", month: "long", year: "numeric" }).format(now)}
-        </div>
 
-      <ActionRequiredStrip navigate={navigate} />
-
-      {/* Stat cards */}
-      <div className="stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginTop: 18 }}>
-        <StatCard label="Active Voyages" value={activeVoyages} sub="voyages in progress" Icon={Ship} empty={!hasData && activeVoyages === 0} />
-        <StatCard label="Containers Loading" value={containersLoading} sub="pending seal" Icon={Box} empty={!hasData && containersLoading === 0} />
-        <StatCard label="Bags Today" value={bagsToday} sub="bags stuffed today" Icon={Package} empty={!hasData} />
-        <StatCard label="Net MT This Month" value={mtThisMonth} decimals={1} sub="metric tonnes" Icon={Weight} empty={!hasData} />
-      </div>
-
-      {/* Open active voyage */}
-      {activeVoyage && (
-        <div style={{ marginTop: 18, display: "flex", justifyContent: "flex-end" }}>
-          <button
-            onClick={() => navigate("voyage-detail", { voyageId: activeVoyage.id })}
-            style={{
-              background: "none",
-              border: `1px solid ${theme.color.amber}`,
-              color: theme.color.amberText,
-              fontFamily: theme.font.condensed,
-              fontWeight: 700,
-              fontSize: 14,
-              textTransform: "uppercase",
-              padding: "10px 16px",
-              cursor: "pointer",
-            }}
-          >
-            Open Voyage →
-          </button>
-        </div>
-      )}
-
-      {/* Charts */}
-      {hasData && (
-        <div className="chart-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 18 }}>
-          <div style={{ background: theme.color.surface, border: `1px solid ${theme.color.border}`, borderRadius: 12, padding: 16 }}>
-            {chartTitle("MONTHLY CARGO (MT)")}
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={monthlyData}>
-                <CartesianGrid stroke={theme.color.border} vertical={false} />
-                <XAxis dataKey="month" stroke={theme.color.slate} tick={{ fontSize: 11, fontFamily: "monospace", fill: theme.color.slate }} />
-                <YAxis stroke={theme.color.slate} tick={{ fontSize: 11, fontFamily: "monospace", fill: theme.color.slate }} />
-                <Tooltip
-                  contentStyle={tooltipStyle}
-                  cursor={{ fill: "rgba(232,147,10,0.08)" }}
-                  formatter={(val) => [`${val} MT`, "MT"]}
-                />
-                <Bar dataKey="MT" fill={theme.color.amber} radius={[2, 2, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+        {/* ── Main grid: left rail · hero · right rail ── */}
+        <div className="ldx-main">
+          {/* Left rail — vessel status */}
+          <div style={{ display: "flex", flexDirection: "column", gap: SP.md, minWidth: 0 }}>
+            <div style={lbl()}>Vessel Status</div>
+            <div className="ldx-panel" style={{ ...glass(R.card), padding: "14px 16px" }}>
+              {[
+                ["Active Voyages", activeVoyages, "voyages in progress", !hasData && activeVoyages === 0],
+                ["Containers Loading", containersLoading, "pending seal", !hasData && containersLoading === 0],
+              ].map(([title, value, sub, empty], i) => (
+                <div key={title} style={{ paddingTop: i ? SP.md : 0, marginTop: i ? SP.md : 0, borderTop: i ? `1px solid ${C.hair}` : "none" }}>
+                  <div style={lbl()}>{title}</div>
+                  <div style={{ ...num(30), fontWeight: 300, marginTop: 8 }}>{empty ? "—" : <CountUp value={value} />}</div>
+                  <div style={{ fontFamily: F.mono, fontSize: 10, color: C.inkDim, marginTop: 4 }}>{sub}</div>
+                </div>
+              ))}
+            </div>
+            {railContainers.map((c, i) => (
+              <RailCard key={c.id} container={c} index={i} onClick={(containerId) => navigate("container-log", { containerId })} />
+            ))}
           </div>
 
-          <div style={{ background: theme.color.surface, border: `1px solid ${theme.color.border}`, borderRadius: 12, padding: 16 }}>
-            {chartTitle("CARGO BREAKDOWN")}
-            <ResponsiveContainer width="100%" height={180}>
-              <PieChart>
-                <Pie data={cargoData} dataKey="value" nameKey="name" innerRadius="40%" outerRadius="80%" stroke="none">
-                  {cargoData.map((entry) => (
-                    <Cell key={entry.name} fill={CARGO_COLORS[entry.name] || CARGO_COLORS.default} />
+          {/* Hero centerpiece */}
+          <div className="ldx-hero" style={{ minWidth: 0 }}>
+            <BayHero voyage={activeVoyage} onContainerClick={(containerId) => navigate("container-log", { containerId })} />
+          </div>
+
+          {/* Right rail — stow monitor */}
+          <div style={{ minWidth: 0 }}>
+            <div className="ldx-panel" style={{ ...glass(R.panel), padding: "16px 18px", display: "flex", flexDirection: "column", gap: SP.lg }}>
+              <div style={lbl()}>Stow Monitor</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {LEGEND.map(([text, sev]) => (
+                  <span
+                    key={sev}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 5,
+                      background: "rgba(255,255,255,0.04)",
+                      border: `1px solid ${C.hair}`,
+                      borderRadius: R.pill,
+                      padding: "4px 9px",
+                      fontFamily: F.mono,
+                      fontSize: 9,
+                      letterSpacing: "0.08em",
+                      textTransform: "uppercase",
+                      color: C.inkDim,
+                    }}
+                  >
+                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: statusColor(sev) }} />
+                    {text}
+                  </span>
+                ))}
+              </div>
+
+              <ActionRequiredStrip navigate={navigate} />
+
+              {overContainers.length > 0 && (
+                <div>
+                  <div style={lbl()}>Over Capacity</div>
+                  {overContainers.slice(0, 5).map((c) => (
+                    <button key={c.id} onClick={() => navigate("container-log", { containerId: c.id })} style={issueRowStyle}>
+                      <AlertTriangle size={13} color={C.critical} style={{ flexShrink: 0 }} />
+                      <span style={{ flex: 1 }}>{c.number || "Container"} over capacity</span>
+                      <ChevronRight size={13} color={C.inkDim} />
+                    </button>
                   ))}
-                </Pie>
-                <Tooltip contentStyle={tooltipStyle} />
-              </PieChart>
-            </ResponsiveContainer>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 14px", marginTop: 8 }}>
-              {cargoData.map((c) => (
-                <span key={c.name} style={{ fontFamily: theme.font.mono, fontSize: 10, color: theme.color.slate, display: "flex", alignItems: "center", gap: 5 }}>
-                  <span style={{ width: 8, height: 8, background: CARGO_COLORS[c.name] || CARGO_COLORS.default, display: "inline-block" }} />
-                  {c.name} {Math.round((c.value / cargoTotal) * 100)}%
-                </span>
-              ))}
+                </div>
+              )}
+
+              <div
+                style={{
+                  background: "rgba(255,255,255,0.03)",
+                  border: `1px solid ${C.hair}`,
+                  borderRadius: R.chip,
+                  padding: "10px 12px",
+                  fontFamily: F.mono,
+                  fontSize: 11,
+                  color: C.inkDim,
+                  lineHeight: 1.6,
+                  fontVariantNumeric: "tabular-nums",
+                }}
+              >
+                {activeVoyage
+                  ? `${activeVoyage.vessel} · ${activeVoyage.voyageNo} — ${vStats.bags} bags, ${vStats.mt.toFixed(1)} MT across ${vStats.total} containers; ${vStats.sealed} sealed.`
+                  : "No active voyage."}
+              </div>
             </div>
           </div>
         </div>
-      )}
 
-      {/* Recent activity */}
-      <div style={{ marginTop: 22 }}>
-        <ActivityPanel app={app} />
-      </div>
-
-      {/* Quick stats */}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 40, marginTop: 26 }}>
-        {[
-          ["AVG CONTAINER UTILIZATION", `${avgUtil}%`],
-          ["TOTAL VOYAGES", state.voyages.length],
-          ["TOTAL MT SHIPPED", totalMt.toFixed(1)],
-        ].map(([label, value]) => (
-          <div key={label}>
-            <div className="label-xs">{label}</div>
-            <div style={{ fontFamily: theme.font.condensed, fontWeight: 700, fontSize: 28, color: theme.color.ink }}>{value}</div>
+        {/* ── Bottom strip: gauge · throughput · cargo mix ── */}
+        <div className="ldx-bottom">
+          <div className="ldx-panel" style={{ ...glass(R.card), padding: "16px 18px" }}>
+            <div style={lbl()}>Load Balance — Avg Utilization</div>
+            <ArcGauge pct={avgUtil} />
+            <div style={{ marginTop: SP.lg, borderTop: `1px solid ${C.hair}`, paddingTop: SP.md, display: "flex", flexDirection: "column", gap: 8 }}>
+              {[
+                ["Total Voyages", state.voyages.length],
+                ["Total MT Shipped", totalMt.toFixed(1)],
+              ].map(([title, value]) => (
+                <div key={title} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
+                  <span style={{ fontFamily: F.mono, fontSize: 10, color: C.inkDim, textTransform: "uppercase", letterSpacing: "0.08em" }}>{title}</span>
+                  <span style={num(18)}>{value}</span>
+                </div>
+              ))}
+            </div>
           </div>
-        ))}
+
+          <div className="ldx-panel" style={{ ...glass(R.card), padding: "16px 18px" }}>
+            <div style={lbl()}>Loading Throughput</div>
+            <div style={{ display: "flex", gap: SP.xxl, marginTop: SP.md, flexWrap: "wrap" }}>
+              <div>
+                <div style={{ ...num(34), fontWeight: 300 }}>{hasData ? <CountUp value={mtThisMonth} decimals={1} /> : "—"}</div>
+                <div style={{ fontFamily: F.mono, fontSize: 10, color: C.inkDim, marginTop: 4 }}>net MT this month</div>
+              </div>
+              <div>
+                <div style={{ ...num(34), fontWeight: 300 }}>{hasData ? <CountUp value={bagsToday} /> : "—"}</div>
+                <div style={{ fontFamily: F.mono, fontSize: 10, color: C.inkDim, marginTop: 4 }}>bags stuffed today</div>
+              </div>
+            </div>
+            {hasData && (
+              <div style={{ marginTop: SP.md }}>
+                <ResponsiveContainer width="100%" height={120}>
+                  <BarChart data={monthlyData} margin={{ top: 4, right: 0, left: -24, bottom: 0 }}>
+                    <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
+                    <XAxis dataKey="month" stroke={C.inkFaint} tick={{ fontSize: 10, fontFamily: "monospace", fill: C.inkDim }} axisLine={false} tickLine={false} />
+                    <YAxis stroke={C.inkFaint} tick={{ fontSize: 10, fontFamily: "monospace", fill: C.inkDim }} axisLine={false} tickLine={false} />
+                    <Tooltip
+                      contentStyle={tooltipStyle}
+                      cursor={{ fill: "rgba(232,147,10,0.08)" }}
+                      formatter={(val) => [`${val} MT`, "MT"]}
+                    />
+                    <Bar dataKey="MT" fill={C.dockAmber} radius={[2, 2, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+
+          <div className="ldx-panel" style={{ ...glass(R.card), padding: "16px 18px", minWidth: 0 }}>
+            <div style={lbl()}>Cargo Mix — Last 6 Months</div>
+            {hasData && cargoData.length > 0 ? (
+              <div style={{ display: "flex", gap: SP.md, marginTop: SP.md, overflowX: "auto", paddingBottom: 4 }}>
+                {cargoData.map((entry) => (
+                  <div
+                    key={entry.name}
+                    style={{
+                      position: "relative",
+                      flex: "0 0 auto",
+                      minWidth: 130,
+                      background: "rgba(255,255,255,0.03)",
+                      border: `1px solid ${C.hair}`,
+                      borderRadius: R.chip,
+                      padding: "10px 12px 10px 16px",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <span style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, background: CARGO_COLORS[entry.name] || CARGO_COLORS.default }} />
+                    <div style={{ fontFamily: F.mono, fontSize: 10, color: C.inkDim, textTransform: "uppercase", letterSpacing: "0.08em", whiteSpace: "nowrap" }}>
+                      {entry.name}
+                    </div>
+                    <div style={{ ...num(26), fontWeight: 300, marginTop: 7 }}>{entry.value.toLocaleString("en-IN")}</div>
+                    <div style={{ fontFamily: F.mono, fontSize: 10, color: C.inkDim, marginTop: 4 }}>
+                      {Math.round((entry.value / cargoTotal) * 100)}% of volume
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ fontFamily: F.mono, fontSize: 11, color: C.inkDim, marginTop: SP.md }}>No cargo logged yet.</div>
+            )}
+          </div>
+        </div>
+
+        {/* ── Recent activity ── */}
+        <div className="ldx-panel" style={{ ...glass(R.panel), padding: "18px 20px", marginTop: SP.xl }}>
+          <ActivityPanel app={app} dark />
+        </div>
       </div>
-      </div>
+
+      {/* Grid stacking, hover lift, and critical pulse — media-query behaviour
+          inline styles can't express (same pattern as TopNav's keyframes). */}
+      <style>{`
+        .ldx-main { display: grid; grid-template-columns: minmax(0,3fr) minmax(0,6fr) minmax(0,3fr); gap: 24px; margin-top: 24px; align-items: start; }
+        .ldx-bottom { display: grid; grid-template-columns: minmax(0,3fr) minmax(0,4fr) minmax(0,5fr); gap: 24px; margin-top: 24px; align-items: start; }
+        .ldx-card { transition: transform .25s ease, border-color .25s ease; }
+        .ldx-card:hover { transform: translateY(-3px); border-color: rgba(18,184,134,0.35); }
+        .ldx-card:focus-visible { outline: 2px solid ${C.dockAmber}; outline-offset: 2px; }
+        .ldx-pulse { animation: ldxPulse 2.4s ease-in-out infinite; }
+        @keyframes ldxPulse { 0%, 100% { opacity: 1; } 50% { opacity: .6; } }
+        @media (max-width: 1100px) {
+          .ldx-main { grid-template-columns: 1fr; }
+          .ldx-hero { order: -1; }
+          .ldx-bottom { grid-template-columns: 1fr; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .ldx-card, .ldx-card:hover { transition: none; transform: none; }
+          .ldx-pulse { animation: none; }
+          .ldx-scan { display: none; }
+        }
+      `}</style>
     </div>
   );
 }
