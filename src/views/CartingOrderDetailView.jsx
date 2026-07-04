@@ -23,6 +23,7 @@ import {
 import {
   buildCartingOrderPayload,
   generateCartingOrderPdf,
+  loadKraftLogo,
 } from "../lib/pdf/cartingOrder";
 
 const SIZES = ["20", "40", "40HC", "45"];
@@ -228,7 +229,11 @@ export default function CartingOrderDetailView({ app, orderId, voyageId }) {
       showToast(`Save failed: ${pErr.message}`, "error");
       return;
     }
-    const blob = generateCartingOrderPdf(payload, { issuedAt: new Date().toISOString() });
+    const logoDataUrl = await loadKraftLogo();
+    const blob = generateCartingOrderPdf(payload, {
+      issuedAt: new Date().toISOString(),
+      logoDataUrl,
+    });
     const { data, error } = await issueCartingOrder(order.id, {
       snapshot: payload,
       pdfBlob: blob,
