@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import TopNav from "./TopNav";
 import BottomNav from "./BottomNav";
 import { useRouter } from "../context/RouterContext";
-import { theme } from "../theme";
+import { C, F, WASH, glass } from "../ui/theme";
 import DashboardView from "../views/DashboardView";
 import VoyagesView from "../views/VoyagesView";
 import VoyageDetailView from "../views/VoyageDetailView";
@@ -45,10 +45,11 @@ function OfflineIndicator() {
     <div
       style={{
         flexShrink: 0,
-        background: theme.color.amberSoft,
-        borderBottom: `1px solid ${theme.color.amber}`,
-        color: "#b3700a",
-        fontFamily: theme.font.mono,
+        ...glass(0),
+        background: "rgba(232,147,10,0.12)",
+        borderBottom: `1px solid rgba(232,147,10,0.35)`,
+        color: C.warning,
+        fontFamily: F.mono,
         fontSize: 10,
         letterSpacing: "0.04em",
         padding: "6px 14px",
@@ -63,9 +64,9 @@ function OfflineIndicator() {
         style={{
           background: "none",
           border: "none",
-          color: "#b3700a",
+          color: C.warning,
           cursor: "pointer",
-          fontFamily: theme.font.mono,
+          fontFamily: F.mono,
           fontSize: 12,
         }}
       >
@@ -130,7 +131,15 @@ export default function AppShell({ app }) {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        height: "100%",
+        background: WASH,
+        color: C.ink,
+      }}
+    >
       <OfflineIndicator />
       <TopNav onOpenSearch={() => setSearchOpen(true)} />
       <div className="app-main" style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
