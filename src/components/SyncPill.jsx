@@ -43,7 +43,7 @@ export default function SyncPill() {
   let tone = null;
   if (!online) tone = { bg: theme.color.surfaceMuted, border: theme.color.border, fg: theme.color.slate, dot: theme.color.slateFaint, label: "OFFLINE" };
   else if (pending > 0) tone = { bg: theme.color.amberSoft, border: theme.color.amber, fg: theme.color.amberText, dot: theme.color.amber, label: `${pending} PENDING` };
-  else if (justFlushed) tone = { bg: theme.color.greenSoft, border: "#bfe0d3", fg: theme.color.green, dot: theme.color.green, label: "SYNCED ✓" };
+  else if (justFlushed) tone = { bg: theme.color.greenSoft, border: "rgba(18,184,134,0.35)", fg: theme.color.green, dot: theme.color.green, label: "SYNCED ✓" };
   if (!tone) return null;
 
   return (
