@@ -85,7 +85,7 @@ export default function TopNav({ onOpenSearch }) {
         zIndex: 100,
         height: 56,
         flexShrink: 0,
-        background: dark ? "rgba(4,10,14,0.72)" : "rgba(255,255,255,0.85)",
+        background: dark ? "rgba(3,6,9,0.92)" : "rgba(255,255,255,0.85)",
         backdropFilter: "blur(12px)",
         WebkitBackdropFilter: "blur(12px)",
         borderBottom: `1px solid ${dark ? C.hair : theme.color.border}`,

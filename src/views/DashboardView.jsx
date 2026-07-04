@@ -589,6 +589,9 @@ export default function DashboardView({ app }) {
           .ldx-hero { order: -1; }
           .ldx-bottom { grid-template-columns: 1fr; }
         }
+        @media (max-width: 640px) {
+          .ldx-hero .ldx-panel { min-height: 300px !important; }
+        }
         @media (prefers-reduced-motion: reduce) {
           .ldx-card, .ldx-card:hover { transition: none; transform: none; }
           .ldx-pulse { animation: none; }
