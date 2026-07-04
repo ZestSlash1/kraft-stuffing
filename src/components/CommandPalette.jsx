@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Search, Box, Ship, FileText, Users, Receipt, CornerDownLeft, Clock, Plus } from "lucide-react";
 import { theme } from "../theme";
+import { C, glass } from "../ui/theme";
 import { useRouter } from "../context/RouterContext";
 import { globalSearch, ROUTE_FOR } from "../lib/search";
 import { readRecentEntities } from "../lib/recentEntities";
@@ -134,7 +135,7 @@ export default function CommandPalette({ app, open, onClose }) {
         position: "fixed",
         inset: 0,
         zIndex: 500,
-        background: "rgba(15,23,42,0.28)",
+        background: "rgba(2,4,7,0.55)",
         backdropFilter: "blur(4px)",
         WebkitBackdropFilter: "blur(4px)",
         display: "flex",
@@ -148,12 +149,7 @@ export default function CommandPalette({ app, open, onClose }) {
         style={{
           width: isMobile ? "100%" : "min(560px, 92vw)",
           height: isMobile ? "100dvh" : undefined,
-          borderRadius: isMobile ? 0 : theme.radius.card,
-          background: "rgba(255,255,255,0.92)",
-          backdropFilter: "blur(20px)",
-          WebkitBackdropFilter: "blur(20px)",
-          border: `1px solid ${theme.color.border}`,
-
+          ...glass(isMobile ? 0 : theme.radius.card),
           boxShadow: theme.shadow.raised,
           overflow: "hidden",
           display: "flex",
@@ -210,7 +206,7 @@ export default function CommandPalette({ app, open, onClose }) {
                 fontSize: 10,
                 letterSpacing: "0.06em",
                 textTransform: "uppercase",
-                color: "#b3700a",
+                color: C.warning,
                 background: theme.color.amberSoft,
                 padding: "6px 16px",
               }}
