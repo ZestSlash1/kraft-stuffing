@@ -2,6 +2,7 @@ import { useState } from "react";
 import { KeyRound } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { theme } from "../theme";
+import { C, WASH, glass } from "../ui/theme";
 
 // Shown when a user arrives via a reset / invite link (PASSWORD_RECOVERY). They
 // already have a (recovery) session, so we just set a new password and continue.
@@ -27,7 +28,7 @@ export default function SetPasswordView({ onDone }) {
       style={{
         position: "fixed",
         inset: 0,
-        background: theme.color.canvas,
+        background: WASH,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -38,9 +39,7 @@ export default function SetPasswordView({ onDone }) {
         style={{
           width: "100%",
           maxWidth: 400,
-          background: theme.color.surface,
-          border: `1px solid ${theme.color.border}`,
-          borderRadius: 28,
+          ...glass(28),
           boxShadow: theme.shadow.raised,
           padding: "40px 34px 34px",
           textAlign: "center",
@@ -52,7 +51,8 @@ export default function SetPasswordView({ onDone }) {
             height: 56,
             margin: "0 auto 22px",
             borderRadius: 18,
-            background: theme.color.ink,
+            background: "rgba(255,255,255,0.06)",
+            border: `1px solid rgba(255,255,255,0.08)`,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -108,7 +108,7 @@ export default function SetPasswordView({ onDone }) {
 const field = {
   width: "100%",
   boxSizing: "border-box",
-  background: theme.color.surface,
+  background: "rgba(255,255,255,0.05)",
   border: `1px solid ${theme.color.borderStrong}`,
   borderRadius: 14,
   color: theme.color.ink,
@@ -124,8 +124,8 @@ const btn = (loading) => ({
   border: "none",
   borderRadius: 14,
   padding: "15px 16px",
-  background: theme.color.amber,
-  color: theme.color.white,
+  background: C.optimized,
+  color: C.void,
   fontFamily: theme.font.condensed,
   fontWeight: 700,
   fontSize: 17,
