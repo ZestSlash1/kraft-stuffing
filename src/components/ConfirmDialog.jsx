@@ -1,4 +1,5 @@
 import { theme } from "../theme";
+import { glass } from "../ui/theme";
 
 // Inline confirmation — slides in below the trigger button (no modal overlay).
 export default function ConfirmDialog({
@@ -13,9 +14,8 @@ export default function ConfirmDialog({
     <div
       style={{
         marginTop: 10,
-        background: theme.color.surface,
+        ...glass(theme.radius.input),
         border: `1px solid ${accent}`,
-        borderRadius: theme.radius.input,
         boxShadow: theme.shadow.card,
         padding: "12px 14px",
         display: "flex",

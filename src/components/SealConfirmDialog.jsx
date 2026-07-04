@@ -1,15 +1,12 @@
 import { useEffect, useState } from "react";
 import { theme } from "../theme";
+import { glass, input } from "../ui/theme";
 
 const inputStyle = {
-  background: theme.color.surface,
-  border: `1px solid ${theme.color.borderStrong}`,
-  color: theme.color.ink,
-  borderRadius: theme.radius.input,
-  padding: "8px 10px",
-  fontFamily: theme.font.mono,
+  ...input(),
   fontSize: 13,
   width: "100%",
+  boxSizing: "border-box",
 };
 
 // Inline (non-browser-alert) confirmation before sealing a container.
@@ -31,7 +28,7 @@ export default function SealConfirmDialog({ containerNumber, onConfirm, onCancel
         position: "fixed",
         inset: 0,
         zIndex: 100,
-        background: "rgba(15,23,42,0.35)",
+        background: "rgba(2,4,7,0.55)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -41,9 +38,7 @@ export default function SealConfirmDialog({ containerNumber, onConfirm, onCancel
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: theme.color.surface,
-          border: `1px solid ${theme.color.border}`,
-          borderRadius: theme.radius.card,
+          ...glass(theme.radius.card),
           boxShadow: theme.shadow.raised,
           padding: 20,
           width: 320,
