@@ -3,6 +3,7 @@ import { Ship, ArrowRight } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { KRAFT_ORG_ID, isAdminEmail } from "../lib/db";
 import { theme } from "../theme";
+import { C, WASH, glass } from "../ui/theme";
 
 // Email + password sign-in. A "forgot password" mode sends a reset link, which is
 // also how a brand-new (or OTP-era) user sets their first password — clicking the
@@ -55,7 +56,7 @@ export default function LoginView() {
   };
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: theme.color.canvas, overflow: "hidden" }}>
+    <div style={{ position: "fixed", inset: 0, background: WASH, overflow: "hidden" }}>
       <Aurora />
       <RouteMotif />
 
@@ -74,11 +75,7 @@ export default function LoginView() {
           style={{
             width: "100%",
             maxWidth: 400,
-            background: "rgba(255,255,255,0.72)",
-            backdropFilter: "blur(18px)",
-            WebkitBackdropFilter: "blur(18px)",
-            border: `1px solid ${theme.color.border}`,
-            borderRadius: 28,
+            ...glass(28),
             boxShadow: theme.shadow.raised,
             padding: "40px 34px 34px",
             textAlign: "center",
@@ -91,7 +88,8 @@ export default function LoginView() {
               height: 56,
               margin: "0 auto 22px",
               borderRadius: 18,
-              background: theme.color.ink,
+              background: "rgba(255,255,255,0.06)",
+              border: `1px solid ${C.hair}`,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -226,7 +224,7 @@ export default function LoginView() {
 const fieldStyle = {
   width: "100%",
   boxSizing: "border-box",
-  background: theme.color.surface,
+  background: "rgba(255,255,255,0.05)",
   border: `1px solid ${theme.color.borderStrong}`,
   borderRadius: 14,
   color: theme.color.ink,
@@ -246,8 +244,8 @@ const primaryBtn = (loading) => ({
   border: "none",
   borderRadius: 14,
   padding: "15px 16px",
-  background: theme.color.amber,
-  color: theme.color.white,
+  background: C.optimized,
+  color: C.void,
   fontFamily: theme.font.condensed,
   fontWeight: 700,
   fontSize: 18,
