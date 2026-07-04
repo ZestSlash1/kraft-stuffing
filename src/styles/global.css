@@ -116,6 +116,16 @@ canvas {
   border-radius: 4px;
 }
 
+/* ── Entrance motion (LOADEX §6) — inherited by every routed view ───────── */
+@keyframes viewIn {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.app-main > * { animation: viewIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .app-main > * { animation: none; }
+}
+
 /* ── Navigation / shell ─────────────────────────────────────────────────── */
 /* Desktop: top nav only. !important beats the component's inline display:flex. */
 .bottom-nav { display: none !important; }
