@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { theme } from "../theme";
+import { glass } from "../ui/theme";
 
 const itemStyle = {
   display: "block",
@@ -41,10 +42,8 @@ export default function ExportMenu({ onExportXlsx, onExportPdf }) {
         onClick={() => setOpen((o) => !o)}
         className="mono"
         style={{
-          background: theme.color.surface,
-          border: `1px solid ${theme.color.borderStrong}`,
+          ...glass(theme.radius.input),
           color: theme.color.inkSoft,
-          borderRadius: theme.radius.input,
           padding: "6px 14px",
           cursor: "pointer",
           minHeight: 44,
@@ -58,9 +57,7 @@ export default function ExportMenu({ onExportXlsx, onExportPdf }) {
             position: "absolute",
             top: "calc(100% + 4px)",
             right: 0,
-            background: theme.color.surface,
-            border: `1px solid ${theme.color.border}`,
-            borderRadius: theme.radius.sm,
+            ...glass(theme.radius.sm),
             boxShadow: theme.shadow.raised,
             minWidth: 160,
             zIndex: 60,

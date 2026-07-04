@@ -41,7 +41,8 @@ export default function PresenceAvatars({ presenceMap = {}, containerId }) {
               alignItems: "center",
               justifyContent: "center",
               marginLeft: i === 0 ? 0 : -8,
-              border: `2px solid ${TOKENS.bg}`,
+              border: "2px solid rgba(255,255,255,0.18)",
+              boxShadow: recent ? "0 0 10px rgba(18,184,134,0.45)" : "0 0 0 2px rgba(3,5,8,0.6)",
               flexShrink: 0,
             }}
           >
