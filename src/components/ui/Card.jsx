@@ -1,15 +1,15 @@
 import { theme } from "../../theme";
+import { glass } from "../../ui/theme";
 
-// Card — the base light surface: 20px radius, hairline border, soft shadow.
+// Card — Loadex glass panel: 20px radius, hairline border, deep soft shadow.
 // Pass `inset` for the muted well variant, or `raised` for higher elevation.
 export default function Card({ inset = false, raised = false, style, children, ...rest }) {
   return (
     <div
       style={{
-        background: inset ? theme.color.surfaceMuted : theme.color.surface,
-        border: `1px solid ${theme.color.border}`,
-        borderRadius: theme.radius.card,
-        boxShadow: inset ? "none" : raised ? theme.shadow.raised : theme.shadow.card,
+        ...glass(theme.radius.card),
+        ...(inset && { background: "rgba(255,255,255,0.03)", boxShadow: "none" }),
+        ...(raised && { boxShadow: theme.shadow.raised }),
         ...style,
       }}
       {...rest}

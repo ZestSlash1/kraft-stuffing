@@ -41,7 +41,7 @@ const Input = forwardRef(function Input(
           rest.onBlur?.(e);
         }}
         style={{
-          background: rest.disabled ? theme.color.surfaceMuted : theme.color.surface,
+          background: rest.disabled ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.05)",
           border: `1px solid ${borderColor}`,
           boxShadow: focused ? `0 0 0 3px ${theme.color.amber}22` : "none",
           color: theme.color.ink,

@@ -25,7 +25,7 @@ export default function Pill({ value, onChange, options = [], style, disabled = 
         style={{
           appearance: "none",
           WebkitAppearance: "none",
-          background: disabled ? theme.color.surfaceMuted : theme.color.surface,
+          background: disabled ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.05)",
           border: `1px solid ${focused ? theme.color.amber : theme.color.borderStrong}`,
           boxShadow: focused ? `0 0 0 3px ${theme.color.amber}22` : theme.shadow.pill,
           color: theme.color.ink,
