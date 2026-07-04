@@ -40,7 +40,7 @@ export const GLOW = {
   optimized: '0 0 22px rgba(18,184,134,0.40)',
 };
 
-export const R = { chip: 12, card: 16, panel: 20, pill: 999 };
+export const R = { chip: 12, card: 16, panel: 20, pill: 999, input: 10 };
 export const SP = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32, huge: 48 };
 
 export const F = {
@@ -87,6 +87,84 @@ export const SEV = {
   SEALED: 'optimized',   // done → green
   EMPTY: 'neutral',
 };
+
+// ── App-wide additions beyond the dashboard token set (LOADEX_UIUX_MASTER §2) ──
+
+export const input = () => ({
+  ...glass(R.input),
+  padding: `${SP.sm}px ${SP.md}px`,
+  color: C.ink,
+  font: `400 14px ${F.mono}`,
+  outline: 'none',
+});
+
+export const pillNav = (active) => ({
+  borderRadius: R.pill,
+  padding: `${SP.xs}px ${SP.lg}px`,
+  font: `600 13px ${F.head}`,
+  letterSpacing: '0.02em',
+  background: active ? '#fff' : 'transparent',
+  color: active ? C.void : C.inkDim,
+  border: active ? 'none' : `1px solid ${C.hair}`,
+  transition: 'all .2s ease',
+});
+
+export const tableRow = () => ({
+  borderBottom: `1px solid ${C.hair}`,
+  font: `400 13px ${F.mono}`,
+  color: C.ink,
+});
+
+// ── Compat layer: dark-remapped `theme` object for legacy `from '../theme'`
+// imports (previously the light system). Values now resolve into the Loadex
+// palette so every consumer inherits the dark language without import churn. ──
+
+export const theme = {
+  color: {
+    canvas: C.void,
+    surface: C.surface,
+    surfaceMuted: '#0d1626',
+    border: C.border,
+    borderStrong: '#1a2a3c',
+    ink: C.ink,
+    inkSoft: '#c2ccd6',
+    slate: C.inkDim,
+    slateFaint: C.inkFaint,
+    amber: C.dockAmber,
+    amberText: '#f0a63c',
+    amberSoft: 'rgba(232,147,10,0.15)',
+    green: C.optimized,
+    greenSoft: 'rgba(18,184,134,0.15)',
+    red: C.critical,
+    redSoft: 'rgba(255,77,77,0.15)',
+    white: '#ffffff',
+  },
+  status: {
+    EMPTY:    { dot: C.inkDim,    label: C.inkDim,    fill: 'rgba(255,255,255,0.06)' },
+    STUFFING: { dot: C.minor,     label: C.minor,     fill: 'rgba(59,163,255,0.14)' },
+    FULL:     { dot: C.warning,   label: C.warning,   fill: 'rgba(232,147,10,0.14)' },
+    OVER:     { dot: C.critical,  label: C.critical,  fill: 'rgba(255,77,77,0.14)' },
+    SEALED:   { dot: C.optimized, label: C.optimized, fill: 'rgba(18,184,134,0.14)' },
+    DRAFT:    { dot: C.inkDim,    label: C.inkDim,    fill: 'rgba(255,255,255,0.06)' },
+    ISSUED:   { dot: C.optimized, label: C.optimized, fill: 'rgba(18,184,134,0.14)' },
+    VOID:     { dot: C.critical,  label: C.critical,  fill: 'rgba(255,77,77,0.14)' },
+  },
+  font: {
+    condensed: F.head,
+    mono: F.mono,
+    body: "system-ui, -apple-system, 'Segoe UI', sans-serif",
+  },
+  radius: { sm: R.input - 2, input: 12, pill: R.pill, card: R.panel },
+  shadow: {
+    card: '0 20px 40px -24px rgba(0,0,0,0.8)',
+    pill: '0 6px 18px -10px rgba(0,0,0,0.8)',
+    raised: '0 30px 60px -30px rgba(0,0,0,0.85)',
+  },
+  space: (n) => n * 4,
+  breakpoints: { mobile: 640, tablet: 900 },
+};
+
+export const statusTone = (status) => theme.status[status] || theme.status.EMPTY;
 
 export const reduceMotion = () =>
   typeof window !== 'undefined' &&
