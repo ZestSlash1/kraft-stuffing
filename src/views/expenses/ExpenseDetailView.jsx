@@ -113,7 +113,7 @@ export default function ExpenseDetailView({ expense, profilesById, onClose, onSa
         position: "fixed",
         inset: 0,
         zIndex: 50,
-        background: "rgba(15,23,42,.35)",
+        background: "rgba(2,4,7,0.55)",
         display: "flex",
         alignItems: "flex-end",
         justifyContent: "center",

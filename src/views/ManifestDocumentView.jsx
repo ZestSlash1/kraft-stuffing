@@ -67,7 +67,7 @@ export default function ManifestDocumentView({ app, voyage }) {
             marginTop: 14,
             border: `1px solid ${theme.color.amber}`,
             background: theme.color.amberSoft,
-            color: "#b3700a",
+            color: "#e8930a",
             fontFamily: theme.font.mono,
             fontSize: 11,
             padding: "8px 12px",

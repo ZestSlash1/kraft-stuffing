@@ -73,7 +73,7 @@ export default function CreateMovementModal({ onClose, onSubmit }) {
         position: "fixed",
         inset: 0,
         zIndex: 500,
-        background: "rgba(15,23,42,0.35)",
+        background: "rgba(2,4,7,0.55)",
         display: "flex",
         alignItems: "flex-end",
         justifyContent: "center",

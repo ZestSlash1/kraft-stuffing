@@ -101,7 +101,7 @@ export default function MailShell() {
                 background: active ? theme.color.amberSoft : "none",
                 border: "none",
                 borderRadius: theme.radius.sm,
-                color: active ? "#b3700a" : theme.color.inkSoft,
+                color: active ? "#e8930a" : theme.color.inkSoft,
                 fontFamily: theme.font.condensed,
                 fontWeight: 700,
                 fontSize: 15,
