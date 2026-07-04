@@ -3,6 +3,7 @@ import { gsap } from "gsap";
 import { ChevronRight, Lock, Unlock } from "lucide-react";
 import { containerStatus } from "../data/statusHelpers";
 import { theme } from "../theme";
+import { glass } from "../ui/theme";
 import { StatusBadge } from "./ui";
 import CrossSectionFill from "./CrossSectionFill";
 
@@ -105,9 +106,7 @@ export default function ManifestTable({
       className="manifest-table light-manifest mono"
       style={{
         color: theme.color.ink,
-        background: theme.color.surface,
-        border: `1px solid ${theme.color.border}`,
-        borderRadius: theme.radius.card,
+        ...glass(theme.radius.card),
         boxShadow: theme.shadow.card,
         overflow: "hidden",
       }}
