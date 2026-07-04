@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { fetchActivityPage } from "../lib/db";
 import { theme } from "../theme";
+import { C } from "../ui/theme";
 import { formatRelative } from "../lib/format";
 import { useRouter } from "../context/RouterContext";
 import {
@@ -62,12 +63,11 @@ function matchesFilters(row, { section, userId, period }) {
   return true;
 }
 
-function ActivityRow({ entry, ctx, onNavigate, dense }) {
+function ActivityRow({ entry, ctx, onNavigate, dense, dark = false }) {
   const f = formatActivity(entry, ctx);
   if (!f) return null;
   const { Icon, text, tone, route } = f;
-  const iconColor =
-    tone === "green" ? theme.color.green : theme.color.amber;
+  const iconColor = tone === "green" ? (dark ? C.optimized : theme.color.green) : theme.color.amber;
   return (
     <button
       onClick={() => route && onNavigate(route.page, route.params || {})}
@@ -79,11 +79,11 @@ function ActivityRow({ entry, ctx, onNavigate, dense }) {
         textAlign: "left",
         background: "none",
         border: "none",
-        borderBottom: `1px solid ${theme.color.border}`,
+        borderBottom: `1px solid ${dark ? C.hair : theme.color.border}`,
         padding: dense ? "9px 0" : "12px 4px",
         cursor: route ? "pointer" : "default",
       }}
-      onMouseEnter={(e) => (e.currentTarget.style.background = theme.color.surfaceMuted)}
+      onMouseEnter={(e) => (e.currentTarget.style.background = dark ? "rgba(255,255,255,0.04)" : theme.color.surfaceMuted)}
       onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
     >
       <span
@@ -92,7 +92,7 @@ function ActivityRow({ entry, ctx, onNavigate, dense }) {
           width: 30,
           height: 30,
           borderRadius: 8,
-          background: theme.color.surfaceMuted,
+          background: dark ? "rgba(255,255,255,0.06)" : theme.color.surfaceMuted,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -106,7 +106,7 @@ function ActivityRow({ entry, ctx, onNavigate, dense }) {
           minWidth: 0,
           fontFamily: theme.font.mono,
           fontSize: dense ? 12 : 13,
-          color: theme.color.inkSoft,
+          color: dark ? C.ink : theme.color.inkSoft,
           overflow: "hidden",
           textOverflow: "ellipsis",
           whiteSpace: "nowrap",
@@ -119,7 +119,7 @@ function ActivityRow({ entry, ctx, onNavigate, dense }) {
           flexShrink: 0,
           fontFamily: theme.font.mono,
           fontSize: 10,
-          color: theme.color.slate,
+          color: dark ? C.inkDim : theme.color.slate,
         }}
       >
         {formatRelative(entry.changed_at)}
@@ -129,7 +129,8 @@ function ActivityRow({ entry, ctx, onNavigate, dense }) {
 }
 
 // ── Compact 5-row panel for the Dashboard ─────────────────────────────────────
-export function ActivityPanel({ app, limit = 5 }) {
+// `dark` = presentational Loadex variant for the dark dashboard; data flow identical.
+export function ActivityPanel({ app, limit = 5, dark = false }) {
   const { navigate } = useRouter();
   const ctx = useActivityCtx(app);
   const [rows, setRows] = useState([]);
@@ -156,13 +157,13 @@ export function ActivityPanel({ app, limit = 5 }) {
       <div
         style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}
       >
-        <div className="label-xs">RECENT ACTIVITY</div>
+        <div className="label-xs" style={dark ? { color: C.inkDim } : undefined}>RECENT ACTIVITY</div>
         <button
           onClick={() => navigate("activity")}
           style={{
             background: "none",
             border: "none",
-            color: theme.color.amberText,
+            color: dark ? C.dockAmber : theme.color.amberText,
             fontFamily: theme.font.mono,
             fontSize: 10,
             letterSpacing: "0.06em",
@@ -174,12 +175,12 @@ export function ActivityPanel({ app, limit = 5 }) {
         </button>
       </div>
       {rows.length === 0 ? (
-        <div style={{ fontFamily: theme.font.mono, fontSize: 11, color: theme.color.slate }}>
+        <div style={{ fontFamily: theme.font.mono, fontSize: 11, color: dark ? C.inkDim : theme.color.slate }}>
           No activity yet.
         </div>
       ) : (
         rows.map((e) => (
-          <ActivityRow key={e.id} entry={e} ctx={ctx} onNavigate={navigate} dense />
+          <ActivityRow key={e.id} entry={e} ctx={ctx} onNavigate={navigate} dense dark={dark} />
         ))
       )}
     </div>
