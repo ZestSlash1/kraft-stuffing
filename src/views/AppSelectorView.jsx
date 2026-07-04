@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Ship, FileText, Receipt, Mail, LogOut } from "lucide-react";
 import { theme } from "../theme";
+import { WASH, glass } from "../ui/theme";
 import { supabase } from "../lib/supabase";
 
 const CARDS = [
@@ -45,7 +46,7 @@ export default function AppSelectorView({ onSelect, user, profile }) {
       style={{
         position: "fixed",
         inset: 0,
-        background: theme.color.canvas,
+        background: WASH,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -56,7 +57,7 @@ export default function AppSelectorView({ onSelect, user, profile }) {
       <style>{`
         @keyframes tileIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
         .selector-tile { opacity: 0; animation: tileIn .5s cubic-bezier(.2,.7,.2,1) forwards; }
-        .selector-tile:hover { transform: translateY(-3px); box-shadow: ${theme.shadow.raised}; }
+        .selector-tile:hover { transform: translateY(-3px); box-shadow: ${theme.shadow.raised}, 0 0 22px rgba(232,147,10,0.18); border-color: rgba(232,147,10,0.35) !important; }
         .selector-tile:hover .tile-rule { transform: scaleX(1); }
       `}</style>
 
@@ -69,9 +70,7 @@ export default function AppSelectorView({ onSelect, user, profile }) {
             display: "flex",
             alignItems: "center",
             gap: 10,
-            background: theme.color.surface,
-            border: `1px solid ${theme.color.border}`,
-            borderRadius: theme.radius.pill,
+            ...glass(theme.radius.pill),
             boxShadow: theme.shadow.pill,
             padding: "7px 12px 7px 14px",
             cursor: "pointer",
@@ -103,9 +102,7 @@ export default function AppSelectorView({ onSelect, user, profile }) {
               display: "flex",
               alignItems: "center",
               gap: 8,
-              background: theme.color.surface,
-              border: `1px solid ${theme.color.border}`,
-              borderRadius: theme.radius.sm,
+              ...glass(theme.radius.sm),
               boxShadow: theme.shadow.card,
               color: theme.color.inkSoft,
               fontFamily: theme.font.condensed,
@@ -172,10 +169,7 @@ export default function AppSelectorView({ onSelect, user, profile }) {
               onClick={() => onSelect(page)}
               style={{
                 position: "relative",
-                background: theme.color.surface,
-                border: `1px solid ${theme.color.border}`,
-                borderRadius: theme.radius.card,
-                boxShadow: theme.shadow.card,
+                ...glass(theme.radius.card),
                 padding: "40px 20px 44px",
                 display: "flex",
                 flexDirection: "column",
