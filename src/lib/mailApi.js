@@ -46,6 +46,10 @@ export const mailApi = {
   getAccountSettings: (accountId) => req(`/api/mail/settings?accountId=${encodeURIComponent(accountId)}`),
   saveAccountSettings: (accountId, patch) =>
     req(`/api/mail/settings?accountId=${encodeURIComponent(accountId)}`, { method: "PUT", body: patch }),
+  // Update an account's connection settings (host/port/security). Server re-runs the
+  // IMAP+SMTP test-connect before saving and rejects with a coded error on failure.
+  updateAccountSettings: (accountId, patch) =>
+    req(`/api/mail/settings?accountId=${encodeURIComponent(accountId)}`, { method: "PUT", body: patch }),
   disconnectAccount: (accountId) =>
     req(`/api/mail/settings?accountId=${encodeURIComponent(accountId)}`, { method: "DELETE" }),
 
