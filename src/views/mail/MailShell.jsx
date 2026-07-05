@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { Inbox, Send, PenSquare, Settings as SettingsIcon, ChevronDown, Plus, Layers, AlertTriangle } from "lucide-react";
-import { theme } from "../../theme";
+import { MC, MF, MSP, MR, mailCard, mailPill } from "../../ui/mailTheme";
 import { mailApi } from "../../lib/mailApi";
 import { useRouter } from "../../context/RouterContext";
+import { useIsMobile } from "../../hooks/useIsMobile";
 import InboxView from "./InboxView";
 import ConnectView from "./ConnectView";
 import ComposeView from "./ComposeView";
@@ -11,17 +12,17 @@ import MailSettingsView from "./MailSettingsView";
 const ALL = "all";
 const STORE_KEY = "mail.selectedAccount";
 
-// Mail has its own internal navigation (the app router only knows page="mail").
-// sub: { view: 'inbox'|'sent'|'compose'|'settings'|'connect', params }.
 export default function MailShell() {
   const { route } = useRouter();
+  const isMobile = useIsMobile();
   const [sub, setSub] = useState({ view: route?.params?.compose ? "compose" : "inbox", params: {} });
-  const [accounts, setAccounts] = useState(null); // null = unknown; [] = none connected
+  const [accounts, setAccounts] = useState(null);
   const [limit, setLimit] = useState(4);
   const [selectedId, setSelectedId] = useState(() => {
     try { return localStorage.getItem(STORE_KEY) || ALL; } catch { return ALL; }
   });
-  const go = useCallback((view, params = {}) => setSub({ view, params }), []);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const go = useCallback((view, params = {}) => { setSub({ view, params }); setMobileNavOpen(false); }, []);
 
   const pickAccount = useCallback((id) => {
     setSelectedId(id);
@@ -53,35 +54,42 @@ export default function MailShell() {
     return () => { alive = false; };
   }, []);
 
-  // If the persisted selection points at a since-removed account, fall back to All.
   useEffect(() => {
     if (!accounts || selectedId === ALL) return;
     if (!accounts.some((a) => a.id === selectedId)) pickAccount(ALL);
   }, [accounts, selectedId, pickAccount]);
 
   const NAV = [
-    { view: "inbox", label: "Inbox", Icon: Inbox },
-    { view: "sent", label: "Sent", Icon: Send },
-    { view: "compose", label: "Compose", Icon: PenSquare },
-    { view: "settings", label: "Settings", Icon: SettingsIcon },
+    { view: "inbox",   label: "Inbox",    Icon: Inbox },
+    { view: "sent",    label: "Sent",     Icon: Send },
+    { view: "compose", label: "Compose",  Icon: PenSquare },
+    { view: "settings",label: "Settings", Icon: SettingsIcon },
   ];
 
-  // Effective account id passed to fetching views: 'all' or a concrete id. With a
-  // single account, "All inboxes" collapses to that account so existing single-account
-  // users get the unchanged single-account inbox (no merged chrome for one mailbox).
   const effectiveAccountId =
     selectedId === ALL && accounts && accounts.length === 1 ? accounts[0].id : selectedId;
   const defaultAccount = accounts?.find((a) => a.is_default) || accounts?.[0] || null;
-  // The account compose should send from by default (single selection, else default).
   const composeDefaultId =
     selectedId !== ALL ? selectedId : defaultAccount?.id || null;
+
+  const selectedAccount = selectedId === ALL ? null : accounts?.find((a) => a.id === selectedId);
+  const accountLabel = selectedAccount
+    ? (selectedAccount.display_name || selectedAccount.email_address)
+    : "All Inboxes";
 
   let content;
   if (accounts === null) {
     content = <Centered>Loading mailbox…</Centered>;
   } else if (accounts.length === 0 && sub.view !== "settings") {
-    // No mailbox yet → force the connect flow.
-    content = <ConnectView onConnected={async () => { const list = await refreshAccounts(); if (list[0]) pickAccount(list[0].id); go("inbox"); }} />;
+    content = (
+      <ConnectView
+        onConnected={async () => {
+          const list = await refreshAccounts();
+          if (list[0]) pickAccount(list[0].id);
+          go("inbox");
+        }}
+      />
+    );
   } else {
     switch (sub.view) {
       case "connect":
@@ -143,28 +151,118 @@ export default function MailShell() {
 
   const showSwitcher = accounts && accounts.length > 0;
 
+  if (isMobile) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", height: "100%", background: MC.canvas, fontFamily: MF.body }}>
+        {/* Mobile top bar */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: `${MSP.md}px ${MSP.lg}px`,
+            background: MC.surface,
+            borderBottom: `1px solid ${MC.border}`,
+            flexShrink: 0,
+          }}
+        >
+          {/* Left: current nav label */}
+          <span style={{ fontFamily: MF.body, fontWeight: 600, fontSize: 16, color: MC.ink }}>
+            {NAV.find((n) => n.view === sub.view)?.label || "Mail"}
+          </span>
+
+          {/* Center: account switcher pill */}
+          {showSwitcher && (
+            <AccountSwitcher
+              accounts={accounts}
+              limit={limit}
+              selectedId={selectedId}
+              accountLabel={accountLabel}
+              onSelect={(id) => { pickAccount(id); if (sub.view === "connect") go("inbox"); }}
+              onAdd={() => go("connect")}
+              onFix={() => go("settings")}
+              pill
+            />
+          )}
+
+          {/* Right: compose shortcut */}
+          <button
+            onClick={() => go("compose")}
+            style={{ background: "none", border: "none", cursor: "pointer", padding: 4, color: MC.blue }}
+          >
+            <PenSquare size={20} />
+          </button>
+        </div>
+
+        {/* Mobile bottom nav */}
+        <div style={{ flex: 1, minWidth: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+          {content}
+        </div>
+
+        <nav
+          style={{
+            display: "flex",
+            borderTop: `1px solid ${MC.border}`,
+            background: MC.surface,
+            flexShrink: 0,
+          }}
+        >
+          {NAV.filter((n) => n.view !== "compose").map(({ view, label, Icon }) => {
+            const active = sub.view === view;
+            return (
+              <button
+                key={view}
+                onClick={() => go(view)}
+                style={{
+                  flex: 1,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 3,
+                  background: "none",
+                  border: "none",
+                  padding: "10px 4px",
+                  cursor: "pointer",
+                  color: active ? MC.blue : MC.inkFaint,
+                  fontFamily: MF.body,
+                  fontSize: 11,
+                  fontWeight: active ? 600 : 400,
+                  minHeight: 44,
+                }}
+              >
+                <Icon size={18} strokeWidth={active ? 2.2 : 1.8} />
+                {label}
+              </button>
+            );
+          })}
+        </nav>
+      </div>
+    );
+  }
+
+  // Desktop layout
   return (
-    <div className="mail-shell" style={{ display: "flex", height: "100%", background: theme.color.canvas }}>
+    <div style={{ display: "flex", height: "100%", background: MC.canvas, fontFamily: MF.body }}>
       <aside
         style={{
-          width: 200,
+          width: 220,
           flexShrink: 0,
-          borderRight: `1px solid ${theme.color.border}`,
-          background: theme.color.surface,
-          padding: "16px 10px",
+          borderRight: `1px solid ${MC.border}`,
+          background: MC.surface,
+          padding: `${MSP.xl}px ${MSP.md}px`,
           display: "flex",
           flexDirection: "column",
-          gap: 4,
+          gap: 2,
         }}
       >
         <div
           style={{
-            fontFamily: theme.font.mono,
-            fontSize: 10,
-            letterSpacing: "0.22em",
-            color: theme.color.slate,
-            textTransform: "uppercase",
-            padding: "4px 10px 12px",
+            fontFamily: MF.body,
+            fontWeight: 700,
+            fontSize: 18,
+            color: MC.ink,
+            padding: `0 ${MSP.sm}px ${MSP.lg}px`,
+            letterSpacing: "-0.01em",
           }}
         >
           Mail
@@ -175,11 +273,14 @@ export default function MailShell() {
             accounts={accounts}
             limit={limit}
             selectedId={selectedId}
+            accountLabel={accountLabel}
             onSelect={(id) => { pickAccount(id); if (sub.view === "connect") go("inbox"); }}
             onAdd={() => go("connect")}
             onFix={() => go("settings")}
           />
         )}
+
+        <div style={{ height: MSP.sm }} />
 
         {NAV.map(({ view, label, Icon }) => {
           const active = sub.view === view;
@@ -190,92 +291,93 @@ export default function MailShell() {
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: 10,
-                background: active ? theme.color.amberSoft : "none",
+                gap: MSP.md,
+                background: active ? MC.blueSoft : "none",
                 border: "none",
-                borderRadius: theme.radius.sm,
-                color: active ? "#e8930a" : theme.color.inkSoft,
-                fontFamily: theme.font.condensed,
-                fontWeight: 700,
-                fontSize: 15,
-                letterSpacing: "0.03em",
-                textTransform: "uppercase",
-                padding: "10px 12px",
+                borderRadius: MR.chip,
+                color: active ? MC.blue : MC.inkDim,
+                fontFamily: MF.body,
+                fontWeight: active ? 600 : 500,
+                fontSize: 14,
+                padding: `${MSP.sm + 2}px ${MSP.md}px`,
                 cursor: "pointer",
                 textAlign: "left",
+                transition: "background 0.15s, color 0.15s",
               }}
             >
-              <Icon size={16} color={active ? theme.color.amber : theme.color.slate} />
+              <Icon size={16} strokeWidth={active ? 2.2 : 1.8} color={active ? MC.blue : MC.inkFaint} />
               {label}
             </button>
           );
         })}
       </aside>
+
       <div style={{ flex: 1, minWidth: 0, overflowY: "auto" }}>{content}</div>
     </div>
   );
 }
 
-// Glass dropdown at the top of the rail: All inboxes · each account · Add account…
-function AccountSwitcher({ accounts, limit, selectedId, onSelect, onAdd, onFix }) {
+// Account switcher — pill variant for mobile top bar, dropdown for desktop rail
+function AccountSwitcher({ accounts, limit, selectedId, accountLabel, onSelect, onAdd, onFix, pill = false }) {
   const [open, setOpen] = useState(false);
   const selected = selectedId === ALL ? null : accounts.find((a) => a.id === selectedId);
   const canAdd = accounts.length < limit;
 
+  const triggerStyle = pill
+    ? {
+        display: "flex",
+        alignItems: "center",
+        gap: MSP.xs,
+        background: MC.blueSoft,
+        border: "none",
+        borderRadius: MR.pill,
+        padding: `${MSP.xs}px ${MSP.md}px`,
+        cursor: "pointer",
+        fontFamily: MF.body,
+        fontWeight: 600,
+        fontSize: 13,
+        color: MC.blue,
+        maxWidth: 160,
+        overflow: "hidden",
+      }
+    : {
+        display: "flex",
+        alignItems: "center",
+        gap: MSP.sm,
+        width: "100%",
+        background: MC.canvasAlt,
+        border: `1px solid ${MC.border}`,
+        borderRadius: MR.chip,
+        padding: `${MSP.sm}px ${MSP.md}px`,
+        cursor: "pointer",
+        textAlign: "left",
+        fontFamily: MF.body,
+        marginBottom: MSP.sm,
+      };
+
   return (
-    <div style={{ position: "relative", padding: "0 4px 10px", marginBottom: 6, borderBottom: `1px solid ${theme.color.border}` }}>
-      <button
-        onClick={() => setOpen((v) => !v)}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          width: "100%",
-          background: theme.color.surfaceMuted,
-          border: `1px solid ${theme.color.border}`,
-          borderRadius: theme.radius.sm,
-          padding: "8px 10px",
-          cursor: "pointer",
-          textAlign: "left",
-        }}
-      >
-        {selected ? (
-          <Dot color={selected.color} status={selected.status} />
-        ) : (
-          <Layers size={13} color={theme.color.slate} style={{ flexShrink: 0 }} />
+    <div style={{ position: "relative" }}>
+      <button onClick={() => setOpen((v) => !v)} style={triggerStyle}>
+        {!pill && (
+          selected
+            ? <span style={{ width: 8, height: 8, borderRadius: "50%", background: selected.color || MC.blue, flexShrink: 0 }} />
+            : <Layers size={13} color={MC.inkDim} style={{ flexShrink: 0 }} />
         )}
-        <span style={{ flex: 1, minWidth: 0 }}>
-          <span
-            style={{
-              display: "block",
-              fontFamily: theme.font.condensed,
-              fontWeight: 700,
-              fontSize: 13,
-              color: theme.color.ink,
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {selected ? selected.display_name || selected.email_address : "All inboxes"}
-          </span>
-          {selected && (
-            <span
-              style={{
-                display: "block",
-                fontFamily: theme.font.mono,
-                fontSize: 9,
-                color: theme.color.slate,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {selected.email_address}
-            </span>
-          )}
+        <span
+          style={{
+            flex: pill ? undefined : 1,
+            fontFamily: MF.body,
+            fontWeight: 600,
+            fontSize: 13,
+            color: pill ? MC.blue : MC.ink,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {accountLabel}
         </span>
-        <ChevronDown size={13} color={theme.color.slate} style={{ flexShrink: 0 }} />
+        <ChevronDown size={12} color={pill ? MC.blue : MC.inkDim} style={{ flexShrink: 0 }} />
       </button>
 
       {open && (
@@ -285,48 +387,45 @@ function AccountSwitcher({ accounts, limit, selectedId, onSelect, onAdd, onFix }
             style={{
               position: "absolute",
               top: "100%",
-              left: 4,
-              right: 4,
+              left: 0,
+              right: pill ? undefined : 0,
+              minWidth: 200,
               zIndex: 21,
               marginTop: 4,
-              background: theme.color.surface,
-              border: `1px solid ${theme.color.borderStrong}`,
-              borderRadius: theme.radius.sm,
-              boxShadow: theme.shadow.card,
+              ...mailCard(MR.chip),
               padding: 4,
-              overflow: "hidden",
             }}
           >
-            <Row active={selectedId === ALL} onClick={() => { onSelect(ALL); setOpen(false); }}>
-              <Layers size={13} color={theme.color.slate} style={{ flexShrink: 0 }} />
-              <span style={rowLabel}>All inboxes</span>
-            </Row>
+            <DropRow active={selectedId === ALL} onClick={() => { onSelect(ALL); setOpen(false); }}>
+              <Layers size={13} color={MC.inkDim} style={{ flexShrink: 0 }} />
+              <span style={dropLabel}>All Inboxes</span>
+            </DropRow>
             {accounts.map((a) => (
-              <Row key={a.id} active={selectedId === a.id} onClick={() => { onSelect(a.id); setOpen(false); }}>
-                <Dot color={a.color} status={a.status} />
-                <span style={{ ...rowLabel, minWidth: 0, flex: 1 }}>
+              <DropRow key={a.id} active={selectedId === a.id} onClick={() => { onSelect(a.id); setOpen(false); }}>
+                <span style={{ width: 8, height: 8, borderRadius: "50%", background: a.status === "error" ? MC.danger : (a.color || MC.blue), flexShrink: 0 }} />
+                <span style={{ ...dropLabel, flex: 1, minWidth: 0 }}>
                   <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {a.display_name || a.email_address}
                   </span>
-                  <span style={{ display: "block", fontFamily: theme.font.mono, fontSize: 9, color: theme.color.slate, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <span style={{ display: "block", fontFamily: MF.mono, fontSize: 10, color: MC.inkFaint, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {a.email_address}
                   </span>
                 </span>
                 {a.status === "error" && (
                   <AlertTriangle
                     size={13}
-                    color={theme.color.red}
+                    color={MC.danger}
                     style={{ flexShrink: 0 }}
                     onClick={(e) => { e.stopPropagation(); setOpen(false); onFix(); }}
                   />
                 )}
-              </Row>
+              </DropRow>
             ))}
             {canAdd && (
-              <Row onClick={() => { setOpen(false); onAdd(); }}>
-                <Plus size={13} color={theme.color.amber} style={{ flexShrink: 0 }} />
-                <span style={{ ...rowLabel, color: theme.color.amberText }}>Add account…</span>
-              </Row>
+              <DropRow onClick={() => { setOpen(false); onAdd(); }}>
+                <Plus size={13} color={MC.blue} style={{ flexShrink: 0 }} />
+                <span style={{ ...dropLabel, color: MC.blue }}>Add account…</span>
+              </DropRow>
             )}
           </div>
         </>
@@ -335,49 +434,32 @@ function AccountSwitcher({ accounts, limit, selectedId, onSelect, onAdd, onFix }
   );
 }
 
-const rowLabel = {
-  fontFamily: theme.font.condensed,
-  fontWeight: 700,
+const dropLabel = {
+  fontFamily: MF.body,
+  fontWeight: 500,
   fontSize: 13,
-  color: theme.color.ink,
-  letterSpacing: "0.02em",
+  color: MC.ink,
 };
 
-function Row({ children, active, onClick }) {
+function DropRow({ children, active, onClick }) {
   return (
     <button
       onClick={onClick}
       style={{
         display: "flex",
         alignItems: "center",
-        gap: 8,
+        gap: MSP.sm,
         width: "100%",
-        background: active ? theme.color.amberSoft : "none",
+        background: active ? MC.blueSoft : "none",
         border: "none",
-        borderRadius: theme.radius.sm,
-        padding: "8px 8px",
+        borderRadius: MR.chip - 2,
+        padding: `${MSP.sm}px ${MSP.sm}px`,
         cursor: "pointer",
         textAlign: "left",
       }}
     >
       {children}
     </button>
-  );
-}
-
-function Dot({ color, status }) {
-  const c = status === "error" ? theme.color.red : color || theme.color.slate;
-  return (
-    <span
-      style={{
-        width: 9,
-        height: 9,
-        borderRadius: "50%",
-        background: c,
-        flexShrink: 0,
-        boxShadow: status === "error" ? `0 0 0 2px ${theme.color.redSoft}` : "none",
-      }}
-    />
   );
 }
 
@@ -389,10 +471,9 @@ function Centered({ children }) {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        fontFamily: theme.font.mono,
-        fontSize: 12,
-        color: theme.color.slate,
-        letterSpacing: "0.1em",
+        fontFamily: MF.body,
+        fontSize: 13,
+        color: MC.inkDim,
       }}
     >
       {children}

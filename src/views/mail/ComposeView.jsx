@@ -1,18 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import { Send, ChevronDown } from "lucide-react";
-import { theme } from "../../theme";
+import { MC, MF, MSP, MR, mailCard } from "../../ui/mailTheme";
 import { mailApi } from "../../lib/mailApi";
 import { useDirtyGuard } from "../../lib/useDirtyGuard";
 
 const field = {
   width: "100%",
   boxSizing: "border-box",
-  background: theme.color.surface,
-  border: `1px solid ${theme.color.border}`,
-  borderRadius: theme.radius.input,
-  color: theme.color.ink,
-  padding: "12px 14px",
-  fontFamily: theme.font.mono,
+  background: MC.surface,
+  border: `1px solid ${MC.border}`,
+  borderRadius: MR.chip,
+  color: MC.ink,
+  padding: `${MSP.md}px ${MSP.lg}px`,
+  fontFamily: MF.body,
   fontSize: 14,
   outline: "none",
 };
@@ -23,8 +23,6 @@ export default function ComposeView({ reply, accounts = [], defaultAccountId, on
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
-  // The sending account is ALWAYS explicit. Replies default to the account that
-  // received the thread; otherwise the current selection / default account.
   const [fromId, setFromId] = useState(
     () => reply?.accountId || defaultAccountId || accounts[0]?.id || null
   );
@@ -33,7 +31,6 @@ export default function ComposeView({ reply, accounts = [], defaultAccountId, on
 
   const fromAccount = accounts.find((a) => a.id === fromId) || null;
 
-  // Pre-fill recipient/subject from the reply once.
   useEffect(() => {
     if (reply) {
       setTo(reply.from?.address || "");
@@ -41,15 +38,13 @@ export default function ComposeView({ reply, accounts = [], defaultAccountId, on
     }
   }, [reply]);
 
-  // Pre-fill the body: quote the original (reply) + the SENDING account's signature.
-  // Re-runs when the From account changes so the right signature is shown.
   useEffect(() => {
     let alive = true;
     const build = (sig) => {
       let html = "<br><br>";
       if (reply) {
         const orig = reply.html || (reply.text || "").replace(/\n/g, "<br>");
-        html += `<blockquote style="border-left:2px solid #1a2a3c;padding-left:10px;color:#8a97a6">${orig}</blockquote>`;
+        html += `<blockquote style="border-left:2px solid ${MC.border};padding-left:10px;color:${MC.inkDim};margin:0">${orig}</blockquote>`;
       }
       if (sig) html += `<br>${sig}`;
       if (bodyRef.current) bodyRef.current.innerHTML = html;
@@ -65,14 +60,8 @@ export default function ComposeView({ reply, accounts = [], defaultAccountId, on
 
   const submit = async () => {
     setError("");
-    if (!fromId) {
-      setError("Choose an account to send from.");
-      return;
-    }
-    if (!to.includes("@")) {
-      setError("Enter a valid recipient.");
-      return;
-    }
+    if (!fromId) { setError("Choose an account to send from."); return; }
+    if (!to.includes("@")) { setError("Enter a valid recipient."); return; }
     setLoading(true);
     try {
       await mailApi.send({
@@ -93,23 +82,41 @@ export default function ComposeView({ reply, accounts = [], defaultAccountId, on
   };
 
   return (
-    <div style={{ maxWidth: 720, margin: "0 auto", padding: "32px 24px" }}>
-      <div
+    <div style={{ maxWidth: 720, margin: "0 auto", padding: `${MSP.xxl}px ${MSP.xl}px` }}>
+      <h2
         style={{
-          fontFamily: theme.font.condensed,
-          fontWeight: 800,
-          fontSize: 24,
-          letterSpacing: "0.02em",
-          color: theme.color.ink,
-          marginBottom: 18,
+          fontFamily: MF.body,
+          fontWeight: 700,
+          fontSize: 22,
+          color: MC.ink,
+          margin: `0 0 ${MSP.xl}px`,
+          letterSpacing: "-0.01em",
         }}
       >
-        {reply ? "REPLY" : "NEW MESSAGE"}
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {reply ? "Reply" : "New Message"}
+      </h2>
+
+      <div style={{ ...mailCard(MR.panel), padding: MSP.xl, display: "flex", flexDirection: "column", gap: MSP.md }}>
         <FromSelect accounts={accounts} value={fromId} account={fromAccount} onChange={(id) => { markDirty(); setFromId(id); }} />
-        <input placeholder="To" value={to} onChange={(e) => { markDirty(); setTo(e.target.value); }} style={field} />
-        <input placeholder="Subject" value={subject} onChange={(e) => { markDirty(); setSubject(e.target.value); }} style={field} />
+
+        <FieldRow label="To">
+          <input
+            placeholder="recipient@example.com"
+            value={to}
+            onChange={(e) => { markDirty(); setTo(e.target.value); }}
+            style={field}
+          />
+        </FieldRow>
+
+        <FieldRow label="Subject">
+          <input
+            placeholder="Subject"
+            value={subject}
+            onChange={(e) => { markDirty(); setSubject(e.target.value); }}
+            style={field}
+          />
+        </FieldRow>
+
         <div
           ref={bodyRef}
           contentEditable
@@ -117,127 +124,150 @@ export default function ComposeView({ reply, accounts = [], defaultAccountId, on
           onInput={markDirty}
           style={{
             ...field,
-            minHeight: 220,
-            fontFamily: theme.font.body,
+            minHeight: 240,
+            fontFamily: MF.body,
             fontSize: 14,
-            lineHeight: 1.6,
+            lineHeight: 1.65,
             overflowY: "auto",
+            borderRadius: MR.chip,
           }}
         />
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+
+        <div style={{ display: "flex", alignItems: "center", gap: MSP.lg, paddingTop: MSP.sm }}>
           <button
             onClick={submit}
             disabled={loading || done}
             style={{
-              display: "flex",
+              display: "inline-flex",
               alignItems: "center",
-              gap: 8,
+              gap: MSP.sm,
               border: "none",
-              borderRadius: theme.radius.input,
-              background: done ? theme.color.green : theme.color.amber,
-              color: theme.color.white,
-              fontFamily: theme.font.condensed,
-              fontWeight: 700,
-              fontSize: 16,
-              letterSpacing: "0.06em",
-              textTransform: "uppercase",
-              padding: "12px 22px",
+              borderRadius: MR.pill,
+              background: done ? MC.success : MC.blue,
+              color: "#fff",
+              fontFamily: MF.body,
+              fontWeight: 600,
+              fontSize: 15,
+              padding: `${MSP.md}px ${MSP.xl}px`,
               cursor: loading ? "wait" : "pointer",
               opacity: loading ? 0.7 : 1,
+              minHeight: 44,
+              transition: "background 0.2s, opacity 0.2s",
             }}
           >
-            <Send size={16} /> {done ? "Sent" : loading ? "Sending…" : "Send"}
+            <Send size={16} /> {done ? "Sent!" : loading ? "Sending…" : "Send"}
           </button>
-          {error && <span style={{ fontFamily: theme.font.mono, fontSize: 12, color: theme.color.red }}>{error}</span>}
+          {error && (
+            <span style={{ fontFamily: MF.body, fontSize: 13, color: MC.danger }}>{error}</span>
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-// "From" account chooser. A single account renders as a static label; multiple
-// accounts render a glass dropdown so the sender is always an explicit choice.
+function FieldRow({ label, children }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: MSP.xs }}>
+      <span style={{ fontFamily: MF.body, fontWeight: 500, fontSize: 12, color: MC.inkDim }}>{label}</span>
+      {children}
+    </div>
+  );
+}
+
 function FromSelect({ accounts, value, account, onChange }) {
   const [open, setOpen] = useState(false);
-  const labelWrap = {
+
+  const trigger = {
     display: "flex",
     alignItems: "center",
-    gap: 9,
-    background: theme.color.surfaceMuted,
-    border: `1px solid ${theme.color.border}`,
-    borderRadius: theme.radius.input,
-    padding: "10px 14px",
+    gap: MSP.sm,
+    background: MC.canvasAlt,
+    border: `1px solid ${MC.border}`,
+    borderRadius: MR.chip,
+    padding: `${MSP.md}px ${MSP.lg}px`,
   };
-  const dot = (c) => <span style={{ width: 9, height: 9, borderRadius: "50%", background: c || theme.color.slate, flexShrink: 0 }} />;
+
+  const dot = (c) => (
+    <span style={{ width: 8, height: 8, borderRadius: "50%", background: c || MC.blue, flexShrink: 0 }} />
+  );
+
   const line = (a) => (
     <span style={{ minWidth: 0, flex: 1 }}>
-      <span style={{ fontFamily: theme.font.condensed, fontWeight: 700, fontSize: 13, color: theme.color.ink }}>
+      <span style={{ fontFamily: MF.body, fontWeight: 600, fontSize: 13, color: MC.ink }}>
         {a.display_name || a.email_address}
       </span>{" "}
-      <span style={{ fontFamily: theme.font.mono, fontSize: 11, color: theme.color.slate }}>{a.email_address}</span>
+      <span style={{ fontFamily: MF.mono, fontSize: 11, color: MC.inkFaint }}>{a.email_address}</span>
     </span>
   );
 
   if (accounts.length <= 1) {
     return (
-      <div style={labelWrap}>
-        <span style={{ fontFamily: theme.font.mono, fontSize: 10, letterSpacing: "0.14em", color: theme.color.slate, textTransform: "uppercase" }}>From</span>
-        {account ? (<>{dot(account.color)}{line(account)}</>) : (
-          <span style={{ fontFamily: theme.font.mono, fontSize: 12, color: theme.color.slate }}>default mailbox</span>
-        )}
-      </div>
+      <FieldRow label="From">
+        <div style={trigger}>
+          {account ? (<>{dot(account.color)}{line(account)}</>) : (
+            <span style={{ fontFamily: MF.body, fontSize: 13, color: MC.inkDim }}>default mailbox</span>
+          )}
+        </div>
+      </FieldRow>
     );
   }
 
   return (
-    <div style={{ position: "relative" }}>
-      <button onClick={() => setOpen((v) => !v)} style={{ ...labelWrap, width: "100%", cursor: "pointer", textAlign: "left" }}>
-        <span style={{ fontFamily: theme.font.mono, fontSize: 10, letterSpacing: "0.14em", color: theme.color.slate, textTransform: "uppercase" }}>From</span>
-        {account ? (<>{dot(account.color)}{line(account)}</>) : <span style={{ flex: 1, fontFamily: theme.font.mono, fontSize: 12, color: theme.color.slate }}>Choose account…</span>}
-        <ChevronDown size={14} color={theme.color.slate} style={{ flexShrink: 0 }} />
-      </button>
-      {open && (
-        <>
-          <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 20 }} />
-          <div
-            style={{
-              position: "absolute",
-              top: "100%",
-              left: 0,
-              right: 0,
-              zIndex: 21,
-              marginTop: 4,
-              background: theme.color.surface,
-              border: `1px solid ${theme.color.borderStrong}`,
-              borderRadius: theme.radius.input,
-              boxShadow: theme.shadow.card,
-              padding: 4,
-            }}
-          >
-            {accounts.map((a) => (
-              <button
-                key={a.id}
-                onClick={() => { onChange(a.id); setOpen(false); }}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 9,
-                  width: "100%",
-                  background: a.id === value ? theme.color.amberSoft : "none",
-                  border: "none",
-                  borderRadius: theme.radius.sm,
-                  padding: "9px 10px",
-                  cursor: "pointer",
-                  textAlign: "left",
-                }}
-              >
-                {dot(a.color)}
-                {line(a)}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
+    <FieldRow label="From">
+      <div style={{ position: "relative" }}>
+        <button
+          onClick={() => setOpen((v) => !v)}
+          style={{ ...trigger, width: "100%", cursor: "pointer", textAlign: "left" }}
+        >
+          {account ? (<>{dot(account.color)}{line(account)}</>) : (
+            <span style={{ flex: 1, fontFamily: MF.body, fontSize: 13, color: MC.inkDim }}>Choose account…</span>
+          )}
+          <ChevronDown size={14} color={MC.inkDim} style={{ flexShrink: 0 }} />
+        </button>
+        {open && (
+          <>
+            <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 20 }} />
+            <div
+              style={{
+                position: "absolute",
+                top: "100%",
+                left: 0,
+                right: 0,
+                zIndex: 21,
+                marginTop: 4,
+                background: MC.surface,
+                border: `1px solid ${MC.border}`,
+                borderRadius: MR.chip,
+                boxShadow: "0 4px 24px rgba(16,24,40,0.10)",
+                padding: 4,
+              }}
+            >
+              {accounts.map((a) => (
+                <button
+                  key={a.id}
+                  onClick={() => { onChange(a.id); setOpen(false); }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: MSP.sm,
+                    width: "100%",
+                    background: a.id === value ? MC.blueSoft : "none",
+                    border: "none",
+                    borderRadius: MR.chip - 2,
+                    padding: `${MSP.sm}px ${MSP.md}px`,
+                    cursor: "pointer",
+                    textAlign: "left",
+                  }}
+                >
+                  {dot(a.color)}
+                  {line(a)}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    </FieldRow>
   );
 }
