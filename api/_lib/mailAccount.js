@@ -103,11 +103,28 @@ export async function markAccountStatus(userId, accountId, status) {
   }
 }
 
+// Map a stored security mode onto ImapFlow connection options. 'ssl' = implicit TLS
+// (e.g. port 993); 'starttls' = plaintext connect then upgrade; 'none' = plaintext,
+// never upgrade. There is NO shared default — the mode always comes from the row.
+export function imapSecurityOpts(security) {
+  if (security === "starttls") return { secure: false };
+  if (security === "none") return { secure: false, disableStartTls: true };
+  return { secure: true }; // 'ssl'
+}
+
+// Same mapping for nodemailer SMTP. 'starttls' requires the upgrade to succeed;
+// 'none' explicitly forbids TLS. 'ssl' = implicit TLS (e.g. port 465).
+export function smtpSecurityOpts(security) {
+  if (security === "starttls") return { secure: false, requireTLS: true };
+  if (security === "none") return { secure: false, ignoreTLS: true };
+  return { secure: true }; // 'ssl'
+}
+
 export async function openImap(account) {
   const client = new ImapFlow({
     host: account.imap_host,
     port: account.imap_port,
-    secure: true,
+    ...imapSecurityOpts(account.imap_security),
     auth: { user: account.email_address, pass: account.password },
     logger: false, // never log — would expose credentials
   });
@@ -119,7 +136,7 @@ export function makeTransport(account) {
   return nodemailer.createTransport({
     host: account.smtp_host,
     port: account.smtp_port,
-    secure: true, // 465 = implicit TLS
+    ...smtpSecurityOpts(account.smtp_security),
     auth: { user: account.email_address, pass: account.password },
   });
 }
