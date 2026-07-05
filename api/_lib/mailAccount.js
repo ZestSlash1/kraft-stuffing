@@ -120,6 +120,43 @@ export function smtpSecurityOpts(security) {
   return { secure: true }; // 'ssl'
 }
 
+// Does an error look like an authentication rejection (bad user/pass) vs. a
+// connectivity/protocol failure? Used to split imap_failed/smtp_failed from
+// auth_failed so the UI can tell the user which side to fix.
+function isAuthError(err) {
+  if (err?.code === "EAUTH") return true;
+  const m = (err?.message || "").toLowerCase();
+  return m.includes("auth") || m.includes("login") || m.includes("credential") || m.includes("password");
+}
+
+// A coded error whose message is credential-free and safe to surface to the client.
+function connectError(code) {
+  const err = httpError(400, code);
+  err.code = code;
+  return err;
+}
+
+// Verify a full set of host/port/security/credentials BEFORE persisting it. Opens
+// the IMAP connection and asks the SMTP transport to verify auth. Throws a coded
+// error (`imap_failed` | `smtp_failed` | `auth_failed`) on any failure so callers
+// never save a broken account. `account` is a plain object (not yet a DB row) with
+// email_address + password + host/port/security fields.
+export async function testConnect(account) {
+  // IMAP side.
+  try {
+    const client = await openImap(account);
+    await client.logout().catch(() => {});
+  } catch (err) {
+    throw connectError(isAuthError(err) ? "auth_failed" : "imap_failed");
+  }
+  // SMTP side — verify() performs a login handshake without sending mail.
+  try {
+    await makeTransport(account).verify();
+  } catch (err) {
+    throw connectError(isAuthError(err) ? "auth_failed" : "smtp_failed");
+  }
+}
+
 export async function openImap(account) {
   const client = new ImapFlow({
     host: account.imap_host,
