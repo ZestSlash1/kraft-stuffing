@@ -124,8 +124,9 @@ export function smtpSecurityOpts(security) {
 // connectivity/protocol failure? Used to split imap_failed/smtp_failed from
 // auth_failed so the UI can tell the user which side to fix.
 function isAuthError(err) {
-  if (err?.code === "EAUTH") return true;
-  const m = (err?.message || "").toLowerCase();
+  if (err?.authenticationFailed) return true; // ImapFlow flag (message is generic "Command failed")
+  if (err?.code === "EAUTH") return true; // nodemailer SMTP auth rejection
+  const m = `${err?.message || ""} ${err?.responseText || ""}`.toLowerCase();
   return m.includes("auth") || m.includes("login") || m.includes("credential") || m.includes("password");
 }
 
@@ -143,24 +144,16 @@ function connectError(code) {
 // email_address + password + host/port/security fields.
 export async function testConnect(account) {
   // IMAP side.
-  const t0 = Date.now();
   try {
     const client = await openImap(account);
     await client.logout().catch(() => {});
   } catch (err) {
-    // TEMP DIAGNOSTIC (no credentials): reveal WHY the IMAP probe failed on Vercel.
-    console.error(`[mail][imap] ${account.imap_host}:${account.imap_port}/${account.imap_security} after ${Date.now() - t0}ms`, JSON.stringify({
-      code: err?.code, msg: err?.message, authFailed: err?.authenticationFailed,
-      respText: err?.responseText, response: err?.response, serverCode: err?.serverResponseCode, cmd: err?.command,
-    }));
     throw connectError(isAuthError(err) ? "auth_failed" : "imap_failed");
   }
   // SMTP side — verify() performs a login handshake without sending mail.
-  const t1 = Date.now();
   try {
     await makeTransport(account).verify();
   } catch (err) {
-    console.error(`[mail][smtp] ${account.smtp_host}:${account.smtp_port}/${account.smtp_security} after ${Date.now() - t1}ms code=${err?.code} msg=${err?.message}`);
     throw connectError(isAuthError(err) ? "auth_failed" : "smtp_failed");
   }
 }
