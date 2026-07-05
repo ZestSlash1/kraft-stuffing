@@ -99,6 +99,12 @@ export default function ExpensesShell({ app }) {
     }
   }, [addVoyageParam]);
 
+  // Deep link from the sidebar: navigate("expenses", { tab: 'pnl' | 'ledger' }).
+  const tabParam = route?.params?.tab;
+  useEffect(() => {
+    if (tabParam === "ledger" || tabParam === "summary" || tabParam === "pnl") setTab(tabParam);
+  }, [tabParam]);
+
   const load = useCallback(() => {
     fetchExpenses(KRAFT_ORG_ID)
       .then(({ data, error }) => {

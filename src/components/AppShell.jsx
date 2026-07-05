@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import TopNav from "./TopNav";
 import BottomNav from "./BottomNav";
+import SideNav from "./SideNav";
 import { useRouter } from "../context/RouterContext";
 import { C, F, WASH, glass } from "../ui/theme";
 import DashboardView from "../views/DashboardView";
@@ -155,9 +156,16 @@ export default function AppShell({ app }) {
       }}
     >
       <OfflineIndicator />
-      <TopNav onOpenSearch={() => setSearchOpen(true)} />
-      <div className="app-main" style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
-        {content}
+      {/* Desktop: fixed left sidebar + right column (slim top bar over content).
+          Mobile: the sidebar is CSS-hidden and BottomNav takes over. */}
+      <div style={{ flex: 1, minHeight: 0, display: "flex" }}>
+        <SideNav app={app} />
+        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+          <TopNav onOpenSearch={() => setSearchOpen(true)} />
+          <div className="app-main" style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
+            {content}
+          </div>
+        </div>
       </div>
       <BottomNav onOpenSearch={() => setSearchOpen(true)} />
       <CommandPalette app={app} open={searchOpen} onClose={() => setSearchOpen(false)} />

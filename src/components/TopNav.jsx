@@ -1,18 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import {
-  LayoutGrid,
-  LayoutDashboard,
-  Ship,
-  FileText,
-  FileCheck2,
-  ClipboardList,
-  Receipt,
-  Activity,
-  Mail,
-  Users,
-  Settings,
-  Search,
-} from "lucide-react";
+import { LayoutGrid, Search } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useRouter } from "../context/RouterContext";
 import { useAuth } from "../context/AuthContext";
@@ -21,49 +8,38 @@ import { theme } from "../theme";
 import { C } from "../ui/theme";
 import SyncPill from "./SyncPill";
 
-const NAV = [
-  { page: "dashboard", label: "Dashboard", Icon: LayoutDashboard },
-  { page: "voyages", label: "Voyages", Icon: Ship },
-  { page: "manifest", label: "Manifest", Icon: FileText },
-  { page: "expenses", label: "Expenses", Icon: Receipt },
-  { page: "documents", label: "Documents", Icon: FileCheck2 },
-  { page: "carting", label: "Carting", Icon: ClipboardList },
-  { page: "activity", label: "Activity", Icon: Activity },
-  { page: "mail", label: "Mail", Icon: Mail },
-  { page: "masters", label: "Masters", Icon: Users },
-  { page: "settings", label: "Settings", Icon: Settings },
-];
-
-// Which top-level item lights up for a given page.
-const GROUP = {
-  dashboard: "dashboard",
-  voyages: "voyages",
-  "voyage-detail": "voyages",
-  "container-log": "voyages",
-  masters: "masters",
-  manifest: "manifest",
-  expenses: "expenses",
-  documents: "documents",
-  carting: "carting",
-  "carting-detail": "carting",
-  activity: "activity",
-  mail: "mail",
-  settings: "settings",
+// Slim utility bar: page title + global search (opens ⌘K) + right cluster.
+// The old pill route row moved into the sectioned SideNav — this bar is no
+// longer where you navigate between sections.
+const PAGE_TITLES = {
+  dashboard: "Dashboard",
+  voyages: "Voyages",
+  "voyage-detail": "Voyage",
+  "container-log": "Container Log",
+  masters: "Masters",
+  settings: "Settings",
+  manifest: "Manifest",
+  expenses: "Expenses",
+  mail: "Mail",
+  activity: "Activity Feed",
+  documents: "Documents",
+  carting: "Carting Orders",
+  "carting-detail": "Carting Order",
 };
 
 export default function TopNav({ onOpenSearch }) {
   const { route, navigate, goPortal } = useRouter();
   const { user, profile } = useAuth();
-  const { dirty, online, mailUnread } = useLive();
+  const { online } = useLive();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
 
-  const activeGroup = GROUP[route.page] || "dashboard";
   // Loadex dark-marine variant, app-wide (LOADEX_UIUX_MASTER.md).
   const dark = true;
   const displayName = profile?.displayName || (user?.email || "").split("@")[0] || "user";
   const title = profile?.title || (profile?.role === "admin" ? "Admin" : "Staff");
   const initials = displayName.slice(0, 2).toUpperCase();
+  const pageTitle = PAGE_TITLES[route.page] || "Kraft";
 
   useEffect(() => {
     const onClick = (e) => {
@@ -77,8 +53,6 @@ export default function TopNav({ onOpenSearch }) {
     setMenuOpen(false);
     await supabase.auth.signOut();
   };
-
-  const badgeFor = (page) => (page === "mail" ? mailUnread : dirty[page] ? -1 : 0);
 
   return (
     <div
@@ -95,17 +69,19 @@ export default function TopNav({ onOpenSearch }) {
         display: "flex",
         alignItems: "center",
         padding: "0 14px",
-        gap: 8,
+        gap: 10,
       }}
     >
-      {/* Left: logo + Portal */}
+      {/* Mobile-only: logo + portal button (no sidebar on phones). */}
       <button
+        className="topnav-logo"
         onClick={() => navigate("dashboard")}
-        style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", padding: 0 }}
+        style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", padding: 0, flexShrink: 0 }}
       >
-        <img src="/kraft-logo.png" height="34" alt="Kraft" style={{ display: "block" }} />
+        <img src="/kraft-logo.png" height="30" alt="Kraft" style={{ display: "block" }} />
       </button>
       <button
+        className="topnav-portal"
         onClick={goPortal}
         title="Portal — all sections"
         style={{
@@ -125,84 +101,64 @@ export default function TopNav({ onOpenSearch }) {
         <LayoutGrid size={16} />
       </button>
 
-      {/* Center: nav items (desktop) */}
+      {/* Page title (desktop). */}
       <div
-        className="topnav-links"
+        className="topnav-title"
         style={{
-          display: "flex",
-          gap: 2,
-          margin: "0 auto",
-          alignItems: "center",
-          // Dark mode: the links group itself becomes the floating glass pill.
-          ...(dark && {
-            background: "rgba(255,255,255,0.04)",
-            border: `1px solid ${C.hair}`,
-            borderRadius: 999,
-            padding: 3,
-          }),
+          fontFamily: theme.font.condensed,
+          fontWeight: 800,
+          fontSize: 20,
+          letterSpacing: "0.03em",
+          textTransform: "uppercase",
+          color: dark ? C.ink : theme.color.ink,
+          whiteSpace: "nowrap",
         }}
       >
-        {NAV.map(({ page, label, Icon }) => {
-          const active = activeGroup === page;
-          const badge = badgeFor(page);
-          const restColor = dark ? C.inkDim : theme.color.slate;
-          const hoverColor = dark ? C.ink : theme.color.ink;
-          return (
-            <button
-              key={page}
-              onClick={() => navigate(page)}
-              title={label}
-              style={{
-                position: "relative",
-                display: "flex",
-                alignItems: "center",
-                gap: 7,
-                background: active ? (dark ? "#fff" : theme.color.amberSoft) : "transparent",
-                border: "none",
-                borderRadius: theme.radius.pill,
-                color: active ? (dark ? C.void : "#b3700a") : restColor,
-                fontFamily: theme.font.condensed,
-                fontWeight: 700,
-                fontSize: 13.5,
-                letterSpacing: "0.04em",
-                textTransform: "uppercase",
-                padding: "8px 13px",
-                cursor: "pointer",
-                transition: "background .15s ease, color .15s ease",
-              }}
-              onMouseEnter={(e) => !active && (e.currentTarget.style.color = hoverColor)}
-              onMouseLeave={(e) => !active && (e.currentTarget.style.color = restColor)}
-            >
-              <span style={{ position: "relative", display: "flex" }}>
-                <Icon size={16} color={active ? (dark ? C.void : theme.color.amber) : "currentColor"} />
-                <NavDot badge={badge} />
-              </span>
-              <span className="topnav-label">{label}</span>
-            </button>
-          );
-        })}
+        {pageTitle}
       </div>
 
-      {/* Right: search + live presence + user */}
+      {/* Global search field — opens the ⌘K command palette. */}
       <button
+        className="topnav-search"
         onClick={onOpenSearch}
         title="Search (⌘K)"
         style={{
           display: "flex",
           alignItems: "center",
-          justifyContent: "center",
-          width: 34,
-          height: 34,
-          background: dark ? "rgba(255,255,255,0.06)" : theme.color.surfaceMuted,
+          gap: 9,
+          margin: "0 auto",
+          width: "min(420px, 42vw)",
+          maxWidth: 420,
+          height: 36,
+          padding: "0 12px",
+          background: dark ? "rgba(255,255,255,0.05)" : theme.color.surfaceMuted,
           border: `1px solid ${dark ? C.hair : theme.color.border}`,
-          borderRadius: dark ? 999 : 10,
+          borderRadius: 999,
           color: dark ? C.inkDim : theme.color.slate,
           cursor: "pointer",
-          flexShrink: 0,
+          textAlign: "left",
         }}
       >
-        <Search size={16} />
+        <Search size={15} />
+        <span className="topnav-search-label" style={{ fontFamily: theme.font.mono, fontSize: 12, letterSpacing: "0.02em", flex: 1 }}>
+          Search voyages, containers, docs…
+        </span>
+        <span
+          className="topnav-search-kbd"
+          style={{
+            fontFamily: theme.font.mono,
+            fontSize: 10,
+            letterSpacing: "0.06em",
+            padding: "2px 6px",
+            borderRadius: 6,
+            border: `1px solid ${dark ? C.hair : theme.color.border}`,
+            color: dark ? C.inkDim : theme.color.slate,
+          }}
+        >
+          ⌘K
+        </span>
       </button>
+
       <LivePill online={online} dark={dark} />
       <SyncPill />
       <div ref={menuRef} style={{ position: "relative" }}>
@@ -278,7 +234,18 @@ export default function TopNav({ onOpenSearch }) {
       <style>{`
         @keyframes navPulse { 0% { box-shadow: 0 0 0 0 rgba(220,38,38,.45); } 70% { box-shadow: 0 0 0 5px rgba(220,38,38,0); } 100% { box-shadow: 0 0 0 0 rgba(220,38,38,0); } }
         @keyframes livePulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
-        @media (max-width: 1100px) { .topnav-label { display: none !important; } }
+        /* Desktop: the sidebar owns the logo/portal; hide the mobile duplicates. */
+        @media (min-width: 768px) {
+          .topnav-logo { display: none !important; }
+          .topnav-portal { display: none !important; }
+        }
+        @media (max-width: 767px) {
+          .topnav-title { display: none !important; }
+          .topnav-search-label { display: none !important; }
+          .topnav-search-kbd { display: none !important; }
+          /* Collapse the search field to a round icon button on phones. */
+          .topnav-search { width: 36px !important; padding: 0 !important; justify-content: center !important; margin: 0 0 0 auto !important; }
+        }
       `}</style>
     </div>
   );
