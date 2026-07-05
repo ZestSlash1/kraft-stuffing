@@ -66,8 +66,11 @@ export default function MailShell() {
     { view: "settings", label: "Settings", Icon: SettingsIcon },
   ];
 
-  // Effective account id passed to fetching views: 'all' or a concrete id.
-  const effectiveAccountId = selectedId;
+  // Effective account id passed to fetching views: 'all' or a concrete id. With a
+  // single account, "All inboxes" collapses to that account so existing single-account
+  // users get the unchanged single-account inbox (no merged chrome for one mailbox).
+  const effectiveAccountId =
+    selectedId === ALL && accounts && accounts.length === 1 ? accounts[0].id : selectedId;
   const defaultAccount = accounts?.find((a) => a.is_default) || accounts?.[0] || null;
   // The account compose should send from by default (single selection, else default).
   const composeDefaultId =
