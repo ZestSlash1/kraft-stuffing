@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { Bold, Italic, Link as LinkIcon, Plus, Star, Trash2, SlidersHorizontal } from "lucide-react";
+import { Bold, Italic, Link as LinkIcon, Plus, Star, Trash2, SlidersHorizontal, Image as ImageIcon, Stamp } from "lucide-react";
 import { theme } from "../../theme";
-import { mailApi } from "../../lib/mailApi";
+import { mailApi, uploadSignatureImage } from "../../lib/mailApi";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import { ConnGroup, CONN_CODE_LABELS } from "./ConnectView";
 
@@ -313,16 +313,30 @@ function AdvancedSettings({ accountId, onSaved }) {
   );
 }
 
-// Per-account signature — a lightweight contenteditable with bold/italic/link.
+// The house signature block — inline styles only (email-safe), placed on white.
+// The logo is inserted by the user via the image button, positioned wherever their
+// cursor is (typically between the name and company line).
+const KRAFT_SIGNATURE_HTML = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1a1a1a;line-height:1.5;">Best Regards,<br><b>Shahzeb Tanweer</b><br><br><b>KRAFT SHIPPING AND LOGISTICS PVT LTD</b><br>15 Lu Shun Sarani 3rd Floor<br>Kolkata &#8211; 700073<br>West Bengal, India<br><br>Cell No: +91 9051055017<br>Email id: <a href="mailto:shahzeb@kraftshipping.com">shahzeb@kraftshipping.com</a>, <a href="mailto:shahzeb@shafrina.com">shahzeb@shafrina.com</a><br><a href="https://www.kraftshipping.com">www.kraftshipping.com</a></div>`;
+
+// Per-account signature — a lightweight contenteditable with bold/italic/link, plus
+// logo upload (hosted in the public mail-assets bucket) and a live width slider to
+// rescale the selected image so it fits perfectly.
 function SignatureEditor({ accountId }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState("");
+  const [selImg, setSelImg] = useState(null); // currently-clicked <img> in the editor
+  const [imgW, setImgW] = useState(180);
   const ref = useRef(null);
+  const fileRef = useRef(null);
+  const savedRange = useRef(null); // last caret position, so inserts land where expected
 
   useEffect(() => {
     let alive = true;
     setLoading(true);
+    setSelImg(null);
     mailApi
       .getAccountSettings(accountId)
       .then((s) => {
@@ -333,6 +347,23 @@ function SignatureEditor({ accountId }) {
     return () => { alive = false; };
   }, [accountId]);
 
+  // Remember the caret so toolbar/file-dialog actions insert at the right spot.
+  const rememberCaret = () => {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount && ref.current?.contains(sel.anchorNode)) {
+      savedRange.current = sel.getRangeAt(0).cloneRange();
+    }
+  };
+
+  const restoreCaret = () => {
+    ref.current?.focus();
+    const sel = window.getSelection();
+    if (savedRange.current && sel) {
+      sel.removeAllRanges();
+      sel.addRange(savedRange.current);
+    }
+  };
+
   const cmd = (command) => {
     if (command === "createLink") {
       const url = window.prompt("Link URL");
@@ -341,6 +372,55 @@ function SignatureEditor({ accountId }) {
       document.execCommand(command, false, null);
     }
     ref.current?.focus();
+  };
+
+  const insertTemplate = () => {
+    restoreCaret();
+    document.execCommand("insertHTML", false, KRAFT_SIGNATURE_HTML + "<br>");
+    rememberCaret();
+  };
+
+  const onPickImage = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-picking the same file
+    if (!file) return;
+    setError("");
+    setUploading(true);
+    try {
+      const url = await uploadSignatureImage(file);
+      restoreCaret();
+      // width + inline style + height:auto → renders consistently across mail clients.
+      document.execCommand(
+        "insertHTML",
+        false,
+        `<img src="${url}" alt="logo" width="180" style="width:180px;height:auto;display:inline-block;" />&nbsp;`
+      );
+      rememberCaret();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // Click an image in the editor to select it for resizing.
+  const onEditorClick = (e) => {
+    if (e.target?.tagName === "IMG") {
+      setSelImg(e.target);
+      const w = parseInt(e.target.getAttribute("width"), 10) || e.target.offsetWidth || 180;
+      setImgW(w);
+    } else {
+      setSelImg(null);
+    }
+  };
+
+  const onResize = (w) => {
+    setImgW(w);
+    if (selImg) {
+      selImg.setAttribute("width", String(w));
+      selImg.style.width = `${w}px`;
+      selImg.style.height = "auto";
+    }
   };
 
   const save = async () => {
@@ -355,55 +435,104 @@ function SignatureEditor({ accountId }) {
     }
   };
 
+  const toolBtn = {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: 34,
+    height: 32,
+    background: theme.color.surface,
+    border: `1px solid ${theme.color.borderStrong}`,
+    borderRadius: theme.radius.sm,
+    color: theme.color.inkSoft,
+    cursor: "pointer",
+  };
+
   return (
     <div>
       <div style={{ fontFamily: theme.font.mono, fontSize: 10, letterSpacing: "0.18em", color: theme.color.slate, textTransform: "uppercase", marginBottom: 8 }}>
         Signature
       </div>
-      <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+      <div style={{ display: "flex", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
         {[
           { Icon: Bold, c: "bold" },
           { Icon: Italic, c: "italic" },
           { Icon: LinkIcon, c: "createLink" },
         ].map(({ Icon, c }) => (
-          <button
-            key={c}
-            onMouseDown={(e) => { e.preventDefault(); cmd(c); }}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: 34,
-              height: 32,
-              background: theme.color.surface,
-              border: `1px solid ${theme.color.borderStrong}`,
-              borderRadius: theme.radius.sm,
-              color: theme.color.inkSoft,
-              cursor: "pointer",
-            }}
-          >
+          <button key={c} onMouseDown={(e) => { e.preventDefault(); cmd(c); }} style={toolBtn}>
             <Icon size={15} />
           </button>
         ))}
+        {/* Insert logo (uploads to the public bucket, then embeds the URL). */}
+        <button
+          onMouseDown={(e) => { e.preventDefault(); rememberCaret(); }}
+          onClick={() => fileRef.current?.click()}
+          disabled={uploading || loading}
+          title="Insert logo"
+          style={{ ...toolBtn, width: "auto", padding: "0 10px", gap: 6, fontFamily: theme.font.mono, fontSize: 11 }}
+        >
+          <ImageIcon size={15} /> {uploading ? "Uploading…" : "Logo"}
+        </button>
+        {/* One-click Kraft signature template. */}
+        <button
+          onMouseDown={(e) => { e.preventDefault(); rememberCaret(); }}
+          onClick={insertTemplate}
+          disabled={loading}
+          title="Insert Kraft signature template"
+          style={{ ...toolBtn, width: "auto", padding: "0 10px", gap: 6, fontFamily: theme.font.mono, fontSize: 11 }}
+        >
+          <Stamp size={15} /> Kraft template
+        </button>
+        <input ref={fileRef} type="file" accept="image/*" onChange={onPickImage} style={{ display: "none" }} />
       </div>
+
+      {/* Resize slider — appears when an image in the editor is selected. */}
+      {selImg && (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+          <span style={{ fontFamily: theme.font.mono, fontSize: 10, letterSpacing: "0.1em", color: theme.color.slate, textTransform: "uppercase" }}>
+            Logo width
+          </span>
+          <input
+            type="range"
+            min={40}
+            max={480}
+            value={imgW}
+            onChange={(e) => onResize(Number(e.target.value))}
+            style={{ flex: 1, accentColor: theme.color.amber }}
+          />
+          <span style={{ fontFamily: theme.font.mono, fontSize: 11, color: theme.color.ink, width: 46, textAlign: "right" }}>
+            {imgW}px
+          </span>
+        </div>
+      )}
+
       <div
         ref={ref}
         contentEditable={!loading}
         suppressContentEditableWarning
+        onClick={onEditorClick}
+        onKeyUp={rememberCaret}
+        onMouseUp={rememberCaret}
+        onBlur={rememberCaret}
         style={{
           minHeight: 120,
-          background: theme.color.surface,
+          background: "#ffffff", // white canvas — matches the recipient's email background
           border: `1px solid ${theme.color.border}`,
           borderRadius: theme.radius.input,
           padding: "12px 14px",
-          fontFamily: theme.font.body,
+          fontFamily: "Arial, Helvetica, sans-serif",
           fontSize: 14,
           lineHeight: 1.6,
-          color: theme.color.ink,
+          color: "#1a1a1a",
           outline: "none",
           opacity: loading ? 0.5 : 1,
         }}
       />
+
+      {error && (
+        <div style={{ marginTop: 8, fontFamily: theme.font.mono, fontSize: 11, color: theme.color.red }}>{error}</div>
+      )}
+
       <button
         onClick={save}
         disabled={saving || loading}

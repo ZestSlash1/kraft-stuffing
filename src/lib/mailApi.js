@@ -3,6 +3,27 @@
 // can verify the session and scope queries to this user.
 import { supabase } from "./supabase";
 
+// Upload a signature image (logo) to the PUBLIC `mail-assets` bucket and return its
+// permanent public URL — email recipients aren't authenticated, so signed URLs won't
+// do. The URL is embedded straight into the account's signature_html. Returns the URL
+// string; throws on failure.
+export async function uploadSignatureImage(file) {
+  if (!file) throw new Error("No file selected");
+  if (!file.type?.startsWith("image/")) throw new Error("Please choose an image file");
+  if (file.size > 2 * 1024 * 1024) throw new Error("Image is too large (max 2 MB)");
+  const { data: sess } = await supabase.auth.getSession();
+  const uid = sess?.session?.user?.id || "anon";
+  const ext = (file.name?.split(".").pop() || "png").replace(/[^a-z0-9]/gi, "").slice(0, 5) || "png";
+  const path = `signatures/${uid}/${Date.now()}.${ext}`;
+  const { error } = await supabase.storage
+    .from("mail-assets")
+    .upload(path, file, { contentType: file.type, upsert: false });
+  if (error) throw new Error(error.message || "Upload failed");
+  const { data } = supabase.storage.from("mail-assets").getPublicUrl(path);
+  if (!data?.publicUrl) throw new Error("Could not resolve image URL");
+  return data.publicUrl;
+}
+
 async function authHeader() {
   const { data } = await supabase.auth.getSession();
   const token = data?.session?.access_token;
