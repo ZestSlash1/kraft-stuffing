@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { Plus, FileDown, Ban } from "lucide-react";
+import { Plus, Eye, Ban } from "lucide-react";
 import { theme } from "../theme";
 import { Card, Pill, StatusBadge } from "../components/ui";
 import { useToast } from "../components/Toast";
+import DocViewer from "../components/DocViewer";
 import { useRouter } from "../context/RouterContext";
 import { formatDDMMYY } from "../lib/format";
 import { getSignedDocumentUrl } from "../lib/documents";
@@ -23,6 +24,7 @@ export default function CartingOrdersView({ app }) {
   const [voyageId, setVoyageId] = useState(state.activeVoyageId || voyages[0]?.id || "");
   const [orders, setOrders] = useState(null);
   const [creating, setCreating] = useState(false);
+  const [viewerDoc, setViewerDoc] = useState(null);
 
   const voyage = voyages.find((v) => v.id === voyageId) || null;
 
@@ -72,14 +74,19 @@ export default function CartingOrdersView({ app }) {
     reload();
   };
 
-  const download = async (order) => {
+  // Open the issued PDF in-app; new-tab remains a secondary action in DocViewer.
+  const view = async (order) => {
     if (!order.pdfPath) return;
     const { url, error } = await getSignedDocumentUrl(order.pdfPath);
     if (error || !url) {
-      showToast("Could not create download link", "error");
+      showToast("Could not open document", "error");
       return;
     }
-    window.open(url, "_blank", "noopener");
+    setViewerDoc({
+      url,
+      fileName: `Carting Order ${order.snapshot?.number || "draft"}.pdf`,
+      mimeType: "application/pdf",
+    });
   };
 
   return (
@@ -163,8 +170,8 @@ export default function CartingOrdersView({ app }) {
                 </div>
                 <div style={{ display: "flex", gap: 6 }}>
                   {o.pdfPath && (
-                    <button onClick={(e) => { e.stopPropagation(); download(o); }} title="Download" style={iconBtn}>
-                      <FileDown size={14} />
+                    <button onClick={(e) => { e.stopPropagation(); view(o); }} title="View" style={iconBtn}>
+                      <Eye size={14} />
                     </button>
                   )}
                   {o.status !== "void" && (
@@ -178,6 +185,8 @@ export default function CartingOrdersView({ app }) {
           </div>
         )}
       </div>
+
+      <DocViewer open={!!viewerDoc} doc={viewerDoc} onClose={() => setViewerDoc(null)} />
     </div>
   );
 }
