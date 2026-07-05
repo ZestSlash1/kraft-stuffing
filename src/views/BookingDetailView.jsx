@@ -4,6 +4,7 @@ import { formatIST } from "../data/statusHelpers";
 import { theme } from "../theme";
 import { FREIGHT_STATUS_COLORS, PAYMENT_STATUS_COLORS } from "../data/manifestHelpers";
 import ConfirmDialog from "../components/ConfirmDialog";
+import AttachmentsPanel from "../components/AttachmentsPanel";
 
 function Badge({ status, colors }) {
   const color = colors[status] || theme.color.slate;
@@ -196,6 +197,10 @@ export default function BookingDetailView({ app, voyage, booking, onBack, onEdit
           ))}
         </div>
       )}
+
+      <div style={{ marginTop: 16 }}>
+        <AttachmentsPanel parentType="booking" parentId={booking.id} createdBy={app?.user?.id} />
+      </div>
     </div>
   );
 }

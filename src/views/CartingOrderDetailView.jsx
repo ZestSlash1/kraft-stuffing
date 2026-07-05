@@ -4,6 +4,7 @@ import { theme } from "../theme";
 import { C, F, glass } from "../ui/theme";
 import { Input, Pill } from "../components/ui";
 import { useToast } from "../components/Toast";
+import AttachmentsPanel from "../components/AttachmentsPanel";
 import { useRouter } from "../context/RouterContext";
 import { useIsMobile } from "../hooks/useIsMobile";
 import {
@@ -436,6 +437,10 @@ export default function CartingOrderDetailView({ app, orderId, voyageId }) {
             <button onClick={() => onIssue("share")} disabled={busy || !online} style={primaryBtn}>Share</button>
           </div>
         )}
+
+        <div style={{ marginTop: 16 }}>
+          <AttachmentsPanel parentType="carting_order" parentId={order.id} createdBy={user?.id} />
+        </div>
       </div>
 
       {addOpen && (

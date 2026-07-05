@@ -35,7 +35,7 @@ export async function fetchAttachments({ parentType, parentId, includeVoided = f
 }
 
 // ── Writes ────────────────────────────────────────────────────────────────
-const safeName = (name) => (name || "file").replace(/[^\w.\-]+/g, "_").slice(-80);
+const safeName = (name) => (name || "file").replace(/[^\w.-]+/g, "_").slice(-80);
 
 // Uploads the binary to Storage, then inserts one metadata row. Binary uploads
 // are online-only (never queued through the offline write path) — callers gate
