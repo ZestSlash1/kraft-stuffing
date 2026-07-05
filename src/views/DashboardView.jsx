@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { gsap } from "gsap";
 import { Ship, ChevronRight, ChevronDown, AlertTriangle, Loader, Lock, CircleDot } from "lucide-react";
 import {
@@ -242,6 +242,13 @@ export default function DashboardView({ app }) {
   const voyages = state.voyages.filter((v) => !v.archived);
   const now = new Date();
 
+  // Stable so BayHero → DockScene's memo isn't defeated by a fresh closure
+  // on every realtime/presence/mail re-render of the dashboard.
+  const openContainer = useCallback(
+    (containerId) => navigate("container-log", { containerId }),
+    [navigate]
+  );
+
   // ── Aggregate cargo metrics across the tree ───────────────────────────────
   const allLines = [];
   for (const v of state.voyages) for (const c of v.containers) for (const l of c.lines || []) allLines.push(l);
@@ -416,7 +423,7 @@ export default function DashboardView({ app }) {
 
           {/* Hero centerpiece */}
           <div className="ldx-hero" style={{ minWidth: 0 }}>
-            <BayHero voyage={activeVoyage} onContainerClick={(containerId) => navigate("container-log", { containerId })} />
+            <BayHero voyage={activeVoyage} onContainerClick={openContainer} />
           </div>
 
           {/* Right rail — stow monitor */}
