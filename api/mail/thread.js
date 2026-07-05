@@ -4,6 +4,9 @@ import { simpleParser } from "mailparser";
 import { requireUser, httpError, withErrors } from "../_lib/auth.js";
 import { resolveAccount, openImap } from "../_lib/mailAccount.js";
 
+// Opening a slow mailbox to parse one message — raise above Vercel's short default.
+export const config = { maxDuration: 45 };
+
 export default withErrors(async (req, res) => {
   if (req.method !== "GET") throw httpError(405, "Method not allowed");
   const user = await requireUser(req);

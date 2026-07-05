@@ -40,6 +40,11 @@ function readConnection(body) {
   };
 }
 
+// Slow mail providers (e.g. Zimbra proxies) can take ~10s+ per handshake, and
+// connect runs an IMAP + SMTP test-connect back-to-back. Raise the function budget
+// above Vercel's short default so a healthy-but-slow server isn't killed mid-probe.
+export const config = { maxDuration: 45 };
+
 export default withErrors(async (req, res) => {
   if (req.method !== "POST") throw httpError(405, "Method not allowed");
   const user = await requireUser(req);

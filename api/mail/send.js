@@ -5,6 +5,9 @@
 import { requireUser, httpError, withErrors, readJsonBody } from "../_lib/auth.js";
 import { resolveAccount, makeTransport } from "../_lib/mailAccount.js";
 
+// Sending over a slow SMTP host — raise above Vercel's short default.
+export const config = { maxDuration: 45 };
+
 export default withErrors(async (req, res) => {
   if (req.method !== "POST") throw httpError(405, "Method not allowed");
   const user = await requireUser(req);

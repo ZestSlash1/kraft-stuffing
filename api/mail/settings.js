@@ -58,6 +58,10 @@ async function ensureOneDefault(supabase, userId, preferId) {
   await supabase.from("mail_accounts").update({ is_default: true }).eq("id", target).eq("user_id", userId);
 }
 
+// Updating connection settings re-runs the IMAP + SMTP test-connect, which can be
+// slow on some providers — raise the budget above Vercel's short default.
+export const config = { maxDuration: 45 };
+
 export default withErrors(async (req, res) => {
   const user = await requireUser(req);
   const supabase = adminClient();

@@ -164,6 +164,10 @@ export async function openImap(account) {
     ...imapSecurityOpts(account.imap_security),
     auth: { user: account.email_address, pass: account.password },
     logger: false, // never log — would expose credentials
+    // Some providers (e.g. Zimbra proxies) are slow to greet — allow up to 20s
+    // before giving up so a healthy-but-slow server isn't misreported as failed.
+    connectionTimeout: 20000,
+    greetingTimeout: 20000,
   });
   await client.connect();
   return client;
@@ -175,5 +179,9 @@ export function makeTransport(account) {
     port: account.smtp_port,
     ...smtpSecurityOpts(account.smtp_security),
     auth: { user: account.email_address, pass: account.password },
+    // Match IMAP: tolerate slow SMTP handshakes rather than failing prematurely.
+    connectionTimeout: 20000,
+    greetingTimeout: 20000,
+    socketTimeout: 25000,
   });
 }

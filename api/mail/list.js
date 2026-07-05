@@ -66,6 +66,9 @@ async function fetchHeaders(account, folder) {
   return messages;
 }
 
+// Fetching can span several slow mailboxes — raise above Vercel's short default.
+export const config = { maxDuration: 45 };
+
 export default withErrors(async (req, res) => {
   if (req.method !== "GET") throw httpError(405, "Method not allowed");
   const user = await requireUser(req);
