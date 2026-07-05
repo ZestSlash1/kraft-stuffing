@@ -149,7 +149,10 @@ export async function testConnect(account) {
     await client.logout().catch(() => {});
   } catch (err) {
     // TEMP DIAGNOSTIC (no credentials): reveal WHY the IMAP probe failed on Vercel.
-    console.error(`[mail][imap] ${account.imap_host}:${account.imap_port}/${account.imap_security} after ${Date.now() - t0}ms code=${err?.code} msg=${err?.message}`);
+    console.error(`[mail][imap] ${account.imap_host}:${account.imap_port}/${account.imap_security} after ${Date.now() - t0}ms`, JSON.stringify({
+      code: err?.code, msg: err?.message, authFailed: err?.authenticationFailed,
+      respText: err?.responseText, response: err?.response, serverCode: err?.serverResponseCode, cmd: err?.command,
+    }));
     throw connectError(isAuthError(err) ? "auth_failed" : "imap_failed");
   }
   // SMTP side — verify() performs a login handshake without sending mail.
