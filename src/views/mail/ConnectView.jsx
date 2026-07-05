@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Mail, ShieldCheck, Check } from "lucide-react";
 import { theme } from "../../theme";
+import { glass } from "../../ui/theme";
 import { mailApi } from "../../lib/mailApi";
 import { MAIL_COLORS, DEFAULT_MAIL_COLOR } from "./palette";
 
@@ -17,19 +18,77 @@ const field = {
   outline: "none",
 };
 
-// Hostinger IMAP/SMTP hosts + ports are fixed — only email + password are entered.
+// Provider presets prefill host/port/security; fields stay editable ("Custom" = blank).
+export const MAIL_PRESETS = {
+  hostinger: { label: "Hostinger", imap_host: "imap.hostinger.com", imap_port: 993, imap_security: "ssl", smtp_host: "smtp.hostinger.com", smtp_port: 465, smtp_security: "ssl" },
+  gmail: { label: "Gmail", imap_host: "imap.gmail.com", imap_port: 993, imap_security: "ssl", smtp_host: "smtp.gmail.com", smtp_port: 587, smtp_security: "starttls" },
+  custom: { label: "Custom", imap_host: "", imap_port: 993, imap_security: "ssl", smtp_host: "", smtp_port: 465, smtp_security: "ssl" },
+};
+
+// Machine codes from connect.js/settings.js → which side of the config to fix.
+export const CONN_CODE_LABELS = {
+  auth_failed: "Sign-in rejected — check the email and password.",
+  imap_failed: "Couldn't reach the IMAP server — check the incoming host, port, and security.",
+  smtp_failed: "Couldn't reach the SMTP server — check the outgoing host, port, and security.",
+};
+
+// Editable IMAP or SMTP sub-panel. `conn`/`setConn` hold the flat connection object.
+export function ConnGroup({ title, prefix, conn, setConn }) {
+  const set = (k, v) => setConn((c) => ({ ...c, [`${prefix}_${k}`]: v }));
+  const lbl = { fontFamily: theme.font.mono, fontSize: 9, letterSpacing: "0.14em", color: theme.color.slate, textTransform: "uppercase", marginBottom: 4, display: "block" };
+  return (
+    <div style={{ ...glass(theme.radius.input), padding: "12px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{ fontFamily: theme.font.condensed, fontWeight: 700, fontSize: 13, letterSpacing: "0.04em", color: theme.color.ink, textTransform: "uppercase" }}>{title}</div>
+      <div>
+        <label style={lbl}>Host</label>
+        <input value={conn[`${prefix}_host`]} onChange={(e) => set("host", e.target.value)} placeholder="mail.example.com" style={field} />
+      </div>
+      <div style={{ display: "flex", gap: 10 }}>
+        <div style={{ flex: "0 0 96px" }}>
+          <label style={lbl}>Port</label>
+          <input inputMode="numeric" value={conn[`${prefix}_port`]} onChange={(e) => set("port", e.target.value.replace(/[^0-9]/g, ""))} style={field} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <label style={lbl}>Security</label>
+          <select value={conn[`${prefix}_security`]} onChange={(e) => set("security", e.target.value)} style={{ ...field, appearance: "auto", cursor: "pointer" }}>
+            <option value="ssl">SSL / TLS</option>
+            <option value="starttls">STARTTLS</option>
+            <option value="none">None</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Provider host/port/security are per-account; a preset prefills them, then editable.
 export default function ConnectView({ onConnected }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [color, setColor] = useState(DEFAULT_MAIL_COLOR);
+  const [preset, setPreset] = useState("hostinger");
+  const [conn, setConn] = useState(() => {
+    const { label, ...rest } = MAIL_PRESETS.hostinger; // eslint-disable-line no-unused-vars
+    return rest;
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  const applyPreset = (key) => {
+    setPreset(key);
+    const { label, ...rest } = MAIL_PRESETS[key]; // eslint-disable-line no-unused-vars
+    setConn(rest);
+  };
 
   const submit = async () => {
     setError("");
     if (!email.includes("@") || !password) {
       setError("Enter your mailbox email and password.");
+      return;
+    }
+    if (!conn.imap_host || !conn.smtp_host) {
+      setError("Enter the incoming (IMAP) and outgoing (SMTP) server hosts.");
       return;
     }
     setLoading(true);
@@ -39,10 +98,16 @@ export default function ConnectView({ onConnected }) {
         password,
         display_name: displayName.trim() || email,
         color,
+        imap_host: conn.imap_host,
+        imap_port: Number(conn.imap_port),
+        imap_security: conn.imap_security,
+        smtp_host: conn.smtp_host,
+        smtp_port: Number(conn.smtp_port),
+        smtp_security: conn.smtp_security,
       });
       onConnected?.(r?.account);
     } catch (e) {
-      setError(e.message);
+      setError(CONN_CODE_LABELS[e.message] || e.message);
     } finally {
       setLoading(false);
     }
@@ -65,7 +130,7 @@ export default function ConnectView({ onConnected }) {
         </div>
       </div>
       <div style={{ fontFamily: theme.font.mono, fontSize: 12, color: theme.color.slate, marginBottom: 24 }}>
-        Hostinger · imap.hostinger.com:993 · smtp.hostinger.com:465 (SSL/TLS)
+        Connect any IMAP/SMTP mailbox — pick a provider preset or enter custom servers.
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -132,6 +197,25 @@ export default function ConnectView({ onConnected }) {
             })}
           </div>
         </div>
+        {/* Provider preset — prefills the server fields below (still editable). */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontFamily: theme.font.mono, fontSize: 10, letterSpacing: "0.14em", color: theme.color.slate, textTransform: "uppercase" }}>
+            Provider
+          </span>
+          <select
+            value={preset}
+            onChange={(e) => applyPreset(e.target.value)}
+            style={{ ...field, width: "auto", flex: 1, appearance: "auto", cursor: "pointer" }}
+          >
+            {Object.entries(MAIL_PRESETS).map(([k, p]) => (
+              <option key={k} value={k}>{p.label}</option>
+            ))}
+          </select>
+        </div>
+
+        <ConnGroup title="Incoming (IMAP)" prefix="imap" conn={conn} setConn={setConn} />
+        <ConnGroup title="Outgoing (SMTP)" prefix="smtp" conn={conn} setConn={setConn} />
+
         <button
           onClick={submit}
           disabled={loading}
