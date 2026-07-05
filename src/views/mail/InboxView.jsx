@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { RefreshCw, CornerUpLeft, AlertTriangle, Paperclip, Search, X } from "lucide-react";
-import { MC, MF, MSP, MR, mailCard, tagChip, MAIL_ACTIONS } from "../../ui/mailTheme";
+import gsap from "gsap";
+import { MC, MF, MG, MSP, MR, mailCard, MAIL_ACTIONS } from "../../ui/mailTheme";
 import { mailApi } from "../../lib/mailApi";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import { formatRelative, formatAbsolute } from "../../lib/format";
@@ -8,7 +9,6 @@ import { useRouter } from "../../context/RouterContext";
 import { globalSearch, ROUTE_FOR } from "../../lib/search";
 import DocViewer from "../../components/DocViewer";
 
-// Entity refs detected in mail text: container numbers and KRAFT document numbers.
 const REF_RE = /\b[A-Z]{4}\d{7}\b|\bKRAFT\/(?:HBL|AN|DO)\/\d{4}\/\d{4}\b/g;
 
 function RefText({ text, onRef, style }) {
@@ -21,18 +21,9 @@ function RefText({ text, onRef, style }) {
     out.push(<span key={`t${i}`}>{p}</span>);
     if (refs[i] !== undefined)
       out.push(
-        <span
-          key={`r${i}`}
+        <span key={`r${i}`}
           onClick={(e) => { e.stopPropagation(); onRef(refs[i]); }}
-          style={{
-            fontFamily: MF.mono,
-            color: MC.blue,
-            textDecoration: "underline",
-            textDecorationColor: MC.blue,
-            textDecorationThickness: 1,
-            cursor: "pointer",
-          }}
-        >
+          style={{ fontFamily: MF.mono, color: MC.blue, textDecoration: "underline", textDecorationColor: MC.blue, textDecorationThickness: 1, cursor: "pointer" }}>
           {refs[i]}
         </span>
       );
@@ -50,11 +41,14 @@ export default function InboxView({ folder = "INBOX", accountId = null, accounts
   const [respAccounts, setRespAccounts] = useState(null);
   const [selected, setSelected] = useState(null);
   const [loadingBody, setLoadingBody] = useState(false);
-  const [filter, setFilter] = useState("all"); // 'all' | 'unread'
+  const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [viewerDoc, setViewerDoc] = useState(null);
   const isMobile = useIsMobile();
   const { navigate } = useRouter();
+  const listRef = useRef(null);
+  const paneRef = useRef(null);
+  const headerRef = useRef(null);
 
   const isAll = accountId === "all";
   const accountMap = useMemo(() => {
@@ -97,24 +91,43 @@ export default function InboxView({ folder = "INBOX", accountId = null, accounts
     const interval = setInterval(tick, 30000);
     window.addEventListener("focus", tick);
     document.addEventListener("visibilitychange", tick);
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener("focus", tick);
-      document.removeEventListener("visibilitychange", tick);
-    };
+    return () => { clearInterval(interval); window.removeEventListener("focus", tick); document.removeEventListener("visibilitychange", tick); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [folder, accountId]);
+
+  // Stagger-animate message rows when list loads
+  useEffect(() => {
+    if (loading || !listRef.current) return;
+    const rows = listRef.current.querySelectorAll(".mail-row");
+    if (rows.length === 0) return;
+    const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (prefersReduced) return;
+    gsap.fromTo(rows,
+      { opacity: 0, y: 14 },
+      { opacity: 1, y: 0, duration: 0.32, stagger: 0.045, ease: "power2.out", clearProps: "transform,opacity" }
+    );
+  }, [loading, messages.length]);
+
+  // Animate header on mount
+  useEffect(() => {
+    if (!headerRef.current) return;
+    gsap.fromTo(headerRef.current, { y: -12, opacity: 0 }, { y: 0, opacity: 1, duration: 0.35, ease: "power2.out" });
+  }, []);
 
   const open = (m) => {
     setLoadingBody(true);
     const threadAccountId = m.accountId || (isAll ? null : accountId);
-    mailApi
-      .thread(m.uid, folder, threadAccountId)
+    mailApi.thread(m.uid, folder, threadAccountId)
       .then((msg) => {
         setSelected(msg);
-        setMessages((prev) =>
-          prev.map((x) => (x.uid === m.uid && x.accountId === m.accountId ? { ...x, seen: true } : x))
-        );
+        setMessages((prev) => prev.map((x) => (x.uid === m.uid && x.accountId === m.accountId ? { ...x, seen: true } : x)));
+        // Animate reading pane in
+        if (paneRef.current) {
+          const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+          if (!prefersReduced) {
+            gsap.fromTo(paneRef.current, { opacity: 0, x: 18 }, { opacity: 1, x: 0, duration: 0.3, ease: "power2.out" });
+          }
+        }
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoadingBody(false));
@@ -139,94 +152,48 @@ export default function InboxView({ folder = "INBOX", accountId = null, accounts
 
   return (
     <div style={{ display: "flex", height: "100%", fontFamily: MF.body }}>
-      {/* Message list */}
-      <div
-        style={{
-          width: isMobile ? "100%" : 340,
-          flexShrink: 0,
-          borderRight: isMobile ? "none" : `1px solid ${MC.border}`,
-          overflowY: "auto",
-          display: showList ? "flex" : "none",
-          flexDirection: "column",
-          background: MC.canvas,
-        }}
-      >
+      {/* Message list panel */}
+      <div style={{
+        width: isMobile ? "100%" : 340, flexShrink: 0,
+        borderRight: isMobile ? "none" : `1px solid ${MC.border}`,
+        overflowY: "auto", display: showList ? "flex" : "none",
+        flexDirection: "column",
+        background: "linear-gradient(180deg, #f5f8ff 0%, #eef3ff 100%)",
+      }}>
         {/* List header */}
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: MSP.sm,
-            padding: `${MSP.md}px ${MSP.lg}px ${MSP.sm}px`,
-            background: MC.surface,
-            borderBottom: `1px solid ${MC.border}`,
-            position: "sticky",
-            top: 0,
-            zIndex: 2,
-          }}
-        >
-          {/* Title + refresh */}
+        <div ref={headerRef} style={{
+          display: "flex", flexDirection: "column", gap: MSP.sm,
+          padding: `${MSP.md}px ${MSP.lg}px ${MSP.sm}px`,
+          background: MG.header,
+          borderBottom: `1px solid ${MC.border}`,
+          position: "sticky", top: 0, zIndex: 2,
+          boxShadow: "0 2px 8px rgba(30,60,180,0.05)",
+        }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <span style={{ fontFamily: MF.body, fontWeight: 700, fontSize: 17, color: MC.ink }}>
               {folder === "Sent" ? "Sent" : "Inbox"}
             </span>
-            <button onClick={() => load()} style={{ background: "none", border: "none", cursor: "pointer", color: MC.inkFaint, padding: 4 }}>
-              <RefreshCw size={15} />
-            </button>
+            <RefreshButton onClick={() => load()} />
           </div>
 
           {/* Search */}
           <div style={{ position: "relative" }}>
             <Search size={14} color={MC.inkFaint} style={{ position: "absolute", left: MSP.md, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+            <input value={search} onChange={(e) => setSearch(e.target.value)}
               placeholder="Search messages…"
-              style={{
-                width: "100%",
-                boxSizing: "border-box",
-                background: MC.canvasAlt,
-                border: `1px solid ${MC.border}`,
-                borderRadius: MR.pill,
-                padding: `${MSP.sm}px ${MSP.xl}px ${MSP.sm}px 34px`,
-                fontFamily: MF.body,
-                fontSize: 13,
-                color: MC.ink,
-                outline: "none",
-              }}
+              style={{ width: "100%", boxSizing: "border-box", background: "linear-gradient(135deg,#f8faff,#f0f4ff)", border: `1px solid ${MC.border}`, borderRadius: MR.pill, padding: `${MSP.sm}px ${MSP.xl}px ${MSP.sm}px 34px`, fontFamily: MF.body, fontSize: 13, color: MC.ink, outline: "none" }}
             />
             {search && (
-              <button
-                onClick={() => setSearch("")}
-                style={{ position: "absolute", right: MSP.sm, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: MC.inkFaint, padding: 2 }}
-              >
+              <button onClick={() => setSearch("")} style={{ position: "absolute", right: MSP.sm, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: MC.inkFaint, padding: 2 }}>
                 <X size={12} />
               </button>
             )}
           </div>
 
-          {/* All / Unread tabs */}
+          {/* All / Unread filter tabs */}
           <div style={{ display: "flex", gap: MSP.sm }}>
             {["all", "unread"].map((f) => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                style={{
-                  background: filter === f ? MC.blue : "none",
-                  border: filter === f ? "none" : `1px solid ${MC.border}`,
-                  borderRadius: MR.pill,
-                  padding: `3px ${MSP.md}px`,
-                  fontFamily: MF.body,
-                  fontWeight: filter === f ? 600 : 500,
-                  fontSize: 12,
-                  color: filter === f ? "#fff" : MC.inkDim,
-                  cursor: "pointer",
-                  textTransform: "capitalize",
-                  transition: "background 0.15s, color 0.15s",
-                }}
-              >
-                {f}
-              </button>
+              <FilterTab key={f} label={f} active={filter === f} onClick={() => setFilter(f)} />
             ))}
           </div>
         </div>
@@ -234,157 +201,45 @@ export default function InboxView({ folder = "INBOX", accountId = null, accounts
         {loading && <Note>Loading messages…</Note>}
         {error && <Note tone="danger">{error}</Note>}
 
-        {/* Per-account sync errors in merged mode */}
         {isAll && Object.entries(errors).map(([id, code]) => {
           const acc = accountMap[id];
           const name = acc?.email_address || acc?.display_name || "an account";
           return (
-            <button
-              key={`err-${id}`}
-              onClick={() => onFixAccount?.()}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: MSP.sm,
-                width: "100%",
-                textAlign: "left",
-                background: "#fff5f5",
-                border: "none",
-                borderBottom: `1px solid ${MC.border}`,
-                padding: `${MSP.sm}px ${MSP.lg}px`,
-                cursor: "pointer",
-              }}
-            >
+            <button key={`err-${id}`} onClick={() => onFixAccount?.()}
+              style={{ display: "flex", alignItems: "center", gap: MSP.sm, width: "100%", textAlign: "left", background: "#fff0f0", border: "none", borderBottom: `1px solid ${MC.border}`, padding: `${MSP.sm}px ${MSP.lg}px`, cursor: "pointer" }}>
               <AlertTriangle size={13} color={MC.danger} style={{ flexShrink: 0 }} />
-              <span style={{ fontFamily: MF.body, fontSize: 12, color: MC.inkDim }}>
-                {name} {ERR_LABEL[code] || "couldn't sync"} — check settings
-              </span>
+              <span style={{ fontFamily: MF.body, fontSize: 12, color: MC.inkDim }}>{name} {ERR_LABEL[code] || "couldn't sync"} — check settings</span>
             </button>
           );
         })}
 
         {!loading && !error && filteredMessages.length === 0 && (
-          <Note>{messages.length === 0 ? "No messages." : "No messages match."}</Note>
+          <EmptyState search={search} />
         )}
 
-        {/* Message rows */}
-        <div style={{ flex: 1 }}>
+        <div ref={listRef} style={{ flex: 1 }}>
           {filteredMessages.map((m) => {
             const active = selected?.uid === m.uid && selected?.accountId === m.accountId;
             const acc = isAll ? accountMap[m.accountId] : null;
             const accent = acc?.color || MC.blue;
             const hasAttachments = m.attachments?.length > 0;
             return (
-              <button
-                key={`${m.accountId || "one"}-${m.uid}`}
-                onClick={() => open(m)}
-                style={{
-                  display: "block",
-                  width: "100%",
-                  textAlign: "left",
-                  background: active ? MC.blueSoft : MC.surface,
-                  border: "none",
-                  borderBottom: `1px solid ${MC.hair}`,
-                  borderLeft: `3px solid ${active ? MC.blue : (isAll ? accent : "transparent")}`,
-                  padding: `${MSP.md}px ${MSP.lg}px`,
-                  cursor: "pointer",
-                  transition: "background 0.12s",
-                }}
-              >
-                {/* Account label in merged mode */}
-                {isAll && acc && (
-                  <div style={{ display: "flex", alignItems: "center", gap: MSP.xs, marginBottom: 3 }}>
-                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: accent, flexShrink: 0 }} />
-                    <span style={{ fontFamily: MF.mono, fontSize: 10, color: MC.inkFaint, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {acc.display_name || acc.email_address}
-                    </span>
-                  </div>
-                )}
-
-                {/* Sender + timestamp row */}
-                <div style={{ display: "flex", alignItems: "center", gap: MSP.sm, marginBottom: 3 }}>
-                  {!m.seen && (
-                    <span style={{ width: 7, height: 7, borderRadius: "50%", background: MC.blue, flexShrink: 0 }} />
-                  )}
-                  <span
-                    style={{
-                      flex: 1,
-                      fontFamily: MF.body,
-                      fontSize: 14,
-                      fontWeight: m.seen ? 500 : 700,
-                      color: MC.ink,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                      minWidth: 0,
-                    }}
-                  >
-                    {m.from?.name || m.from?.address || "Unknown"}
-                  </span>
-                  <span style={{ fontFamily: MF.mono, fontSize: 11, color: MC.inkFaint, flexShrink: 0 }}>
-                    {formatRelative(m.date)}
-                  </span>
-                </div>
-
-                {/* Subject */}
-                <div
-                  style={{
-                    fontFamily: MF.body,
-                    fontSize: 13,
-                    fontWeight: m.seen ? 400 : 600,
-                    color: m.seen ? MC.inkDim : MC.ink,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                    marginBottom: hasAttachments ? 4 : 0,
-                  }}
-                >
-                  <RefText text={m.subject} onRef={openRef} />
-                </div>
-
-                {/* Attachment indicator */}
-                {hasAttachments && (
-                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                    <Paperclip size={11} color={MC.inkFaint} />
-                    <span style={{ fontFamily: MF.mono, fontSize: 10, color: MC.inkFaint }}>
-                      {m.attachments.length} attachment{m.attachments.length !== 1 ? "s" : ""}
-                    </span>
-                  </div>
-                )}
-              </button>
+              <MessageRow key={`${m.accountId || "one"}-${m.uid}`}
+                message={m} active={active} acc={acc} accent={accent}
+                hasAttachments={hasAttachments} isAll={isAll}
+                onClick={() => open(m)} openRef={openRef}
+              />
             );
           })}
         </div>
       </div>
 
       {/* Reading pane */}
-      <div
-        style={{
-          flex: 1,
-          minWidth: 0,
-          overflowY: "auto",
-          background: MC.canvas,
-          display: showPane ? "block" : "none",
-        }}
-      >
+      <div style={{ flex: 1, minWidth: 0, overflowY: "auto", background: MG.pane, display: showPane ? "block" : "none" }}>
         {isMobile && selected && (
-          <div style={{ padding: `${MSP.md}px ${MSP.lg}px 0`, position: "sticky", top: 0, background: MC.canvas, zIndex: 2 }}>
-            <button
-              onClick={() => setSelected(null)}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: MSP.sm,
-                background: "none",
-                border: "none",
-                color: MC.blue,
-                fontFamily: MF.body,
-                fontWeight: 500,
-                fontSize: 14,
-                cursor: "pointer",
-                padding: "4px 0",
-              }}
-            >
+          <div style={{ padding: `${MSP.md}px ${MSP.lg}px 0`, position: "sticky", top: 0, background: MG.pane, zIndex: 2 }}>
+            <button onClick={() => setSelected(null)}
+              style={{ display: "inline-flex", alignItems: "center", gap: MSP.sm, background: "none", border: "none", color: MC.blue, fontFamily: MF.body, fontWeight: 600, fontSize: 14, cursor: "pointer", padding: "4px 0" }}>
               <CornerUpLeft size={16} /> Back
             </button>
           </div>
@@ -392,74 +247,114 @@ export default function InboxView({ folder = "INBOX", accountId = null, accounts
 
         {loadingBody && <Note>Opening…</Note>}
         {!loadingBody && !selected && !isMobile && (
-          <div
-            style={{
-              height: "100%",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flexDirection: "column",
-              gap: MSP.md,
-            }}
-          >
+          <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: MSP.md }}>
+            <div style={{ width: 48, height: 48, borderRadius: "50%", background: MC.blueSoft, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: MSP.sm }}>
+              <Paperclip size={20} color={MC.blue} strokeWidth={1.5} />
+            </div>
             <div style={{ fontFamily: MF.body, fontSize: 14, color: MC.inkFaint }}>Select a message to read</div>
           </div>
         )}
         {!loadingBody && selected && (
-          <ThreadView
-            message={selected}
-            onReply={onReply}
-            openRef={openRef}
-            onViewAttachment={setViewerDoc}
-          />
+          <div ref={paneRef}>
+            <ThreadView message={selected} onReply={onReply} openRef={openRef} onViewAttachment={setViewerDoc} />
+          </div>
         )}
       </div>
 
-      {/* DocViewer for mail attachments */}
       <DocViewer open={!!viewerDoc} doc={viewerDoc} onClose={() => setViewerDoc(null)} />
     </div>
   );
 }
 
-// ─── Thread / reading pane ────────────────────────────────────────────────────
+// ─── Sub-components ────────────────────────────────────────────────────────────
+
+function MessageRow({ message: m, active, acc, accent, hasAttachments, isAll, onClick, openRef }) {
+  const ref = useRef(null);
+
+  const handleEnter = () => {
+    if (active || !ref.current) return;
+    gsap.to(ref.current, { x: 3, boxShadow: "2px 0 12px rgba(30,60,180,0.10)", duration: 0.18, ease: "power1.out" });
+  };
+  const handleLeave = () => {
+    if (!ref.current) return;
+    gsap.to(ref.current, { x: 0, boxShadow: "none", duration: 0.18, ease: "power1.in" });
+  };
+
+  return (
+    <button ref={ref} className="mail-row" onClick={onClick}
+      onMouseEnter={handleEnter} onMouseLeave={handleLeave}
+      style={{
+        display: "block", width: "100%", textAlign: "left",
+        background: active ? MG.activeRow : "transparent",
+        border: "none", borderBottom: `1px solid ${MC.hair}`,
+        borderLeft: `3px solid ${active ? MC.blue : (isAll ? accent : "transparent")}`,
+        padding: `${MSP.md}px ${MSP.lg}px`, cursor: "pointer",
+        transition: "background 0.12s, border-color 0.15s",
+        willChange: "transform",
+      }}
+    >
+      {isAll && acc && (
+        <div style={{ display: "flex", alignItems: "center", gap: MSP.xs, marginBottom: 3 }}>
+          <span style={{ width: 6, height: 6, borderRadius: "50%", background: accent, flexShrink: 0 }} />
+          <span style={{ fontFamily: MF.mono, fontSize: 10, color: MC.inkFaint, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {acc.display_name || acc.email_address}
+          </span>
+        </div>
+      )}
+      <div style={{ display: "flex", alignItems: "center", gap: MSP.sm, marginBottom: 3 }}>
+        {!m.seen && <span style={{ width: 7, height: 7, borderRadius: "50%", background: MC.blue, flexShrink: 0, boxShadow: `0 0 0 2px rgba(47,107,255,0.18)` }} />}
+        <span style={{ flex: 1, fontFamily: MF.body, fontSize: 14, fontWeight: m.seen ? 500 : 700, color: MC.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
+          {m.from?.name || m.from?.address || "Unknown"}
+        </span>
+        <span style={{ fontFamily: MF.mono, fontSize: 11, color: MC.inkFaint, flexShrink: 0 }}>
+          {formatRelative(m.date)}
+        </span>
+      </div>
+      <div style={{ fontFamily: MF.body, fontSize: 13, fontWeight: m.seen ? 400 : 600, color: m.seen ? MC.inkDim : MC.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginBottom: hasAttachments ? 4 : 0 }}>
+        <RefText text={m.subject} onRef={openRef} />
+      </div>
+      {hasAttachments && (
+        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <Paperclip size={11} color={MC.inkFaint} />
+          <span style={{ fontFamily: MF.mono, fontSize: 10, color: MC.inkFaint }}>
+            {m.attachments.length} attachment{m.attachments.length !== 1 ? "s" : ""}
+          </span>
+        </div>
+      )}
+    </button>
+  );
+}
 
 function ThreadView({ message, onReply, openRef, onViewAttachment }) {
   const isMobile = useIsMobile();
+  const subjectRef = useRef(null);
+  const metaRef = useRef(null);
+  const bodyRef = useRef(null);
+  const actionsRef = useRef(null);
 
-  // Build action list from MAIL_ACTIONS (single source of truth).
   const actions = MAIL_ACTIONS.map((a) => ({
     ...a,
     handler: a.key === "reply" ? () => onReply?.(message) : null,
   })).filter((a) => a.handler);
 
+  useEffect(() => {
+    const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (prefersReduced) return;
+    const targets = [subjectRef, metaRef, bodyRef, actionsRef].map((r) => r.current).filter(Boolean);
+    gsap.fromTo(targets,
+      { opacity: 0, y: 16 },
+      { opacity: 1, y: 0, duration: 0.35, stagger: 0.07, ease: "power2.out", clearProps: "transform,opacity" }
+    );
+  }, [message.uid]);
+
   return (
-    <div style={{ padding: isMobile ? `${MSP.md}px ${MSP.lg}px` : `${MSP.xl}px ${MSP.xxl}px` }}>
-      {/* Subject */}
-      <h1
-        style={{
-          fontFamily: MF.body,
-          fontWeight: 700,
-          fontSize: isMobile ? 20 : 24,
-          color: MC.ink,
-          margin: `0 0 ${MSP.lg}px`,
-          lineHeight: 1.25,
-          letterSpacing: "-0.01em",
-        }}
-      >
+    <div style={{ padding: isMobile ? `${MSP.md}px ${MSP.lg}px` : `${MSP.xl}px ${MSP.xxl}px`, maxWidth: 860, margin: "0 auto" }}>
+      <h1 ref={subjectRef} style={{ fontFamily: MF.body, fontWeight: 700, fontSize: isMobile ? 20 : 26, color: MC.ink, margin: `0 0 ${MSP.lg}px`, lineHeight: 1.2, letterSpacing: "-0.02em" }}>
         <RefText text={message.subject} onRef={openRef} />
       </h1>
 
-      {/* Meta row */}
-      <div
-        style={{
-          ...mailCard(MR.card),
-          padding: `${MSP.md}px ${MSP.lg}px`,
-          marginBottom: MSP.lg,
-          display: "flex",
-          flexDirection: "column",
-          gap: MSP.sm,
-        }}
-      >
+      {/* Sender meta card */}
+      <div ref={metaRef} style={{ ...mailCard(MR.card), padding: `${MSP.md}px ${MSP.lg}px`, marginBottom: MSP.lg, display: "flex", flexDirection: "column", gap: MSP.sm }}>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: MSP.md }}>
           <div>
             <div style={{ fontFamily: MF.body, fontWeight: 600, fontSize: 14, color: MC.ink }}>
@@ -485,32 +380,20 @@ function ThreadView({ message, onReply, openRef, onViewAttachment }) {
         </div>
       </div>
 
-      {/* Attachments */}
+      {/* Attachment chips */}
       {message.attachments?.length > 0 && (
         <AttachmentChips attachments={message.attachments} onView={onViewAttachment} />
       )}
 
       {/* Body */}
-      <div
-        style={{
-          ...mailCard(MR.card),
-          padding: `${MSP.xl}px`,
-          marginBottom: MSP.xl,
-          fontFamily: MF.body,
-          fontSize: 15,
-          color: MC.ink,
-          lineHeight: 1.65,
-          whiteSpace: message.html ? "normal" : "pre-wrap",
-          wordBreak: "break-word",
-          overflowX: "auto",
-        }}
+      <div ref={bodyRef} style={{ ...mailCard(MR.card), padding: `${MSP.xl}px`, marginBottom: MSP.xl, fontFamily: MF.body, fontSize: 15, color: MC.ink, lineHeight: 1.7, whiteSpace: message.html ? "normal" : "pre-wrap", wordBreak: "break-word", overflowX: "auto" }}
         {...(message.html
           ? { dangerouslySetInnerHTML: { __html: message.html } }
           : { children: <RefText text={message.text} onRef={openRef} /> })}
       />
 
-      {/* Action toolbar — only real actions */}
-      <div style={{ display: "flex", gap: MSP.sm, flexWrap: "wrap" }}>
+      {/* Actions */}
+      <div ref={actionsRef} style={{ display: "flex", gap: MSP.sm, flexWrap: "wrap" }}>
         {actions.map((a) => (
           <ActionButton key={a.key} icon={<CornerUpLeft size={15} />} label={a.label} onClick={a.handler} primary />
         ))}
@@ -521,85 +404,94 @@ function ThreadView({ message, onReply, openRef, onViewAttachment }) {
 
 function AttachmentChips({ attachments, onView }) {
   return (
-    <div
-      style={{
-        ...mailCard(MR.card),
-        padding: `${MSP.md}px ${MSP.lg}px`,
-        marginBottom: MSP.lg,
-        display: "flex",
-        flexWrap: "wrap",
-        gap: MSP.sm,
-        alignItems: "center",
-      }}
-    >
+    <div style={{ ...mailCard(MR.card), padding: `${MSP.md}px ${MSP.lg}px`, marginBottom: MSP.lg, display: "flex", flexWrap: "wrap", gap: MSP.sm, alignItems: "center" }}>
       <Paperclip size={14} color={MC.inkDim} style={{ flexShrink: 0 }} />
       {attachments.map((att, i) => (
-        <button
-          key={i}
-          onClick={() => {
-            if (att.url) onView({ url: att.url, fileName: att.filename || att.name, mimeType: att.contentType || att.mimeType });
-          }}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: MSP.xs,
-            background: MC.canvasAlt,
-            border: `1px solid ${MC.border}`,
-            borderRadius: MR.chip,
-            padding: `${MSP.xs}px ${MSP.md}px`,
-            fontFamily: MF.body,
-            fontSize: 12,
-            color: MC.ink,
-            cursor: att.url ? "pointer" : "default",
-            transition: "background 0.12s",
-          }}
-          title={att.url ? "View attachment" : "Attachment preview unavailable"}
-        >
-          <Paperclip size={11} color={MC.inkDim} />
-          {att.filename || att.name || "attachment"}
-        </button>
+        <AttachChip key={i} att={att} onView={onView} />
       ))}
     </div>
   );
 }
 
-function ActionButton({ icon, label, onClick, primary }) {
+function AttachChip({ att, onView }) {
+  const ref = useRef(null);
   return (
-    <button
-      onClick={onClick}
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: MSP.sm,
-        background: primary ? MC.blue : MC.surface,
-        border: primary ? "none" : `1px solid ${MC.border}`,
-        borderRadius: MR.pill,
-        padding: `${MSP.sm + 2}px ${MSP.xl}px`,
-        fontFamily: MF.body,
-        fontWeight: 600,
-        fontSize: 14,
-        color: primary ? "#fff" : MC.inkDim,
-        cursor: "pointer",
-        transition: "opacity 0.15s",
-        minHeight: 40,
-      }}
+    <button ref={ref}
+      onClick={() => { if (att.url) onView({ url: att.url, fileName: att.filename || att.name, mimeType: att.contentType || att.mimeType }); }}
+      onMouseEnter={() => { if (ref.current) gsap.to(ref.current, { y: -2, boxShadow: "0 4px 12px rgba(47,107,255,0.18)", duration: 0.18, ease: "power1.out" }); }}
+      onMouseLeave={() => { if (ref.current) gsap.to(ref.current, { y: 0, boxShadow: "none", duration: 0.18, ease: "power1.in" }); }}
+      style={{ display: "inline-flex", alignItems: "center", gap: MSP.xs, background: "linear-gradient(135deg,#f5f8ff,#eaf0ff)", border: `1px solid ${MC.border}`, borderRadius: MR.chip, padding: `${MSP.xs}px ${MSP.md}px`, fontFamily: MF.body, fontSize: 12, color: MC.ink, cursor: att.url ? "pointer" : "default", willChange: "transform" }}
+      title={att.url ? "View attachment" : "Preview unavailable"}
     >
-      {icon}
+      <Paperclip size={11} color={MC.blue} />
+      {att.filename || att.name || "attachment"}
+    </button>
+  );
+}
+
+function ActionButton({ icon, label, onClick, primary }) {
+  const ref = useRef(null);
+  const handlePress = () => {
+    if (!ref.current) return;
+    gsap.fromTo(ref.current, { scale: 0.95 }, { scale: 1, duration: 0.25, ease: "back.out(2)" });
+  };
+  return (
+    <button ref={ref} onClick={() => { handlePress(); onClick(); }}
+      style={{ display: "inline-flex", alignItems: "center", gap: MSP.sm, background: primary ? MG.cta : MG.card, border: primary ? "none" : `1px solid ${MC.border}`, borderRadius: MR.pill, padding: `${MSP.sm + 2}px ${MSP.xl}px`, fontFamily: MF.body, fontWeight: 600, fontSize: 14, color: primary ? "#fff" : MC.inkDim, cursor: "pointer", minHeight: 40, boxShadow: primary ? "0 4px 16px rgba(47,107,255,0.30)" : "none", willChange: "transform" }}>
+      {icon}{label}
+    </button>
+  );
+}
+
+function FilterTab({ label, active, onClick }) {
+  const ref = useRef(null);
+  const handleClick = () => {
+    if (ref.current) gsap.fromTo(ref.current, { scale: 0.92 }, { scale: 1, duration: 0.22, ease: "back.out(2.5)" });
+    onClick();
+  };
+  return (
+    <button ref={ref} onClick={handleClick}
+      style={{ background: active ? MG.cta : "none", border: active ? "none" : `1px solid ${MC.border}`, borderRadius: MR.pill, padding: `3px ${MSP.md}px`, fontFamily: MF.body, fontWeight: active ? 600 : 500, fontSize: 12, color: active ? "#fff" : MC.inkDim, cursor: "pointer", textTransform: "capitalize", boxShadow: active ? "0 2px 8px rgba(47,107,255,0.28)" : "none", willChange: "transform" }}>
       {label}
     </button>
   );
 }
 
+function RefreshButton({ onClick }) {
+  const ref = useRef(null);
+  const spin = () => {
+    if (!ref.current) return;
+    gsap.to(ref.current, { rotation: 360, duration: 0.55, ease: "power2.inOut", onComplete: () => gsap.set(ref.current, { rotation: 0 }) });
+    onClick();
+  };
+  return (
+    <button onClick={spin} style={{ background: "none", border: "none", cursor: "pointer", color: MC.inkFaint, padding: 4 }}>
+      <RefreshCw ref={ref} size={15} />
+    </button>
+  );
+}
+
+function EmptyState({ search }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!ref.current) return;
+    gsap.fromTo(ref.current, { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.4, ease: "power2.out" });
+  }, [search]);
+  return (
+    <div ref={ref} style={{ padding: `${MSP.xxl}px ${MSP.lg}px`, display: "flex", flexDirection: "column", alignItems: "center", gap: MSP.md, textAlign: "center" }}>
+      <div style={{ width: 56, height: 56, borderRadius: "50%", background: "linear-gradient(135deg,#eaf0ff,#dde8ff)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <Search size={22} color={MC.blue} strokeWidth={1.5} />
+      </div>
+      <div style={{ fontFamily: MF.body, fontSize: 14, color: MC.inkFaint }}>
+        {search ? `No results for "${search}"` : "No messages."}
+      </div>
+    </div>
+  );
+}
+
 function Note({ children, tone }) {
   return (
-    <div
-      style={{
-        padding: `${MSP.xl}px ${MSP.lg}px`,
-        fontFamily: MF.body,
-        fontSize: 13,
-        color: tone === "danger" ? MC.danger : MC.inkFaint,
-      }}
-    >
+    <div style={{ padding: `${MSP.xl}px ${MSP.lg}px`, fontFamily: MF.body, fontSize: 13, color: tone === "danger" ? MC.danger : MC.inkFaint }}>
       {children}
     </div>
   );
