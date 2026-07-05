@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { Bold, Italic, Link as LinkIcon, Plus, Star, Trash2 } from "lucide-react";
+import { Bold, Italic, Link as LinkIcon, Plus, Star, Trash2, SlidersHorizontal } from "lucide-react";
 import { theme } from "../../theme";
 import { mailApi } from "../../lib/mailApi";
 import ConfirmDialog from "../../components/ConfirmDialog";
+import { ConnGroup, CONN_CODE_LABELS } from "./ConnectView";
 
 const STATUS_TONE = {
   active: { label: "Active", color: theme.color.green },
@@ -17,6 +18,7 @@ export default function MailSettingsView({ accounts = [], limit = 4, onChanged, 
     () => accounts.find((a) => a.is_default)?.id || accounts[0]?.id || null
   );
   const [confirmId, setConfirmId] = useState(null);
+  const [expandedId, setExpandedId] = useState(null);
   const [busy, setBusy] = useState(false);
 
   // Keep a valid selection as accounts change (e.g. after disconnect).
@@ -130,6 +132,25 @@ export default function MailSettingsView({ accounts = [], limit = 4, onChanged, 
                   {a.is_default ? "Default" : "Make default"}
                 </button>
                 <button
+                  onClick={() => setExpandedId((id) => (id === a.id ? null : a.id))}
+                  disabled={busy}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    background: "none",
+                    border: `1px solid ${expandedId === a.id ? theme.color.amber : theme.color.borderStrong}`,
+                    borderRadius: theme.radius.sm,
+                    color: theme.color.inkSoft,
+                    fontFamily: theme.font.mono,
+                    fontSize: 11,
+                    padding: "6px 12px",
+                    cursor: "pointer",
+                  }}
+                >
+                  <SlidersHorizontal size={12} /> Advanced
+                </button>
+                <button
                   onClick={() => setConfirmId(a.id)}
                   disabled={busy}
                   style={{
@@ -149,6 +170,10 @@ export default function MailSettingsView({ accounts = [], limit = 4, onChanged, 
                   <Trash2 size={12} /> Disconnect
                 </button>
               </div>
+
+              {expandedId === a.id && (
+                <AdvancedSettings key={a.id} accountId={a.id} onSaved={onChanged} />
+              )}
 
               {confirmId === a.id && (
                 <ConfirmDialog
@@ -193,6 +218,97 @@ export default function MailSettingsView({ accounts = [], limit = 4, onChanged, 
       )}
 
       {selectedId && <SignatureEditor key={selectedId} accountId={selectedId} />}
+    </div>
+  );
+}
+
+// Per-account connection editor: IMAP/SMTP host/port/security, prefilled from the
+// account's current values. Save re-runs the server test-connect (settings.js) and
+// surfaces the specific failure side (imap_failed / smtp_failed / auth_failed).
+function AdvancedSettings({ accountId, onSaved }) {
+  const [conn, setConn] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let alive = true;
+    mailApi.getAccountSettings(accountId).then((s) => {
+      if (!alive) return;
+      setConn({
+        imap_host: s.imap_host || "",
+        imap_port: s.imap_port || 993,
+        imap_security: s.imap_security || "ssl",
+        smtp_host: s.smtp_host || "",
+        smtp_port: s.smtp_port || 465,
+        smtp_security: s.smtp_security || "ssl",
+      });
+    });
+    return () => { alive = false; };
+  }, [accountId]);
+
+  const save = async () => {
+    setError("");
+    setSaved(false);
+    if (!conn.imap_host || !conn.smtp_host) {
+      setError("Enter both the incoming (IMAP) and outgoing (SMTP) hosts.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await mailApi.updateAccountSettings(accountId, {
+        imap_host: conn.imap_host,
+        imap_port: Number(conn.imap_port),
+        imap_security: conn.imap_security,
+        smtp_host: conn.smtp_host,
+        smtp_port: Number(conn.smtp_port),
+        smtp_security: conn.smtp_security,
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
+      await onSaved?.();
+    } catch (e) {
+      setError(CONN_CODE_LABELS[e.message] || e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!conn) {
+    return (
+      <div style={{ marginTop: 12, fontFamily: theme.font.mono, fontSize: 11, color: theme.color.slate }}>
+        Loading settings…
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+      <ConnGroup title="Incoming (IMAP)" prefix="imap" conn={conn} setConn={setConn} />
+      <ConnGroup title="Outgoing (SMTP)" prefix="smtp" conn={conn} setConn={setConn} />
+      {error && (
+        <div style={{ fontFamily: theme.font.mono, fontSize: 11, color: theme.color.red }}>{error}</div>
+      )}
+      <button
+        onClick={save}
+        disabled={saving}
+        style={{
+          alignSelf: "flex-start",
+          border: "none",
+          borderRadius: theme.radius.sm,
+          background: saved ? theme.color.green : theme.color.amber,
+          color: theme.color.white,
+          fontFamily: theme.font.condensed,
+          fontWeight: 700,
+          fontSize: 13,
+          letterSpacing: "0.05em",
+          textTransform: "uppercase",
+          padding: "9px 18px",
+          cursor: saving ? "wait" : "pointer",
+        }}
+      >
+        {saved ? "Saved & verified" : saving ? "Testing…" : "Test & save"}
+      </button>
     </div>
   );
 }
