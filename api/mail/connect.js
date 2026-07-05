@@ -1,38 +1,65 @@
-// POST /api/mail/connect — body: { email, password, display_name?, color? }.
-// Test-connects against Hostinger IMAP, then encrypts + upserts the caller's
-// mail_accounts row. A user may connect up to MAX_ACCOUNTS mailboxes; the cap is
-// enforced HERE (server-side), not only in the UI. Re-connecting an existing address
-// updates its credentials in place and does not count against the cap.
-import { ImapFlow } from "imapflow";
+// POST /api/mail/connect — body: { email, password, display_name?, color?,
+//   imap_host, imap_port, imap_security, smtp_host, smtp_port, smtp_security }.
+// Test-connects IMAP + SMTP with the SUBMITTED per-account settings, then encrypts
+// + upserts the caller's mail_accounts row. There is no shared Hostinger constant
+// anymore — the client sends the provider's servers (a preset merely prefills them).
+// A user may connect up to MAX_ACCOUNTS mailboxes; the cap is enforced HERE
+// (server-side), not only in the UI. Re-connecting an existing address updates its
+// credentials + settings in place and does not count against the cap.
 import { requireUser, adminClient, httpError, withErrors, readJsonBody } from "../_lib/auth.js";
 import { encrypt } from "../_lib/mailCrypto.js";
-import { MAX_ACCOUNTS, ACCOUNT_COLORS } from "../_lib/mailAccount.js";
+import { MAX_ACCOUNTS, ACCOUNT_COLORS, testConnect } from "../_lib/mailAccount.js";
 
-const IMAP_HOST = "imap.hostinger.com";
-const IMAP_PORT = 993;
-const SMTP_HOST = "smtp.hostinger.com";
-const SMTP_PORT = 465;
+const SECURITY_MODES = new Set(["ssl", "starttls", "none"]);
+
+// Validate + normalize the six connection fields from the client. Throws 400 on
+// anything missing/invalid so we never persist a half-configured account.
+function readConnection(body) {
+  const host = (v, name) => {
+    const s = (v || "").toString().trim();
+    if (!s) throw httpError(400, `${name} is required`);
+    return s;
+  };
+  const port = (v, name) => {
+    const n = Number(v);
+    if (!Number.isInteger(n) || n < 1 || n > 65535) throw httpError(400, `${name} must be a valid port`);
+    return n;
+  };
+  const sec = (v, name) => {
+    const s = (v || "").toString().trim().toLowerCase();
+    if (!SECURITY_MODES.has(s)) throw httpError(400, `${name} must be ssl, starttls, or none`);
+    return s;
+  };
+  return {
+    imap_host: host(body.imap_host, "imap_host"),
+    imap_port: port(body.imap_port, "imap_port"),
+    imap_security: sec(body.imap_security, "imap_security"),
+    smtp_host: host(body.smtp_host, "smtp_host"),
+    smtp_port: port(body.smtp_port, "smtp_port"),
+    smtp_security: sec(body.smtp_security, "smtp_security"),
+  };
+}
 
 export default withErrors(async (req, res) => {
   if (req.method !== "POST") throw httpError(405, "Method not allowed");
   const user = await requireUser(req);
-  const { email: rawEmail, password, display_name, color } = readJsonBody(req);
+  const body = readJsonBody(req);
+  const { email: rawEmail, password, display_name, color } = body;
   if (!rawEmail || !password) throw httpError(400, "email and password are required");
   const email = rawEmail.trim().toLowerCase();
+  const conn = readConnection(body);
 
-  // Verify the credentials work before persisting them.
-  const probe = new ImapFlow({
-    host: IMAP_HOST,
-    port: IMAP_PORT,
-    secure: true,
-    auth: { user: email, pass: password },
-    logger: false,
-  });
+  // Verify BOTH IMAP and SMTP work with the submitted settings before persisting.
+  // Throws a coded error (imap_failed | smtp_failed | auth_failed) on failure —
+  // a broken account is never saved silently.
+  // On failure the error MESSAGE is the machine code itself (auth_failed |
+  // imap_failed | smtp_failed) — the UI maps it to a specific "which side to fix"
+  // status. withErrors passes err.message straight through to the client as `error`.
   try {
-    await probe.connect();
-    await probe.logout();
-  } catch {
-    throw httpError(401, "Could not sign in to Hostinger with that email + password");
+    await testConnect({ email_address: email, password, ...conn });
+  } catch (err) {
+    if (err.code) throw httpError(422, err.code);
+    throw err;
   }
 
   const supabase = adminClient();
@@ -53,15 +80,12 @@ export default withErrors(async (req, res) => {
   const record = {
     user_id: user.id,
     email_address: email,
-    imap_host: IMAP_HOST,
-    imap_port: IMAP_PORT,
-    smtp_host: SMTP_HOST,
-    smtp_port: SMTP_PORT,
+    ...conn,
     password_encrypted: encrypt(password),
     status: "active",
   };
   // Metadata is only applied on first insert of an address — re-connect keeps the
-  // user's chosen name/colour/default and just refreshes credentials + status.
+  // user's chosen name/colour/default and just refreshes credentials + settings.
   if (!match) {
     record.display_name = (display_name || "").trim() || email;
     record.color = color || ACCOUNT_COLORS[rows.length % ACCOUNT_COLORS.length];
