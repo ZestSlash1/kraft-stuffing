@@ -143,16 +143,21 @@ function connectError(code) {
 // email_address + password + host/port/security fields.
 export async function testConnect(account) {
   // IMAP side.
+  const t0 = Date.now();
   try {
     const client = await openImap(account);
     await client.logout().catch(() => {});
   } catch (err) {
+    // TEMP DIAGNOSTIC (no credentials): reveal WHY the IMAP probe failed on Vercel.
+    console.error(`[mail][imap] ${account.imap_host}:${account.imap_port}/${account.imap_security} after ${Date.now() - t0}ms code=${err?.code} msg=${err?.message}`);
     throw connectError(isAuthError(err) ? "auth_failed" : "imap_failed");
   }
   // SMTP side — verify() performs a login handshake without sending mail.
+  const t1 = Date.now();
   try {
     await makeTransport(account).verify();
   } catch (err) {
+    console.error(`[mail][smtp] ${account.smtp_host}:${account.smtp_port}/${account.smtp_security} after ${Date.now() - t1}ms code=${err?.code} msg=${err?.message}`);
     throw connectError(isAuthError(err) ? "auth_failed" : "smtp_failed");
   }
 }
