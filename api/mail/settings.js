@@ -73,7 +73,7 @@ export default withErrors(async (req, res) => {
   if (req.method === "GET") {
     const { data } = await supabase
       .from("mail_accounts")
-      .select("id, email_address, display_name, color, is_default, status, signature_html")
+      .select("id, email_address, display_name, color, is_default, status, signature_html, imap_host, imap_port, imap_security, smtp_host, smtp_port, smtp_security")
       .eq("id", accountId)
       .eq("user_id", user.id)
       .maybeSingle();
@@ -86,6 +86,13 @@ export default withErrors(async (req, res) => {
       is_default: data.is_default,
       status: data.status,
       signature_html: data.signature_html || "",
+      // Non-secret connection settings (host/port/security), for the advanced editor.
+      imap_host: data.imap_host,
+      imap_port: data.imap_port,
+      imap_security: data.imap_security,
+      smtp_host: data.smtp_host,
+      smtp_port: data.smtp_port,
+      smtp_security: data.smtp_security,
     });
   }
 
