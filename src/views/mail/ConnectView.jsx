@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Mail, ShieldCheck } from "lucide-react";
+import { Mail, ShieldCheck, Check } from "lucide-react";
 import { theme } from "../../theme";
 import { mailApi } from "../../lib/mailApi";
+import { MAIL_COLORS, DEFAULT_MAIL_COLOR } from "./palette";
 
 const field = {
   width: "100%",
@@ -20,6 +21,8 @@ const field = {
 export default function ConnectView({ onConnected }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [color, setColor] = useState(DEFAULT_MAIL_COLOR);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -31,8 +34,13 @@ export default function ConnectView({ onConnected }) {
     }
     setLoading(true);
     try {
-      await mailApi.connect(email, password);
-      onConnected?.();
+      const r = await mailApi.connect({
+        email,
+        password,
+        display_name: displayName.trim() || email,
+        color,
+      });
+      onConnected?.(r?.account);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -83,6 +91,47 @@ export default function ConnectView({ onConnected }) {
           onBlur={(e) => (e.target.style.borderColor = theme.color.border)}
           style={field}
         />
+        <input
+          type="text"
+          placeholder="Display name (e.g. Kraft Operations)"
+          value={displayName}
+          onChange={(e) => setDisplayName(e.target.value)}
+          onFocus={(e) => (e.target.style.borderColor = theme.color.amber)}
+          onBlur={(e) => (e.target.style.borderColor = theme.color.border)}
+          style={field}
+        />
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontFamily: theme.font.mono, fontSize: 10, letterSpacing: "0.14em", color: theme.color.slate, textTransform: "uppercase" }}>
+            Accent
+          </span>
+          <div style={{ display: "flex", gap: 8 }}>
+            {MAIL_COLORS.map((c) => {
+              const active = c === color;
+              return (
+                <button
+                  key={c}
+                  onClick={() => setColor(c)}
+                  aria-label={`Accent ${c}`}
+                  style={{
+                    width: 24,
+                    height: 24,
+                    borderRadius: "50%",
+                    background: c,
+                    border: active ? `2px solid ${theme.color.ink}` : `2px solid transparent`,
+                    boxShadow: active ? `0 0 0 2px ${c}` : "none",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: 0,
+                  }}
+                >
+                  {active && <Check size={13} color="#fff" />}
+                </button>
+              );
+            })}
+          </div>
+        </div>
         <button
           onClick={submit}
           disabled={loading}

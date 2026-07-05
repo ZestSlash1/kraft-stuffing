@@ -27,14 +27,28 @@ async function req(path, { method = "GET", body } = {}) {
   return json;
 }
 
+// accountId is optional on list/thread; when present it's appended and the server
+// ownership-checks it. "all" is a valid accountId for the merged inbox.
+const acctParam = (accountId) => (accountId ? `&accountId=${encodeURIComponent(accountId)}` : "");
+
 export const mailApi = {
-  connect: (email, password) => req("/api/mail/connect", { method: "POST", body: { email, password } }),
-  list: (folder = "INBOX") => req(`/api/mail/list?folder=${encodeURIComponent(folder)}`),
-  thread: (uid, folder = "INBOX") =>
-    req(`/api/mail/thread?uid=${encodeURIComponent(uid)}&folder=${encodeURIComponent(folder)}`),
+  connect: (payload) => req("/api/mail/connect", { method: "POST", body: payload }),
+  list: (folder = "INBOX", accountId) =>
+    req(`/api/mail/list?folder=${encodeURIComponent(folder)}${acctParam(accountId)}`),
+  thread: (uid, folder = "INBOX", accountId) =>
+    req(
+      `/api/mail/thread?uid=${encodeURIComponent(uid)}&folder=${encodeURIComponent(folder)}${acctParam(accountId)}`
+    ),
   send: (payload) => req("/api/mail/send", { method: "POST", body: payload }),
-  getSettings: () => req("/api/mail/settings"),
-  saveSignature: (signature_html) => req("/api/mail/settings", { method: "PUT", body: { signature_html } }),
+
+  // Account metadata + per-account settings (no secrets ever returned).
+  listAccounts: () => req("/api/mail/settings"),
+  getAccountSettings: (accountId) => req(`/api/mail/settings?accountId=${encodeURIComponent(accountId)}`),
+  saveAccountSettings: (accountId, patch) =>
+    req(`/api/mail/settings?accountId=${encodeURIComponent(accountId)}`, { method: "PUT", body: patch }),
+  disconnectAccount: (accountId) =>
+    req(`/api/mail/settings?accountId=${encodeURIComponent(accountId)}`, { method: "DELETE" }),
+
   team: () => req("/api/team"),
   invite: (payload) => req("/api/team", { method: "POST", body: payload }),
   updateMember: (id, patch) => req(`/api/team?id=${encodeURIComponent(id)}`, { method: "PUT", body: patch }),

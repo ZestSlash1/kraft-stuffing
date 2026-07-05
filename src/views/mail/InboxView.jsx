@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { RefreshCw, CornerUpLeft } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { RefreshCw, CornerUpLeft, AlertTriangle } from "lucide-react";
 import { theme } from "../../theme";
 import { mailApi } from "../../lib/mailApi";
 import { useIsMobile } from "../../hooks/useIsMobile";
@@ -45,14 +45,29 @@ function RefText({ text, onRef, style }) {
   return <span style={style}>{out}</span>;
 }
 
-export default function InboxView({ folder = "INBOX", onReply }) {
+// Short label for a per-account sync error code.
+const ERR_LABEL = { auth_failed: "sign-in failed", timeout: "timed out", sync_failed: "couldn't sync" };
+
+export default function InboxView({ folder = "INBOX", accountId = null, accounts = [], onReply, onFixAccount }) {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [errors, setErrors] = useState({}); // per-account (all-inboxes mode)
+  const [respAccounts, setRespAccounts] = useState(null); // account meta from an 'all' response
   const [selected, setSelected] = useState(null); // parsed thread
   const [loadingBody, setLoadingBody] = useState(false);
   const isMobile = useIsMobile();
   const { navigate } = useRouter();
+
+  const isAll = accountId === "all";
+  // id → { color, display_name, email_address }. Prefer the response's meta (fresh),
+  // fall back to the accounts prop so single rows resolve too.
+  const accountMap = useMemo(() => {
+    const map = {};
+    (accounts || []).forEach((a) => { map[a.id] = a; });
+    (respAccounts || []).forEach((a) => { map[a.id] = { ...map[a.id], ...a }; });
+    return map;
+  }, [accounts, respAccounts]);
 
   // Ref click → global_search → first hit's route.
   const openRef = async (ref) => {
@@ -68,8 +83,12 @@ export default function InboxView({ folder = "INBOX", onReply }) {
     if (!background) setLoading(true);
     setError("");
     return mailApi
-      .list(folder)
-      .then((r) => setMessages(r.messages || []))
+      .list(folder, accountId)
+      .then((r) => {
+        setMessages(r.messages || []);
+        setErrors(r.errors || {});
+        if (r.accounts) setRespAccounts(r.accounts);
+      })
       .catch((e) => !background && setError(e.message))
       .finally(() => !background && setLoading(false));
   };
@@ -78,7 +97,7 @@ export default function InboxView({ folder = "INBOX", onReply }) {
     setSelected(null);
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [folder]);
+  }, [folder, accountId]);
 
   // Near-real-time: poll every 30s while mounted, and refresh whenever the tab
   // regains focus. (True push needs a long-lived IMAP IDLE connection, which the
@@ -94,15 +113,20 @@ export default function InboxView({ folder = "INBOX", onReply }) {
       document.removeEventListener("visibilitychange", tick);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [folder]);
+  }, [folder, accountId]);
 
-  const open = (uid) => {
+  // A thread is always single-account: use the message's own accountId in merged
+  // mode, else the current selection (null resolves to the default server-side).
+  const open = (m) => {
     setLoadingBody(true);
+    const threadAccountId = m.accountId || (isAll ? null : accountId);
     mailApi
-      .thread(uid, folder)
+      .thread(m.uid, folder, threadAccountId)
       .then((msg) => {
         setSelected(msg);
-        setMessages((prev) => prev.map((m) => (m.uid === uid ? { ...m, seen: true } : m)));
+        setMessages((prev) =>
+          prev.map((x) => (x.uid === m.uid && x.accountId === m.accountId ? { ...x, seen: true } : x))
+        );
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoadingBody(false));
@@ -128,13 +152,46 @@ export default function InboxView({ folder = "INBOX", onReply }) {
         <Header title={folder === "Sent" ? "Sent" : "Inbox"} onRefresh={load} />
         {loading && <Note>Loading messages…</Note>}
         {error && <Note tone="red">{error}</Note>}
+
+        {/* Per-account sync failures in merged mode — a slim strip, never a blank screen. */}
+        {isAll &&
+          Object.entries(errors).map(([id, code]) => {
+            const acc = accountMap[id];
+            const name = acc?.email_address || acc?.display_name || "an account";
+            return (
+              <button
+                key={`err-${id}`}
+                onClick={() => onFixAccount?.()}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  width: "100%",
+                  textAlign: "left",
+                  background: theme.color.redSoft,
+                  border: "none",
+                  borderBottom: `1px solid ${theme.color.border}`,
+                  padding: "9px 14px",
+                  cursor: "pointer",
+                }}
+              >
+                <AlertTriangle size={13} color={theme.color.red} style={{ flexShrink: 0 }} />
+                <span style={{ fontFamily: theme.font.mono, fontSize: 11, color: theme.color.inkSoft }}>
+                  {name} {ERR_LABEL[code] || "couldn't sync"} — check settings
+                </span>
+              </button>
+            );
+          })}
+
         {!loading && !error && messages.length === 0 && <Note>No messages.</Note>}
         {messages.map((m) => {
-          const active = selected?.uid === m.uid;
+          const active = selected?.uid === m.uid && selected?.accountId === m.accountId;
+          const acc = isAll ? accountMap[m.accountId] : null;
+          const accent = acc?.color || theme.color.amber;
           return (
             <button
-              key={m.uid}
-              onClick={() => open(m.uid)}
+              key={`${m.accountId || "one"}-${m.uid}`}
+              onClick={() => open(m)}
               style={{
                 display: "block",
                 width: "100%",
@@ -142,10 +199,19 @@ export default function InboxView({ folder = "INBOX", onReply }) {
                 background: active ? theme.color.amberSoft : theme.color.surface,
                 border: "none",
                 borderBottom: `1px solid ${theme.color.border}`,
+                borderLeft: isAll ? `2px solid ${accent}` : "2px solid transparent",
                 padding: "12px 14px",
                 cursor: "pointer",
               }}
             >
+              {isAll && acc && (
+                <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 4 }}>
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: accent, flexShrink: 0 }} />
+                  <span style={{ fontFamily: theme.font.mono, fontSize: 9, letterSpacing: "0.04em", color: theme.color.slate, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {acc.display_name || acc.email_address}
+                  </span>
+                </div>
+              )}
               <div style={{ display: "flex", alignItems: "baseline", gap: 8, minWidth: 0 }}>
                 {!m.seen && <span style={{ width: 7, height: 7, borderRadius: "50%", background: theme.color.amber, flexShrink: 0, alignSelf: "center" }} />}
                 <span
