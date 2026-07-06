@@ -1,10 +1,128 @@
 import { useState } from "react";
-import { ArrowLeft, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, Pencil, Trash2, Link2, Copy, RefreshCw, X, Check } from "lucide-react";
 import { formatIST } from "../data/statusHelpers";
 import { theme } from "../theme";
 import { FREIGHT_STATUS_COLORS, PAYMENT_STATUS_COLORS } from "../data/manifestHelpers";
+import { mintTrackingToken } from "../lib/db";
 import ConfirmDialog from "../components/ConfirmDialog";
 import AttachmentsPanel from "../components/AttachmentsPanel";
+
+// Owner-side "Tracking link" panel (§A.5). Create / copy / regenerate / disable
+// the public /t/:token link. All writes go through the normal authed booking path.
+function TrackingPanel({ voyageId, booking, updateBookingEntry }) {
+  const [copied, setCopied] = useState(false);
+  const [confirmingRegen, setConfirmingRegen] = useState(false);
+  const token = booking.trackingToken || null;
+  const url = token ? `${window.location.origin}/t/${token}` : null;
+
+  const create = () =>
+    updateBookingEntry(voyageId, booking.id, {
+      trackingToken: mintTrackingToken(),
+      trackingEnabledAt: new Date().toISOString(),
+    });
+  const disable = () =>
+    updateBookingEntry(voyageId, booking.id, { trackingToken: null, trackingEnabledAt: null });
+  const regenerate = () => {
+    setConfirmingRegen(false);
+    updateBookingEntry(voyageId, booking.id, {
+      trackingToken: mintTrackingToken(),
+      trackingEnabledAt: new Date().toISOString(),
+    });
+  };
+  const copy = () => {
+    if (!url) return;
+    navigator.clipboard?.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    });
+  };
+
+  const btn = (color) => ({
+    background: "none",
+    border: `1px solid ${color}`,
+    color,
+    padding: "7px 11px",
+    fontFamily: theme.font.mono,
+    fontSize: 11,
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    cursor: "pointer",
+  });
+
+  return (
+    <div style={{ marginTop: 28, border: `1px solid ${theme.color.border}`, borderRadius: 12, padding: 16, background: theme.color.surface }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+        <Link2 size={15} color={theme.color.slate} />
+        <span style={{ fontFamily: theme.font.condensed, fontWeight: 700, fontSize: 16, color: theme.color.ink }}>TRACKING LINK</span>
+        <span
+          style={{
+            marginLeft: "auto",
+            fontFamily: theme.font.mono,
+            fontSize: 10,
+            letterSpacing: "0.1em",
+            color: token ? theme.color.green : theme.color.slate,
+            border: `1px solid ${token ? theme.color.green : theme.color.border}`,
+            borderRadius: 4,
+            padding: "2px 7px",
+          }}
+        >
+          {token ? "ACTIVE" : "OFF"}
+        </span>
+      </div>
+
+      {!token ? (
+        <>
+          <div style={{ fontFamily: theme.font.mono, fontSize: 11, color: theme.color.slate, marginBottom: 12, lineHeight: 1.6 }}>
+            Create a public, read-only link a consignee can open without logging in. Shows only
+            route, vessel, containers and status — never freight, values or internal notes.
+          </div>
+          <button onClick={create} style={btn(theme.color.amber)}>
+            <Link2 size={13} /> Create link
+          </button>
+        </>
+      ) : (
+        <>
+          <div
+            style={{
+              fontFamily: theme.font.mono,
+              fontSize: 11,
+              color: theme.color.inkSoft,
+              background: theme.color.surfaceMuted,
+              border: `1px solid ${theme.color.border}`,
+              borderRadius: 8,
+              padding: "9px 11px",
+              wordBreak: "break-all",
+              marginBottom: 12,
+            }}
+          >
+            {url}
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button onClick={copy} style={btn(copied ? theme.color.green : theme.color.slate)}>
+              {copied ? <Check size={13} /> : <Copy size={13} />} {copied ? "Copied" : "Copy link"}
+            </button>
+            <button onClick={() => setConfirmingRegen(true)} style={btn(theme.color.slate)}>
+              <RefreshCw size={13} /> Regenerate
+            </button>
+            <button onClick={disable} style={btn(theme.color.red)}>
+              <X size={13} /> Disable
+            </button>
+          </div>
+        </>
+      )}
+
+      {confirmingRegen && (
+        <ConfirmDialog
+          message="Regenerate this tracking link? The current link will stop working immediately."
+          confirmLabel="REGENERATE"
+          onCancel={() => setConfirmingRegen(false)}
+          onConfirm={regenerate}
+        />
+      )}
+    </div>
+  );
+}
 
 function Badge({ status, colors }) {
   const color = colors[status] || theme.color.slate;
@@ -196,6 +314,10 @@ export default function BookingDetailView({ app, voyage, booking, onBack, onEdit
             </div>
           ))}
         </div>
+      )}
+
+      {app?.updateBookingEntry && voyage?.id && (
+        <TrackingPanel voyageId={voyage.id} booking={booking} updateBookingEntry={app.updateBookingEntry} />
       )}
 
       <div style={{ marginTop: 16 }}>
