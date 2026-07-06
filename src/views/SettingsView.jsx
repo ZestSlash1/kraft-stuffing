@@ -5,6 +5,7 @@ import { theme } from "../theme";
 import { useToast } from "../components/Toast";
 import { useAuth } from "../context/AuthContext";
 import TeamPanel from "./TeamPanel";
+import NotificationSettingsPanel from "./NotificationSettingsPanel";
 
 const input = {
   width: "100%",
@@ -181,6 +182,12 @@ export default function SettingsView({ app }) {
         </Row>
         <SaveButton onSave={() => persist(["whatsapp_number"], "org")} saved={saved.org} />
       </Section>
+
+      {profile?.role === "admin" && (
+        <Section title="NOTIFICATIONS">
+          <NotificationSettingsPanel app={app} />
+        </Section>
+      )}
 
       <Section title="DEFAULTS">
         <div className="form-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
