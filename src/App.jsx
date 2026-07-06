@@ -9,6 +9,7 @@ import {
   fetchVoyages,
   fetchContainers,
   fetchLines,
+  fetchCargoItems,
   fetchShippers,
   fetchConsignees,
   fetchProfiles,
@@ -36,6 +37,11 @@ import {
   fromDbVoyage,
   fromDbContainer,
   fromDbLine,
+  fromDbCargoItem,
+  toDbCargoItem,
+  createCargoItem as dbCreateCargoItem,
+  updateCargoItem as dbUpdateCargoItem,
+  deleteCargoItem as dbDeleteCargoItem,
   fromDbShipper,
   fromDbConsignee,
   fromDbProfile,
@@ -119,6 +125,8 @@ async function loadVoyageTree(orgId) {
       const { data: lRows, error: lErr } = await fetchLines(container.id);
       if (lErr) throw lErr;
       container.lines = (lRows || []).map(fromDbLine);
+      const { data: ciRows } = await fetchCargoItems(container.id);
+      container.cargoItems = (ciRows || []).map(fromDbCargoItem);
       voyage.containers.push(container);
     }
     const { data: bRows, error: bErr } = await fetchBookings(voyage.id);
@@ -465,6 +473,35 @@ export default function App() {
     sync(() => dbDeleteLine(lineId));
   };
 
+  const addCargoItem = (containerId, draft) => {
+    const voyageId = voyageIdForContainer(containerId);
+    const container = state.voyages
+      .flatMap((v) => v.containers)
+      .find((c) => c.id === containerId);
+    const nextSort = (container?.cargoItems?.length ?? 0);
+    const item = {
+      id: uid(),
+      containerId,
+      sortOrder: nextSort,
+      backfilled: false,
+      ...draft,
+    };
+    dispatch({ type: "ADD_CARGO_ITEM", voyageId, containerId, item });
+    sync(() => dbCreateCargoItem(toDbCargoItem(item)));
+  };
+
+  const updateCargoItem = (containerId, itemId, patch) => {
+    const voyageId = voyageIdForContainer(containerId);
+    dispatch({ type: "UPDATE_CARGO_ITEM", voyageId, containerId, itemId, patch });
+    sync(() => dbUpdateCargoItem(itemId, patch));
+  };
+
+  const removeCargoItem = (containerId, itemId) => {
+    const voyageId = voyageIdForContainer(containerId);
+    dispatch({ type: "DELETE_CARGO_ITEM", voyageId, containerId, itemId });
+    sync(() => dbDeleteCargoItem(itemId));
+  };
+
   const sealContainer = (containerId, { sealNo, sealNo2 }) => {
     patchContainer(containerId, {
       sealed: true,
@@ -609,6 +646,19 @@ export default function App() {
     if (error || !data) return null;
     const movement = fromDbVesselMovement(data);
     dispatch({ type: "ADD_VESSEL_MOVEMENT", voyageId, movement });
+    // Fire voyage departure/arrival notifications off the honest movement signal.
+    // Non-blocking: a notify failure never affects the logged movement.
+    const notifyType =
+      movement.eventType === "sailed"
+        ? "voyage_departed"
+        : movement.eventType === "discharged"
+        ? "voyage_arrived"
+        : null;
+    if (notifyType) {
+      supabase.functions
+        .invoke("notify-voyage", { body: { voyageId, eventType: notifyType } })
+        .then(({ error: nErr }) => nErr && console.warn("[notify-voyage] failed:", nErr.message));
+    }
     return movement;
   };
 
@@ -666,6 +716,9 @@ export default function App() {
     removeBookingEntry,
     createMovementEntry,
     removeMovementEntry,
+    addCargoItem,
+    updateCargoItem,
+    removeCargoItem,
     exportXlsx,
     exportPdf,
   };
