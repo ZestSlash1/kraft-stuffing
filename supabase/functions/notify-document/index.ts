@@ -4,6 +4,7 @@
 // signed link to the stored PDF. Template names must be registered in the
 // Interakt dashboard first (same one-time step as `container_sealed`).
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { emitNotification, teamRecipients } from "../_shared/notify.ts";
 
 const INTERAKT_API_KEY = Deno.env.get("INTERAKT_API_KEY");
 const NOTIFY_WHATSAPP_NUMBER = Deno.env.get("NOTIFY_WHATSAPP_NUMBER");
@@ -27,7 +28,7 @@ Deno.serve(async (req) => {
 
     const { data: doc, error: docErr } = await supabase
       .from("documents")
-      .select("*, voyages(voyage_no, vessel)")
+      .select("*, voyages(voyage_no, vessel), bookings(id, notify_shipper, shipper_email, tracking_token)")
       .eq("id", documentId)
       .single();
     if (docErr || !doc) {
@@ -76,6 +77,36 @@ Deno.serve(async (req) => {
     });
 
     const result = await resp.json().catch(() => ({}));
+
+    // Emit an email notification event (§B.1). Team recipients for this event
+    // type + the booking's shipper IF opted in (external email is opt-in, §B.3).
+    // Wrapped so a ledger failure never fails the WhatsApp/document flow.
+    try {
+      const booking = doc.bookings || null;
+      const trackingUrl = booking?.tracking_token
+        ? `https://portal.shafrina.com/t/${booking.tracking_token}`
+        : null;
+      const external =
+        booking?.notify_shipper && booking?.shipper_email ? [booking.shipper_email] : [];
+      const recipients = [...(await teamRecipients(supabase, "document_issued")), ...external];
+      await emitNotification(supabase, {
+        orgId: doc.org_id,
+        eventType: "document_issued",
+        entityType: "document",
+        entityId: doc.id,
+        payload: {
+          docType: doc.type,
+          number: doc.number,
+          voyageNo: doc.voyages?.voyage_no || "",
+          vessel: doc.voyages?.vessel || "",
+          trackingUrl,
+        },
+        recipients,
+      });
+    } catch (emitErr) {
+      console.error("[notify-document] emit failed (non-fatal):", emitErr?.message);
+    }
+
     return new Response(JSON.stringify({ ok: resp.ok, message, result }), {
       status: resp.ok ? 200 : 502,
       headers: { "Content-Type": "application/json" },

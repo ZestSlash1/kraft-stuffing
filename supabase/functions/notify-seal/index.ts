@@ -3,6 +3,7 @@
 // Looks up the container + its lines, builds a WhatsApp template message, and
 // sends it via Interakt.
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { emitNotification, teamRecipients } from "../_shared/notify.ts";
 
 const INTERAKT_API_KEY = Deno.env.get("INTERAKT_API_KEY");
 const NOTIFY_WHATSAPP_NUMBER = Deno.env.get("NOTIFY_WHATSAPP_NUMBER");
@@ -20,7 +21,7 @@ Deno.serve(async (req) => {
 
     const { data: container, error: cErr } = await supabase
       .from("containers")
-      .select("*, voyages(voyage_no)")
+      .select("*, voyages(voyage_no, org_id)")
       .eq("id", containerId)
       .single();
     if (cErr || !container) {
@@ -87,6 +88,31 @@ Deno.serve(async (req) => {
     });
 
     const result = await resp.json().catch(() => ({}));
+
+    // Emit an email notification event (§B.1) — team recipients only; sealing is
+    // an internal milestone (external customer email is departure/arrival/doc, §B.3).
+    try {
+      await emitNotification(supabase, {
+        orgId: container.voyages?.org_id,
+        eventType: "container_sealed",
+        entityType: "container",
+        entityId: container.id,
+        payload: {
+          number: container.number,
+          voyageNo: container.voyages?.voyage_no || "",
+          cargoSummary,
+          totalBags,
+          netMt,
+          sealNo: container.seal_no,
+          shipper,
+          consignee,
+        },
+        recipients: await teamRecipients(supabase, "container_sealed"),
+      });
+    } catch (emitErr) {
+      console.error("[notify-seal] emit failed (non-fatal):", emitErr?.message);
+    }
+
     return new Response(JSON.stringify({ ok: resp.ok, message, result }), {
       status: resp.ok ? 200 : 502,
       headers: { "Content-Type": "application/json" },
