@@ -176,6 +176,10 @@ export const fromDbBooking = (r) => ({
   updatedAt: r.updated_at,
   trackingToken: r.tracking_token || null,
   trackingEnabledAt: r.tracking_enabled_at || null,
+  shipperEmail: r.shipper_email || "",
+  consigneeEmail: r.consignee_email || "",
+  notifyShipper: !!r.notify_shipper,
+  notifyConsignee: !!r.notify_consignee,
 });
 
 export const toDbBooking = (b) => ({
@@ -191,6 +195,10 @@ export const toDbBooking = (b) => ({
   payment_status: b.paymentStatus ?? undefined,
   notes: b.notes ?? null,
   created_by: b.createdBy ?? null,
+  shipper_email: b.shipperEmail ?? null,
+  consignee_email: b.consigneeEmail ?? null,
+  notify_shipper: b.notifyShipper ?? false,
+  notify_consignee: b.notifyConsignee ?? false,
 });
 
 const BOOKING_KEYMAP = {
@@ -204,6 +212,10 @@ const BOOKING_KEYMAP = {
   notes: "notes",
   trackingToken: "tracking_token",
   trackingEnabledAt: "tracking_enabled_at",
+  shipperEmail: "shipper_email",
+  consigneeEmail: "consignee_email",
+  notifyShipper: "notify_shipper",
+  notifyConsignee: "notify_consignee",
 };
 
 // Mint a ≥128-bit URL-safe tracking token (22 base62 chars ≈ 131 bits). Never
