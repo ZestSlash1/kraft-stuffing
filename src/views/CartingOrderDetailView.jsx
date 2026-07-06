@@ -8,7 +8,7 @@ import AttachmentsPanel from "../components/AttachmentsPanel";
 import { useRouter } from "../context/RouterContext";
 import { useIsMobile } from "../hooks/useIsMobile";
 import {
-  groupByCargoType,
+  groupByCargoDescription,
   containerCountSummary,
   formatPackageLines,
   nextSlNo,
@@ -36,7 +36,7 @@ const uid = () =>
 
 // A local working row carries a client-side `key`; DB ids are re-minted on save
 // (drafts are re-persisted wholesale, so we never diff individual rows).
-const emptyRow = (voyageContainers, slNo) => ({
+const emptyRow = (slNo) => ({
   key: uid(),
   slNo,
   containerNo: "",
@@ -44,9 +44,7 @@ const emptyRow = (voyageContainers, slNo) => ({
   cargoGrWtKgs: 0,
   tareWtKgs: 0,
   vgmWtKgs: 0,
-  cargoType: "",
   valueRupees: 0,
-  packageLines: [{ qty: "", unit: "" }],
 });
 
 export default function CartingOrderDetailView({ app, orderId, voyageId }) {
@@ -108,11 +106,7 @@ export default function CartingOrderDetailView({ app, orderId, voyageId }) {
           cargoGrWtKgs: c.cargoGrWtKgs,
           tareWtKgs: c.tareWtKgs,
           vgmWtKgs: c.vgmWtKgs,
-          cargoType: c.cargoType,
           valueRupees: Number(c.valuePaise || 0) / 100,
-          packageLines: (c.packageLines || []).length
-            ? c.packageLines.map((l) => ({ qty: l.qty, unit: l.unit }))
-            : [{ qty: "", unit: "" }],
         }))
       );
       setSavedIds((data.containers || []).map((c) => c.id));
@@ -130,6 +124,15 @@ export default function CartingOrderDetailView({ app, orderId, voyageId }) {
     markDirty();
   };
 
+  // Index stuffing containers by number for cargo-item lookup.
+  const stuffingContainersByNo = useMemo(() => {
+    const map = {};
+    for (const c of voyage?.containers || []) {
+      if (c.number) map[c.number.trim().toUpperCase()] = c;
+    }
+    return map;
+  }, [voyage]);
+
   // ── Container lines held as app-shaped objects for the aggregation helpers ────
   const asContainers = useMemo(
     () =>
@@ -140,16 +143,15 @@ export default function CartingOrderDetailView({ app, orderId, voyageId }) {
         cargoGrWtKgs: Number(r.cargoGrWtKgs || 0),
         tareWtKgs: Number(r.tareWtKgs || 0),
         vgmWtKgs: Number(r.vgmWtKgs || 0),
-        cargoType: r.cargoType,
         valuePaise: Math.round(Number(r.valueRupees || 0) * 100),
-        packageLines: (r.packageLines || [])
-          .map((l) => ({ qty: Number(l.qty || 0), unit: (l.unit || "").trim() }))
-          .filter((l) => l.qty || l.unit),
       })),
     [rows]
   );
 
-  const groups = useMemo(() => groupByCargoType(asContainers), [asContainers]);
+  const groups = useMemo(
+    () => groupByCargoDescription(asContainers, stuffingContainersByNo),
+    [asContainers, stuffingContainersByNo]
+  );
   const countSummary = useMemo(() => containerCountSummary(asContainers), [asContainers]);
 
   const addRow = (row) => {
@@ -182,9 +184,7 @@ export default function CartingOrderDetailView({ app, orderId, voyageId }) {
         cargoGrWtKgs: c.cargoGrWtKgs,
         tareWtKgs: c.tareWtKgs,
         vgmWtKgs: c.vgmWtKgs,
-        cargoType: c.cargoType,
         valuePaise: c.valuePaise,
-        packageLines: c.packageLines,
       });
       if (error) return { error };
       if (data) newIds.push(data.id);
@@ -208,8 +208,8 @@ export default function CartingOrderDetailView({ app, orderId, voyageId }) {
 
   const payload = useMemo(() => {
     if (!order || !fields) return null;
-    return buildCartingOrderPayload({ ...order, ...fields }, voyage, asContainers);
-  }, [order, fields, voyage, asContainers]);
+    return buildCartingOrderPayload({ ...order, ...fields }, voyage, asContainers, stuffingContainersByNo);
+  }, [order, fields, voyage, asContainers, stuffingContainersByNo]);
 
   // Issue: persist, freeze snapshot + upload PDF, then run the chosen action on
   // the generated blob (view / print / share). Issuing is one-way and one-time.
@@ -412,9 +412,14 @@ export default function CartingOrderDetailView({ app, orderId, voyageId }) {
                 <div key={i} style={{ marginBottom: 8 }}>
                   <div>
                     Gr. WT.{formatKg2(g.grWtTotalKgs)} KGS
-                    {formatPackageLines(g.packageLines) ? `, ${formatPackageLines(g.packageLines)}` : ""} CARGO: {g.cargoType || "—"}.
+                    {formatPackageLines(g.packageLines) ? `, ${formatPackageLines(g.packageLines)}` : ""} CARGO: {g.description || "—"}.
                   </div>
                   <div>VALUE : RS. {formatRupees2(g.valuePaiseTotal)}</div>
+                  {g.mixedValueContainers?.length > 0 && (
+                    <div style={{ fontSize: 10, color: theme.color.amber, marginTop: 2 }}>
+                      ⚠ Container {g.mixedValueContainers.join(", ")}: value counted under first cargo item.
+                    </div>
+                  )}
                 </div>
               ))}
               <div style={{ marginTop: 10, color: theme.color.amberText }}>
@@ -461,7 +466,7 @@ export default function CartingOrderDetailView({ app, orderId, voyageId }) {
 // ── Add / edit a container line ────────────────────────────────────────────────
 function AddContainerModal({ voyage, slNo, onClose, onAdd }) {
   const isMobile = useIsMobile();
-  const [row, setRow] = useState(emptyRow(voyage?.containers, slNo));
+  const [row, setRow] = useState(emptyRow(slNo));
   const set = (k) => (v) => setRow((r) => ({ ...r, [k]: v }));
 
   // Prefill size/gross/tare from an existing stuffing container with this number.
@@ -485,20 +490,11 @@ function AddContainerModal({ voyage, slNo, onClose, onAdd }) {
     });
   };
 
-  const setPkg = (i, k) => (v) =>
-    setRow((r) => ({
-      ...r,
-      packageLines: r.packageLines.map((p, idx) => (idx === i ? { ...p, [k]: v } : p)),
-    }));
-  const addPkg = () => setRow((r) => ({ ...r, packageLines: [...r.packageLines, { qty: "", unit: "" }] }));
-  const removePkg = (i) =>
-    setRow((r) => ({ ...r, packageLines: r.packageLines.filter((_, idx) => idx !== i) }));
-
-  const canSave = row.containerNo.trim() && row.cargoType.trim();
+  const canSave = row.containerNo.trim();
 
   return (
     <div onClick={onClose} style={overlay}>
-      <div onClick={(e) => e.stopPropagation()} style={{ ...modal, width: isMobile ? "100%" : 520 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ ...modal, width: isMobile ? "100%" : 480 }}>
         <div style={modalHead}>
           <div style={{ fontFamily: F.head, fontWeight: 800, fontSize: 20 }}>Add container</div>
           <button onClick={onClose} style={{ background: "none", border: "none", color: theme.color.slate, cursor: "pointer" }}><X size={18} /></button>
@@ -507,14 +503,9 @@ function AddContainerModal({ voyage, slNo, onClose, onAdd }) {
           <Labeled label="Container No.">
             <Input value={row.containerNo} onChange={(e) => onContainerNo(e.target.value)} placeholder="ILCU 1002028" />
           </Labeled>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <Labeled label="Size / Type">
-              <Pill value={row.sizeType} onChange={(e) => set("sizeType")(e.target.value)} options={SIZES} style={{ width: "100%" }} />
-            </Labeled>
-            <Labeled label="Cargo Type">
-              <Input value={row.cargoType} onChange={(e) => set("cargoType")(e.target.value)} placeholder="Plywood" />
-            </Labeled>
-          </div>
+          <Labeled label="Size / Type">
+            <Pill value={row.sizeType} onChange={(e) => set("sizeType")(e.target.value)} options={SIZES} style={{ width: "100%" }} />
+          </Labeled>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
             <Labeled label="Cargo Gr. Wt (KGS)">
               <Input type="number" value={row.cargoGrWtKgs} onChange={(e) => set("cargoGrWtKgs")(Number(e.target.value))} />
@@ -529,21 +520,8 @@ function AddContainerModal({ voyage, slNo, onClose, onAdd }) {
           <Labeled label="Value (₹)">
             <Input type="number" value={row.valueRupees} onChange={(e) => set("valueRupees")(Number(e.target.value))} />
           </Labeled>
-
-          <div>
-            <div style={{ fontFamily: F.mono, fontSize: 9, letterSpacing: "0.16em", textTransform: "uppercase", color: theme.color.slate, marginBottom: 6 }}>
-              Package lines
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {row.packageLines.map((p, i) => (
-                <div key={i} style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <Input type="number" value={p.qty} onChange={(e) => setPkg(i, "qty")(e.target.value)} placeholder="471" style={{ width: 90 }} />
-                  <Input value={p.unit} onChange={(e) => setPkg(i, "unit")(e.target.value)} placeholder="PC" style={{ flex: 1 }} />
-                  <button onClick={() => removePkg(i)} style={{ ...iconBtn, color: theme.color.red }}><Trash2 size={13} /></button>
-                </div>
-              ))}
-              <button onClick={addPkg} style={{ ...addBtn, alignSelf: "flex-start" }}><Plus size={13} /> Add line</button>
-            </div>
+          <div style={{ fontFamily: F.mono, fontSize: 10, color: theme.color.slate, lineHeight: 1.5 }}>
+            Cargo content is read automatically from the container's cargo declaration in the stuffing log.
           </div>
         </div>
         <div style={{ padding: 16, borderTop: `1px solid ${C.hair}`, display: "flex", justifyContent: "flex-end", gap: 10 }}>

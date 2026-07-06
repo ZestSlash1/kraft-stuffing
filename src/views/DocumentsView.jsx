@@ -6,6 +6,7 @@ import { useToast } from "../components/Toast";
 import DocViewer from "../components/DocViewer";
 import { fetchDocuments, getSignedDocumentUrl, voidDocument } from "../lib/documents";
 import { supabase } from "../lib/supabase";
+import { mailApi } from "../lib/mailApi";
 import { fmtIST } from "../lib/pdf/shared";
 import { useRouter } from "../context/RouterContext";
 
@@ -66,6 +67,7 @@ export default function DocumentsView({ app, voyageId }) {
 
   const resend = async (doc) => {
     const { error } = await supabase.functions.invoke("notify-document", { body: { documentId: doc.id } });
+    if (!error) mailApi.flushNotifications().catch(() => {}); // flush queued email deliveries now
     showToast(error ? `Send failed: ${error.message}` : "Sent via WhatsApp", error ? "error" : "success");
   };
 

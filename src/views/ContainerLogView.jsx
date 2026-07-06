@@ -5,6 +5,7 @@ import { Card, Input, Pill, StatusBadge, SpecLabel } from "../components/ui";
 import { theme } from "../theme";
 import AddForm from "../components/AddForm";
 import LineCard from "../components/LineCard";
+import CargoItemsEditor from "../components/CargoItemsEditor";
 import SealConfirmDialog from "../components/SealConfirmDialog";
 import { useToast } from "../components/Toast";
 import { containerStatus, containerFillPct } from "../data/statusHelpers";
@@ -50,6 +51,9 @@ export default function ContainerLogView({ app, containerId }) {
     addLine,
     deleteLine,
     sealContainer,
+    addCargoItem,
+    updateCargoItem,
+    removeCargoItem,
     createShipperEntry,
     createConsigneeEntry,
   } = app;
@@ -357,6 +361,20 @@ export default function ContainerLogView({ app, containerId }) {
               )}
             </div>
           </div>
+        </Card>
+
+        {/* ── Cargo items (container-level commodity declaration) ───────── */}
+        <Card style={{ padding: "20px 24px" }}>
+          <div style={sectionLabel}>Cargo declaration</div>
+          <div style={{ marginBottom: 10, fontFamily: theme.font.mono, fontSize: 11, color: theme.color.slate }}>
+            What commodities does this container hold? Used in manifests, carting orders, and exports.
+          </div>
+          <CargoItemsEditor
+            container={container}
+            onAdd={(draft) => addCargoItem(container.id, draft)}
+            onUpdate={(itemId, patch) => updateCargoItem(container.id, itemId, patch)}
+            onRemove={(itemId) => removeCargoItem(container.id, itemId)}
+          />
         </Card>
 
         {/* ── Centred container placeholder ─────────────────────────────── */}

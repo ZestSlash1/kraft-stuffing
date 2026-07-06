@@ -69,9 +69,7 @@ export const fromDbCartingContainer = (r) => ({
   cargoGrWtKgs: Number(r.cargo_gr_wt_kgs ?? 0),
   tareWtKgs: Number(r.tare_wt_kgs ?? 0),
   vgmWtKgs: Number(r.vgm_wt_kgs ?? 0),
-  cargoType: r.cargo_type || "",
   valuePaise: Number(r.value_paise ?? 0),
-  packageLines: Array.isArray(r.package_lines) ? r.package_lines : [],
   createdAt: r.created_at,
 });
 
@@ -84,9 +82,7 @@ export const toDbCartingContainer = (c) => ({
   cargo_gr_wt_kgs: c.cargoGrWtKgs ?? 0,
   tare_wt_kgs: c.tareWtKgs ?? 0,
   vgm_wt_kgs: c.vgmWtKgs ?? 0,
-  cargo_type: c.cargoType ?? "",
   value_paise: c.valuePaise ?? 0,
-  package_lines: c.packageLines ?? [],
 });
 
 // ── Reads ─────────────────────────────────────────────────────────────────────

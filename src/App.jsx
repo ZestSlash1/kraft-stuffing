@@ -512,7 +512,11 @@ export default function App() {
     });
     supabase.functions
       .invoke("notify-seal", { body: { containerId } })
-      .then(({ error }) => error && console.warn("[notify-seal] failed:", error.message));
+      .then(({ error }) => {
+        if (error) return console.warn("[notify-seal] failed:", error.message);
+        // Flush the freshly-queued email deliveries now (daily cron is only a net).
+        mailApi.flushNotifications().catch(() => {});
+      });
   };
 
   const addContainerEntry = (voyageId) => {
@@ -657,7 +661,10 @@ export default function App() {
     if (notifyType) {
       supabase.functions
         .invoke("notify-voyage", { body: { voyageId, eventType: notifyType } })
-        .then(({ error: nErr }) => nErr && console.warn("[notify-voyage] failed:", nErr.message));
+        .then(({ error: nErr }) => {
+          if (nErr) return console.warn("[notify-voyage] failed:", nErr.message);
+          mailApi.flushNotifications().catch(() => {});
+        });
     }
     return movement;
   };

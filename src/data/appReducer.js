@@ -59,7 +59,7 @@ export function appReducer(state, action) {
       return mapContainers(state, action.voyageId, (cs) =>
         cs.some((c) => c.id === action.container.id)
           ? cs
-          : [...cs, { lines: [], ...action.container }]
+          : [...cs, { lines: [], cargoItems: [], ...action.container }]
       );
 
     case "REMOVE_CONTAINER":
@@ -181,6 +181,40 @@ export function appReducer(state, action) {
             : { ...v, vesselMovements: (v.vesselMovements || []).filter((m) => m.id !== action.movementId) }
         ),
       };
+
+    case "ADD_CARGO_ITEM":
+      return mapContainers(state, action.voyageId, (cs) =>
+        cs.map((c) =>
+          c.id === action.containerId
+            ? c.cargoItems?.some((i) => i.id === action.item.id)
+              ? c
+              : { ...c, cargoItems: [...(c.cargoItems || []), action.item] }
+            : c
+        )
+      );
+
+    case "UPDATE_CARGO_ITEM":
+      return mapContainers(state, action.voyageId, (cs) =>
+        cs.map((c) =>
+          c.id === action.containerId
+            ? {
+                ...c,
+                cargoItems: (c.cargoItems || []).map((i) =>
+                  i.id === action.itemId ? { ...i, ...action.patch } : i
+                ),
+              }
+            : c
+        )
+      );
+
+    case "DELETE_CARGO_ITEM":
+      return mapContainers(state, action.voyageId, (cs) =>
+        cs.map((c) =>
+          c.id === action.containerId
+            ? { ...c, cargoItems: (c.cargoItems || []).filter((i) => i.id !== action.itemId) }
+            : c
+        )
+      );
 
     case "SET_SHIPPERS":
       return { ...state, shippers: action.shippers };

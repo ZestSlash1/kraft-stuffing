@@ -12,7 +12,7 @@
 // in v1 (§B.6). To add it: branch on delivery.channel here, resolve a WhatsApp
 // provider (Meta/Twilio/Gupshup) transport, and send the same rendered facts.
 // Do not add a provider SDK speculatively — it's a business/signup decision.
-import { adminClient, httpError, withErrors } from "../_lib/auth.js";
+import { adminClient, httpError, withErrors, requireUser } from "../_lib/auth.js";
 import { makeTransport } from "../_lib/mailAccount.js";
 import { decrypt } from "../_lib/mailCrypto.js";
 import { renderNotificationEmail } from "../_lib/notifyEmail.js";
@@ -22,14 +22,22 @@ const MAX_ATTEMPTS = 3; // bounded retries before resting as 'failed'
 
 export const config = { maxDuration: 60 };
 
-// Only Vercel cron (x-vercel-cron header) or a caller holding CRON_SECRET may run
-// this — it is not a public endpoint.
-function authorized(req) {
+// Who may run the worker: the daily Vercel cron (x-vercel-cron), a caller holding
+// CRON_SECRET, OR any logged-in app user. The last case lets the client flush
+// pending deliveries right after an event is emitted (prompt sends without a
+// sub-daily cron — the daily cron is just a retry safety net). The worker only
+// moves the delivery ledger, so a logged-in trigger grants no extra power.
+async function authorized(req) {
   if (req.headers["x-vercel-cron"]) return true;
   const secret = process.env.CRON_SECRET;
-  if (!secret) return false;
   const header = req.headers.authorization || "";
-  return header === `Bearer ${secret}`;
+  if (secret && header === `Bearer ${secret}`) return true;
+  try {
+    await requireUser(req);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 // The designated notification sender (org_settings 'notify_sender_account_id').
@@ -47,7 +55,7 @@ async function loadSenderAccount(db) {
 }
 
 export default withErrors(async (req, res) => {
-  if (!authorized(req)) throw httpError(401, "Unauthorized");
+  if (!(await authorized(req))) throw httpError(401, "Unauthorized");
   const db = adminClient();
 
   // Pull pending email deliveries with their (frozen) event payload.

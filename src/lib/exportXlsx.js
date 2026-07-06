@@ -1,6 +1,7 @@
 import * as XLSX from "xlsx";
 import { containerStatus } from "../data/statusHelpers";
 import { untaggedPnl, voyagePnlRows } from "../views/expenses/expenseHelpers";
+import { formatCargoItems } from "./cargoFormat";
 
 const lineTotalKg = (l) => Number(l.qty || 0) * Number(l.unitWeightKg || 0);
 
@@ -88,6 +89,7 @@ function buildContainerRows(voyage, profilesById) {
     return {
       "Container No": c.number || "Unassigned",
       Size: c.size,
+      Cargo: formatCargoItems(c.cargoItems),
       "Tare (kg)": tareKg,
       "Net Wt (kg)": netKg,
       "Gross Wt (kg)": grossKg,

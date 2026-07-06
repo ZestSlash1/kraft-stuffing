@@ -74,6 +74,10 @@ export const mailApi = {
   disconnectAccount: (accountId) =>
     req(`/api/mail/settings?accountId=${encodeURIComponent(accountId)}`, { method: "DELETE" }),
 
+  // Flush pending notification deliveries now (prompt send after an event is
+  // emitted; the daily cron is only a retry safety net). Best-effort.
+  flushNotifications: () => req("/api/notify/dispatch", { method: "POST" }),
+
   team: () => req("/api/team"),
   invite: (payload) => req("/api/team", { method: "POST", body: payload }),
   updateMember: (id, patch) => req(`/api/team?id=${encodeURIComponent(id)}`, { method: "PUT", body: patch }),

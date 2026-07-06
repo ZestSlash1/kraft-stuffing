@@ -1,6 +1,6 @@
 import { jsPDF } from "jspdf";
 import {
-  groupByCargoType,
+  groupByCargoDescription,
   containerCountSummary,
   formatPackageLines,
 } from "../../data/cartingOrderHelpers";
@@ -42,7 +42,9 @@ export function loadKraftLogo() {
 
 // Build the frozen render payload from live order + voyage + container lines —
 // snapshotted verbatim on issue so the draft preview and issued PDF are identical.
-export function buildCartingOrderPayload(order, voyage, containers) {
+// stuffingContainersByNo: { "ABCD1234567": container } — keyed by container number
+// in upper case. Provide from voyage.containers so cargo items are included.
+export function buildCartingOrderPayload(order, voyage, containers, stuffingContainersByNo = {}) {
   const rows = (containers || [])
     .slice()
     .sort((a, b) => a.slNo - b.slNo)
@@ -69,8 +71,8 @@ export function buildCartingOrderPayload(order, voyage, containers) {
     portCode: order.portCode || "KPD/KOLKATA",
     shipper: SHIPPER,
     containerCount: containerCountSummary(containers),
-    groups: groupByCargoType(containers).map((g) => ({
-      cargoType: g.cargoType,
+    groups: groupByCargoDescription(containers, stuffingContainersByNo).map((g) => ({
+      cargoType: g.cargoType,      // description alias — used by the PDF renderer below
       grWtTotalKgs: g.grWtTotalKgs,
       valuePaiseTotal: g.valuePaiseTotal,
       packageLines: g.packageLines,

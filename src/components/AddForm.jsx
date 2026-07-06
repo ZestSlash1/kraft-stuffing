@@ -4,6 +4,7 @@ import InvoiceFields from "./InvoiceFields";
 import ShipperConsigneeSelect from "./ShipperConsigneeSelect";
 import BookingSelect from "./BookingSelect";
 import { useDirtyGuard } from "../lib/useDirtyGuard";
+import { readCargoDescriptionSuggestions, recordCargoDescription } from "../lib/cargoFormat";
 
 export const CARGO_UNITS = [
   "Bags",
@@ -61,7 +62,7 @@ export default function AddForm({
   onCreateShipper,
   onCreateConsignee,
 }) {
-  const [cargo, setCargo] = useState("Potato");
+  const [cargo, setCargo] = useState("");
   const [qty, setQty] = useState("");
   const [unit, setUnit] = useState("Bags");
   const [unitWeightKg, setUnitWeightKg] = useState("50");
@@ -76,8 +77,9 @@ export default function AddForm({
     e.preventDefault();
     if (!qty || Number(qty) <= 0) return;
     markClean();
+    if (cargo.trim()) recordCargoDescription(cargo.trim());
     onAddLine({
-      cargo,
+      cargo: cargo.trim(),
       qty: Number(qty),
       unit,
       unitWeightKg: Number(unitWeightKg),
@@ -111,6 +113,8 @@ export default function AddForm({
     return onCreateConsignee(draft);
   };
 
+  const cargoSuggestions = readCargoDescriptionSuggestions();
+
   return (
     <form
       onSubmit={submit}
@@ -126,11 +130,18 @@ export default function AddForm({
       }}
     >
       <Field label="cargo">
-        <select value={cargo} onChange={(e) => setCargo(e.target.value)} style={inputStyle}>
-          {["Potato", "Onion", "Rice", "Garlic", "Sugar"].map((c) => (
-            <option key={c} value={c}>{c}</option>
+        <input
+          list="cargo-suggestions"
+          value={cargo}
+          onChange={(e) => { markDirty(); setCargo(e.target.value); }}
+          placeholder="e.g. Onion, Plywood…"
+          style={inputStyle}
+        />
+        <datalist id="cargo-suggestions">
+          {cargoSuggestions.map((s) => (
+            <option key={s} value={s} />
           ))}
-        </select>
+        </datalist>
       </Field>
       <Field label="qty">
         <input
