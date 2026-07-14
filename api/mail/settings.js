@@ -77,7 +77,7 @@ export default withErrors(async (req, res) => {
   if (req.method === "GET") {
     const { data } = await supabase
       .from("mail_accounts")
-      .select("id, email_address, display_name, color, is_default, status, signature_html, imap_host, imap_port, imap_security, smtp_host, smtp_port, smtp_security")
+      .select("id, email_address, display_name, color, is_default, status, signature_html, imap_host, imap_port, imap_security, smtp_host, smtp_port, smtp_security, trash_folder_path, junk_folder_path")
       .eq("id", accountId)
       .eq("user_id", user.id)
       .maybeSingle();
@@ -97,6 +97,9 @@ export default withErrors(async (req, res) => {
       smtp_host: data.smtp_host,
       smtp_port: data.smtp_port,
       smtp_security: data.smtp_security,
+      // Manual trash/junk folder overrides (null → auto-detected special-use folder).
+      trash_folder_path: data.trash_folder_path || null,
+      junk_folder_path: data.junk_folder_path || null,
     });
   }
 
@@ -120,6 +123,9 @@ export default withErrors(async (req, res) => {
     if (typeof body.display_name === "string") patch.display_name = body.display_name;
     if (typeof body.color === "string") patch.color = body.color;
     if (body.is_default === true) patch.is_default = true;
+    // Manual trash/junk folder mapping override. "" clears it back to auto-detect.
+    if (typeof body.trash_folder_path === "string") patch.trash_folder_path = body.trash_folder_path.trim() || null;
+    if (typeof body.junk_folder_path === "string") patch.junk_folder_path = body.junk_folder_path.trim() || null;
 
     // Connection settings: if ANY host/port/security field is present, validate the
     // provided ones and test-connect the FULL resulting config (merged over the row's

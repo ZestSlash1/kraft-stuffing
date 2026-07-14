@@ -67,6 +67,41 @@ export const mailApi = {
   sync: (accountId) =>
     req(`/api/mail/sync${accountId ? `?accountId=${encodeURIComponent(accountId)}` : ""}`, { method: "POST" }),
 
+  // ── Message actions (Delete / Move / Junk). Each performs the real IMAP move on
+  // the server AND updates the DB mirror; the client patches its cache optimistically.
+  // uids is an array; source is the mirror folder key ('INBOX' | 'Sent').
+  // All message actions share one serverless function (/api/mail/actions?op=…) to stay
+  // under Vercel's Hobby-plan function cap.
+  moveMessage: (accountId, uids, sourceFolder, targetFolder) =>
+    req("/api/mail/actions?op=move", {
+      method: "POST",
+      body: { account_id: accountId, message_uids: uids, source_folder: sourceFolder, target_folder: targetFolder },
+    }),
+  deleteMessage: (accountId, uids, sourceFolder) =>
+    req("/api/mail/actions?op=delete", {
+      method: "POST",
+      body: { account_id: accountId, message_uids: uids, source_folder: sourceFolder },
+    }),
+  markJunk: (accountId, uids, sourceFolder) =>
+    req("/api/mail/actions?op=junk", {
+      method: "POST",
+      body: { account_id: accountId, message_uids: uids, source_folder: sourceFolder },
+    }),
+  markNotJunk: (accountId, { ruleId, matchValue, uids, sourceFolder } = {}) =>
+    req("/api/mail/actions?op=not-junk", {
+      method: "POST",
+      body: { account_id: accountId, rule_id: ruleId, match_value: matchValue, message_uids: uids, source_folder: sourceFolder },
+    }),
+
+  // Mailbox structure (Move-to picker + Settings mapping). POST forces a fresh LIST.
+  folders: (accountId) => req(`/api/mail/actions?op=folders&accountId=${encodeURIComponent(accountId)}`),
+  refreshFolders: (accountId) => req(`/api/mail/actions?op=folders&accountId=${encodeURIComponent(accountId)}`, { method: "POST" }),
+
+  // Standing junk filter rules (Settings list).
+  filterRules: (accountId) => req(`/api/mail/actions?op=filter-rules&accountId=${encodeURIComponent(accountId)}`),
+  deleteFilterRule: (accountId, id) =>
+    req(`/api/mail/actions?op=filter-rules&accountId=${encodeURIComponent(accountId)}&id=${encodeURIComponent(id)}`, { method: "DELETE" }),
+
   // Account metadata + per-account settings (no secrets ever returned).
   listAccounts: () => req("/api/mail/settings"),
   getAccountSettings: (accountId) => req(`/api/mail/settings?accountId=${encodeURIComponent(accountId)}`),

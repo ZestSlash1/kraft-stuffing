@@ -25,14 +25,18 @@ function ToastItem({ toast, onDismiss }) {
         el.style.opacity = "1";
       });
     }
-    const t = setTimeout(() => onDismiss(toast.id), 3000);
+    const t = setTimeout(() => onDismiss(toast.id), toast.duration || 3000);
     return () => clearTimeout(t);
-  }, [toast.id, onDismiss]);
+  }, [toast.id, toast.duration, onDismiss]);
+
+  // An action toast (e.g. "Moved to Trash — Undo") carries a label + callback. The
+  // action fires and then dismisses; clicking the body only dismisses.
+  const hasAction = !!toast.action;
 
   return (
     <div
       ref={ref}
-      onClick={() => onDismiss(toast.id)}
+      onClick={() => !hasAction && onDismiss(toast.id)}
       style={{
         ...glass(theme.radius.input),
         borderLeft: `3px solid ${BORDER_COLOR[toast.type] || theme.color.amber}`,
@@ -43,12 +47,35 @@ function ToastItem({ toast, onDismiss }) {
         fontSize: 12,
         minWidth: 220,
         maxWidth: 340,
-        cursor: "pointer",
+        cursor: hasAction ? "default" : "pointer",
         boxShadow: theme.shadow.raised,
         transition: "transform 0.25s ease, opacity 0.25s ease",
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
       }}
     >
-      {toast.message}
+      <span style={{ flex: 1 }}>{toast.message}</span>
+      {hasAction && (
+        <button
+          onClick={(e) => { e.stopPropagation(); toast.action.onClick(); onDismiss(toast.id); }}
+          style={{
+            background: "none",
+            border: "none",
+            color: theme.color.amber,
+            fontFamily: theme.font.mono,
+            fontSize: 12,
+            fontWeight: 600,
+            textTransform: "uppercase",
+            letterSpacing: "0.04em",
+            cursor: "pointer",
+            padding: "2px 4px",
+            flexShrink: 0,
+          }}
+        >
+          {toast.action.label}
+        </button>
+      )}
     </div>
   );
 }
@@ -60,13 +87,18 @@ export function ToastProvider({ children }) {
     setToasts((cur) => cur.filter((t) => t.id !== id));
   }, []);
 
-  const showToast = useCallback((message, type = "info") => {
+  // showToast(message, type) — simple toast.
+  // showToast(message, { type, duration, action: { label, onClick } }) — rich toast
+  // with an optional action button (e.g. Undo) and custom auto-dismiss duration.
+  const showToast = useCallback((message, typeOrOpts = "info") => {
+    const opts = typeof typeOrOpts === "string" ? { type: typeOrOpts } : (typeOrOpts || {});
     const id = nextId++;
-    setToasts((cur) => [...cur, { id, message, type }]);
+    setToasts((cur) => [...cur, { id, message, type: opts.type || "info", duration: opts.duration, action: opts.action }]);
+    return id;
   }, []);
 
   return (
-    <ToastContext.Provider value={{ showToast }}>
+    <ToastContext.Provider value={{ showToast, dismissToast: dismiss }}>
       {children}
       <div
         style={{

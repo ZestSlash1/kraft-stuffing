@@ -9,6 +9,7 @@
 import { requireUser, adminClient, httpError, withErrors, readJsonBody } from "../_lib/auth.js";
 import { encrypt } from "../_lib/mailCrypto.js";
 import { MAX_ACCOUNTS, ACCOUNT_COLORS, testConnect } from "../_lib/mailAccount.js";
+import { syncFolders } from "../_lib/mailFolders.js";
 
 const SECURITY_MODES = new Set(["ssl", "starttls", "none"]);
 
@@ -104,6 +105,15 @@ export default withErrors(async (req, res) => {
     .select("id, email_address, display_name, color, is_default, status")
     .single();
   if (error) throw httpError(500, "Could not save mail account");
+
+  // Populate the account's mailbox list now so the Move-to picker and trash/junk
+  // targets are available immediately (and refreshed on every later sync). Best-effort
+  // — a LIST hiccup must not fail an otherwise-successful connect.
+  try {
+    await syncFolders(supabase, { id: saved.id, user_id: user.id, email_address: email, password, ...conn });
+  } catch {
+    /* folders will be populated on the next sync pass */
+  }
 
   res.status(200).json({ ok: true, account: saved });
 });

@@ -11,6 +11,21 @@
 // Each step is isolated so one failure doesn't abort the rest of the account.
 import { simpleParser } from "mailparser";
 import { openImap } from "./mailAccount.js";
+import { syncFolders, resolveSpecialFolder } from "./mailFolders.js";
+import { moveMessages } from "./mailMove.js";
+
+// Does a sender match any active junk rule? sender_email is exact (lowercased);
+// sender_domain matches the part after '@'. Returns true on the first match.
+function matchesRule(rules, fromAddress) {
+  const addr = (fromAddress || "").trim().toLowerCase();
+  if (!addr) return false;
+  const domain = addr.includes("@") ? addr.slice(addr.indexOf("@") + 1) : "";
+  for (const r of rules) {
+    if (r.match_type === "sender_email" && r.match_value === addr) return true;
+    if (r.match_type === "sender_domain" && domain && r.match_value === domain) return true;
+  }
+  return false;
+}
 
 const MAX = 50; // newest N messages mirrored per folder (matches the old list window)
 const BODY_BATCH = 20; // bodies back-filled per folder per run (bounds duration/bandwidth)
@@ -26,7 +41,7 @@ function envList(arr) {
 // Step 1 — mirror headers for the newest window. Never writes body columns, so a
 // previously back-filled body survives. Reconciles the \Seen flag without clobbering
 // a local read that hasn't been pushed to IMAP yet (seen && !seen_synced).
-async function syncHeaders(client, db, account, folder) {
+async function syncHeaders(client, db, account, folder, autoJunk = null) {
   const lock = await client.getMailboxLock(folder);
   let fetched = [];
   try {
@@ -70,9 +85,16 @@ async function syncHeaders(client, db, account, folder) {
 
   const inserts = [];
   const seenUpdates = []; // { uid, seen, seen_synced }
+  const toJunk = []; // UIDs of new messages a filter rule diverts to Junk
   for (const m of fetched) {
     const row = known.get(m.uid);
     if (!row) {
+      // Auto-junk: a new message from a filtered sender is moved to Junk in this same
+      // pass and NEVER inserted into the mirror, so it never appears in the Inbox.
+      if (autoJunk?.junkPath && matchesRule(autoJunk.rules, m.from_address)) {
+        toJunk.push(m.uid);
+        continue;
+      }
       inserts.push({
         account_id: account.id,
         user_id: account.user_id,
@@ -106,6 +128,17 @@ async function syncHeaders(client, db, account, folder) {
       .eq("account_id", account.id)
       .eq("folder", folder)
       .eq("uid", u.uid);
+  }
+
+  // Divert filtered senders to Junk on IMAP (mirror rows were never inserted). Best-
+  // effort — a move failure must not fail the sync pass; the message just stays put and
+  // will be retried next run.
+  if (toJunk.length && autoJunk?.junkPath) {
+    try {
+      await moveMessages(account, folder, autoJunk.junkPath, toJunk, client);
+    } catch {
+      /* leave the messages in place; next sync retries */
+    }
   }
 }
 
@@ -186,9 +219,32 @@ async function pushSeen(client, db, account, folder) {
 export async function syncAccount(db, account) {
   const client = await openImap(account);
   try {
+    // Refresh the mailbox structure first so trash/junk targets + the Move-to picker
+    // stay current, and so auto-junk can resolve the junk path below. Best-effort.
+    try {
+      await syncFolders(db, account, client);
+    } catch {
+      /* a LIST failure must not abort message sync */
+    }
+
+    // Load this account's junk rules + resolved junk path once, for INBOX auto-junk.
+    let autoJunk = null;
+    try {
+      const { data: rules } = await db
+        .from("mail_filter_rules")
+        .select("match_type, match_value")
+        .eq("account_id", account.id);
+      if (rules?.length) {
+        const junkPath = await resolveSpecialFolder(db, account, "junk");
+        if (junkPath) autoJunk = { rules, junkPath };
+      }
+    } catch {
+      /* no rules / resolution failure → skip auto-junk this pass */
+    }
+
     for (const folder of FOLDERS) {
       try {
-        await syncHeaders(client, db, account, folder);
+        await syncHeaders(client, db, account, folder, folder === "INBOX" ? autoJunk : null);
         await backfillBodies(client, db, account, folder);
         await pushSeen(client, db, account, folder);
       } catch {

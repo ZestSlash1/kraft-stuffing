@@ -172,7 +172,10 @@ export default function MailSettingsView({ accounts = [], limit = 4, onChanged, 
               </div>
 
               {expandedId === a.id && (
-                <AdvancedSettings key={a.id} accountId={a.id} onSaved={onChanged} />
+                <>
+                  <AdvancedSettings key={a.id} accountId={a.id} onSaved={onChanged} />
+                  <FolderRulesSettings key={`fr-${a.id}`} accountId={a.id} />
+                </>
               )}
 
               {confirmId === a.id && (
@@ -309,6 +312,116 @@ function AdvancedSettings({ accountId, onSaved }) {
       >
         {saved ? "Saved & verified" : saving ? "Testing…" : "Test & save"}
       </button>
+    </div>
+  );
+}
+
+// Trash/Junk folder mapping override + the standing junk filter-rules list. Folder
+// mapping is auto-detected from IMAP special-use flags; these dropdowns let the user
+// correct it when a server exposes none. The rules list keeps auto-junk rules visible
+// and removable (removing one un-junks that sender for future mail).
+function FolderRulesSettings({ accountId }) {
+  const [folders, setFolders] = useState(null);
+  const [settings, setSettings] = useState(null);
+  const [rules, setRules] = useState(null);
+  const [savingMap, setSavingMap] = useState(false);
+  const [error, setError] = useState("");
+
+  const loadRules = () =>
+    mailApi.filterRules(accountId).then((r) => setRules(r.rules || [])).catch(() => setRules([]));
+
+  useEffect(() => {
+    let alive = true;
+    Promise.all([
+      mailApi.folders(accountId).then((r) => r.folders || []).catch(() => []),
+      mailApi.getAccountSettings(accountId).catch(() => null),
+    ]).then(([f, s]) => {
+      if (!alive) return;
+      setFolders(f);
+      setSettings(s);
+    });
+    loadRules();
+    return () => { alive = false; };
+  }, [accountId]);
+
+  const detected = (use) => folders?.find((f) => f.special_use === use)?.path || "";
+  const currentTrash = settings?.trash_folder_path ?? detected("trash");
+  const currentJunk = settings?.junk_folder_path ?? detected("junk");
+
+  const saveMapping = async (patch) => {
+    setSavingMap(true);
+    setError("");
+    try {
+      await mailApi.saveAccountSettings(accountId, patch);
+      setSettings((s) => ({ ...(s || {}), ...patch }));
+    } catch (e) {
+      setError(e.message || "Could not save folder mapping");
+    } finally {
+      setSavingMap(false);
+    }
+  };
+
+  const removeRule = async (id) => {
+    setRules((rs) => (rs || []).filter((r) => r.id !== id));
+    try {
+      await mailApi.deleteFilterRule(accountId, id);
+    } catch {
+      loadRules(); // revert to server truth on failure
+    }
+  };
+
+  const lbl = { fontFamily: theme.font.mono, fontSize: 10, letterSpacing: "0.16em", color: theme.color.slate, textTransform: "uppercase", marginBottom: 6 };
+  const sel = {
+    width: "100%", background: theme.color.surface, border: `1px solid ${theme.color.borderStrong}`,
+    borderRadius: theme.radius.sm, color: theme.color.ink, fontFamily: theme.font.mono, fontSize: 12,
+    padding: "8px 10px", cursor: savingMap ? "wait" : "pointer",
+  };
+
+  return (
+    <div style={{ marginTop: 14, borderTop: `1px solid ${theme.color.border}`, paddingTop: 14, display: "flex", flexDirection: "column", gap: 14 }}>
+      <div>
+        <div style={lbl}>Folder mapping</div>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <div style={{ flex: 1, minWidth: 150 }}>
+            <div style={{ fontFamily: theme.font.mono, fontSize: 11, color: theme.color.slate, marginBottom: 4 }}>Trash</div>
+            <select value={currentTrash} disabled={!folders || savingMap} onChange={(e) => saveMapping({ trash_folder_path: e.target.value })} style={sel}>
+              <option value="">Auto-detect</option>
+              {(folders || []).map((f) => <option key={f.path} value={f.path}>{f.name}</option>)}
+            </select>
+          </div>
+          <div style={{ flex: 1, minWidth: 150 }}>
+            <div style={{ fontFamily: theme.font.mono, fontSize: 11, color: theme.color.slate, marginBottom: 4 }}>Junk</div>
+            <select value={currentJunk} disabled={!folders || savingMap} onChange={(e) => saveMapping({ junk_folder_path: e.target.value })} style={sel}>
+              <option value="">Auto-detect</option>
+              {(folders || []).map((f) => <option key={f.path} value={f.path}>{f.name}</option>)}
+            </select>
+          </div>
+        </div>
+        {error && <div style={{ fontFamily: theme.font.mono, fontSize: 11, color: theme.color.red, marginTop: 6 }}>{error}</div>}
+      </div>
+
+      <div>
+        <div style={lbl}>Junk filter rules</div>
+        {rules === null && <div style={{ fontFamily: theme.font.mono, fontSize: 11, color: theme.color.slate }}>Loading…</div>}
+        {rules && rules.length === 0 && (
+          <div style={{ fontFamily: theme.font.mono, fontSize: 11, color: theme.color.slate }}>
+            No rules yet. Marking a sender as junk adds one here.
+          </div>
+        )}
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {(rules || []).map((r) => (
+            <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 8, background: theme.color.surfaceMuted, border: `1px solid ${theme.color.border}`, borderRadius: theme.radius.sm, padding: "7px 10px" }}>
+              <span style={{ flex: 1, minWidth: 0, fontFamily: theme.font.mono, fontSize: 11, color: theme.color.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <span style={{ color: theme.color.slate }}>{r.match_type === "sender_domain" ? "domain" : "from"} →</span> {r.match_value}
+              </span>
+              <button onClick={() => removeRule(r.id)} title="Remove rule (un-junk this sender)"
+                style={{ display: "flex", alignItems: "center", gap: 5, background: "none", border: `1px solid ${theme.color.borderStrong}`, borderRadius: theme.radius.sm, color: theme.color.red, fontFamily: theme.font.mono, fontSize: 10, padding: "4px 8px", cursor: "pointer", flexShrink: 0 }}>
+                <Trash2 size={11} /> Remove
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
