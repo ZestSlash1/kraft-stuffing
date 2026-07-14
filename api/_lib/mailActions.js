@@ -5,12 +5,15 @@ import { httpError } from "./auth.js";
 import { resolveSpecialFolder } from "./mailFolders.js";
 import { moveMessages } from "./mailMove.js";
 
-// The mirror keys reads by a coarse folder ('INBOX' | 'Sent'). Map that key onto the
-// real IMAP mailbox path for this account (INBOX is literal; Sent may be nested, e.g.
-// "INBOX.Sent"). Anything else is treated as an explicit IMAP path already.
+// The mirror keys reads by a coarse folder ('INBOX' | 'Sent' | 'Junk' | 'Archive'). Map
+// that key onto the real IMAP mailbox path for this account (INBOX is literal; the
+// others may be nested/renamed, e.g. "INBOX.Sent", resolved via special-use). Anything
+// else is treated as an explicit IMAP path already (e.g. a Move-to target).
 export async function imapPathForFolderKey(db, account, folderKey) {
   if (!folderKey || folderKey.toUpperCase() === "INBOX") return "INBOX";
   if (folderKey === "Sent") return (await resolveSpecialFolder(db, account, "sent")) || "Sent";
+  if (folderKey === "Junk") return (await resolveSpecialFolder(db, account, "junk")) || "Junk";
+  if (folderKey === "Archive") return (await resolveSpecialFolder(db, account, "archive")) || "Archive";
   return folderKey;
 }
 

@@ -10,12 +10,14 @@ const MAX = 50; // newest N messages per account (matches the sync window)
 // Map a DB row onto the client message shape the inbox already expects.
 function toMessage(row) {
   return {
+    id: row.id,
     accountId: row.account_id,
     uid: Number(row.uid),
     subject: row.subject || "(no subject)",
     from: row.from_address || row.from_name ? { name: row.from_name || "", address: row.from_address || "" } : null,
     date: row.received_at || null,
     seen: !!row.seen,
+    flagged: !!row.flagged,
     attachments: Array.isArray(row.attachments) ? row.attachments : [],
   };
 }
@@ -24,7 +26,7 @@ function toMessage(row) {
 async function listForAccount(db, userId, accountId, folder) {
   const { data, error } = await db
     .from("mail_messages")
-    .select("account_id, uid, subject, from_name, from_address, received_at, seen, attachments")
+    .select("id, account_id, uid, subject, from_name, from_address, received_at, seen, flagged, attachments")
     .eq("user_id", userId)
     .eq("account_id", accountId)
     .eq("folder", folder)

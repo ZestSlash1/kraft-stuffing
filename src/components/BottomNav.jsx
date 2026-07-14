@@ -31,7 +31,8 @@ const GROUP = {
 
 export default function BottomNav() {
   const { route, navigate } = useRouter();
-  const { dirty, mailUnread } = useLive();
+  const { dirty, mailUnread: mailUnreadCount, mailFollowups } = useLive();
+  const mailUnread = mailUnreadCount + mailFollowups;
   const [moreOpen, setMoreOpen] = useState(false);
   const activeGroup = GROUP[route.page];
   // Loadex dark variant app-wide (matches TopNav).

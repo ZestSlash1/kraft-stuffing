@@ -62,6 +62,40 @@ export const mailApi = {
     ),
   send: (payload) => req("/api/mail/send", { method: "POST", body: payload }),
 
+  // Compose card: recent recipients for autocomplete, sourced from mail history.
+  recipients: (accountId) => req(`/api/mail/actions?op=recipients&accountId=${encodeURIComponent(accountId)}`),
+
+  // Templates (subject + body_html picker). kind: 'compose' (default) | 'signature' —
+  // signature templates (Settings) are stored separately from compose templates so
+  // neither picker shows the other's rows.
+  templates: (accountId, kind = "compose") => req(`/api/mail/actions?op=templates&accountId=${encodeURIComponent(accountId)}&kind=${encodeURIComponent(kind)}`),
+  createTemplate: (payload) => req("/api/mail/actions?op=templates", { method: "POST", body: payload }),
+  updateTemplate: (id, patch) => req(`/api/mail/actions?op=templates&id=${encodeURIComponent(id)}`, { method: "PUT", body: patch }),
+  deleteTemplate: (id) => req(`/api/mail/actions?op=templates&id=${encodeURIComponent(id)}`, { method: "DELETE" }),
+
+  // Canned responses: org-wide reusable reply library, grouped by category, distinct
+  // from the compose-drafts `templates` above.
+  cannedResponses: (category) => req(`/api/mail/actions?op=canned-responses${category ? `&category=${encodeURIComponent(category)}` : ""}`),
+  createCannedResponse: (payload) => req("/api/mail/actions?op=canned-responses", { method: "POST", body: payload }),
+  updateCannedResponse: (id, patch) => req(`/api/mail/actions?op=canned-responses&id=${encodeURIComponent(id)}`, { method: "PUT", body: patch }),
+
+  // Follow-up reminders / snooze on a message. `due()` powers the nav badge + dashboard
+  // widget; `forMessage()` shows the current state on a thread row / open thread.
+  dueReminders: () => req("/api/mail/actions?op=reminders&due=1"),
+  activeReminders: () => req("/api/mail/actions?op=reminders"),
+  reminderForMessage: (messageId) => req(`/api/mail/actions?op=reminders&messageId=${encodeURIComponent(messageId)}`),
+  setReminder: (payload) => req("/api/mail/actions?op=reminders", { method: "POST", body: payload }),
+  resolveReminder: (id, status) => req(`/api/mail/actions?op=reminders&id=${encodeURIComponent(id)}`, { method: "PUT", body: { status } }),
+
+  // Scheduled send: queue instead of sending immediately, then best-effort flush
+  // due rows right away (the daily cron is only a retry safety net on Hobby tier).
+  scheduleSend: (payload) => req("/api/mail/actions?op=schedule-send", { method: "POST", body: payload }),
+  flushScheduledSends: () => req("/api/mail/actions?op=process-scheduled", { method: "POST" }),
+
+  // Outbox: pending + recent scheduled sends for an account, and cancel-before-send.
+  scheduledSends: (accountId) => req(`/api/mail/actions?op=scheduled-sends&accountId=${encodeURIComponent(accountId)}`),
+  cancelScheduledSend: (id) => req("/api/mail/actions?op=cancel-scheduled", { method: "POST", body: { id } }),
+
   // Pull IMAP → Supabase for this account (or all when omitted/'all'). The read path is
   // DB-only; this is fired in the background to keep the mirror fresh. Best-effort.
   sync: (accountId) =>
@@ -81,6 +115,16 @@ export const mailApi = {
     req("/api/mail/actions?op=delete", {
       method: "POST",
       body: { account_id: accountId, message_uids: uids, source_folder: sourceFolder },
+    }),
+  archiveMessage: (accountId, uids, sourceFolder) =>
+    req("/api/mail/actions?op=archive", {
+      method: "POST",
+      body: { account_id: accountId, message_uids: uids, source_folder: sourceFolder },
+    }),
+  star: (accountId, uids, sourceFolder, flagged) =>
+    req("/api/mail/actions?op=star", {
+      method: "POST",
+      body: { account_id: accountId, message_uids: uids, source_folder: sourceFolder, flagged },
     }),
   markJunk: (accountId, uids, sourceFolder) =>
     req("/api/mail/actions?op=junk", {

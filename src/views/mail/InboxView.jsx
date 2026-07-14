@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { RefreshCw, CornerUpLeft, AlertTriangle, Paperclip, Search, X, MoreVertical, Trash2, FolderInput, Ban, CheckSquare, Square } from "lucide-react";
+import { RefreshCw, CornerUpLeft, CornerUpRight, AlertTriangle, Paperclip, Search, X, MoreVertical, Trash2, Archive, FolderInput, Ban, CheckSquare, Square, Star, Inbox as InboxIcon, BellRing, Clock as ClockIcon } from "lucide-react";
 import gsap from "gsap";
-import { MC, MF, MG, MSP, MR, mailCard, MAIL_ACTIONS } from "../../ui/mailTheme";
+import { C, F, SP, R, glass } from "../../ui/theme";
 import { mailApi } from "../../lib/mailApi";
 import { useMailList } from "../../lib/mailCache";
 import { useIsMobile } from "../../hooks/useIsMobile";
@@ -10,15 +10,19 @@ import { formatRelative, formatAbsolute } from "../../lib/format";
 import { useRouter } from "../../context/RouterContext";
 import { globalSearch, ROUTE_FOR } from "../../lib/search";
 import DocViewer from "../../components/DocViewer";
+import ReminderControl from "./ReminderControl";
 
 // Map a mail-action error code (or raw message) to a user-facing sentence.
 function actionErrorText(e) {
   const m = (e?.message || "").toLowerCase();
   if (m.includes("no_trash_folder")) return "No Trash folder is set for this account — configure it in Mail Settings.";
   if (m.includes("no_junk_folder")) return "No Junk folder is set for this account — configure it in Mail Settings.";
+  if (m.includes("no_archive_folder")) return "No Archive folder is set for this account — configure it in Mail Settings.";
   if (m.includes("already_moved")) return "This message was already moved.";
   return e?.message || "Action failed";
 }
+
+const FOLDER_TITLE = { INBOX: "Inbox", Sent: "Sent", Junk: "Junk", Archive: "Archive" };
 
 const REF_RE = /\b[A-Z]{4}\d{7}\b|\bKRAFT\/(?:HBL|AN|DO)\/\d{4}\/\d{4}\b/g;
 
@@ -34,7 +38,7 @@ function RefText({ text, onRef, style }) {
       out.push(
         <span key={`r${i}`}
           onClick={(e) => { e.stopPropagation(); onRef(refs[i]); }}
-          style={{ fontFamily: MF.mono, color: MC.blue, textDecoration: "underline", textDecorationColor: MC.blue, textDecorationThickness: 1, cursor: "pointer" }}>
+          style={{ fontFamily: F.mono, color: C.minor, textDecoration: "underline", textDecorationColor: C.minor, textDecorationThickness: 1, cursor: "pointer" }}>
           {refs[i]}
         </span>
       );
@@ -47,6 +51,7 @@ const ERR_LABEL = { auth_failed: "sign-in failed", timeout: "timed out", sync_fa
 // Stable per-row identity — a message is unique by (account, uid), not uid alone (the
 // "All Inboxes" merge can show the same UID from two different accounts).
 const rowKey = (m) => `${m.accountId || "one"}-${m.uid}`;
+const sameMsg = (a, b) => a.uid === b.uid && a.accountId === b.accountId;
 
 // Bucket a flat message list by account so a batched action (Delete/Move/Junk) that
 // spans accounts fires one server call per account rather than one per message.
@@ -60,7 +65,7 @@ function groupByAccount(msgs) {
   return map;
 }
 
-export default function InboxView({ folder = "INBOX", accountId = null, accounts = [], onReply, onFixAccount }) {
+export default function InboxView({ folder = "INBOX", accountId = null, accounts = [], onReply, onForward, onFixAccount, openTarget = null }) {
   // Stale-while-revalidate: cached list paints instantly on account/folder switch,
   // a background refresh updates it silently. `loading` is true only on a cold read.
   const { data, loading, error, refresh, patchMessages } = useMailList(folder, accountId);
@@ -76,6 +81,7 @@ export default function InboxView({ folder = "INBOX", accountId = null, accounts
   const [movePicker, setMovePicker] = useState(null); // { msgs } while the Move-to sheet is open
   const [selectMode, setSelectMode] = useState(false);
   const [selectedKeys, setSelectedKeys] = useState(() => new Set());
+  const [reminders, setReminders] = useState(new Map()); // message_id -> {id, mode, remind_at, status}
   const isMobile = useIsMobile();
   const { showToast } = useToast();
   const { navigate } = useRouter();
@@ -84,6 +90,8 @@ export default function InboxView({ folder = "INBOX", accountId = null, accounts
   const headerRef = useRef(null);
 
   const isAll = accountId === "all";
+  const isJunkView = folder === "Junk";
+  const isArchiveView = folder === "Archive";
   const accountMap = useMemo(() => {
     const map = {};
     (accounts || []).forEach((a) => { map[a.id] = a; });
@@ -106,6 +114,16 @@ export default function InboxView({ folder = "INBOX", accountId = null, accounts
     setSelectMode(false);
     setSelectedKeys(new Set());
   }, [folder, accountId]);
+
+  // Active (pending, non-void) reminders/snoozes for this user, across every account —
+  // loaded once (reminders aren't folder-scoped) and refreshed after any change. Used to
+  // hide snoozed-not-yet-due threads and badge rows/the open thread with their state.
+  const loadReminders = useCallback(() => {
+    mailApi.activeReminders()
+      .then((r) => setReminders(new Map((r.reminders || []).map((x) => [x.message_id, x]))))
+      .catch(() => {});
+  }, []);
+  useEffect(() => { loadReminders(); }, [loadReminders]);
 
   const toggleSelect = useCallback((m) => {
     setSelectedKeys((prev) => {
@@ -156,10 +174,19 @@ export default function InboxView({ folder = "INBOX", accountId = null, accounts
       .finally(() => setLoadingBody(false));
   };
 
-  // ── Message actions (Delete / Move / Junk) ──────────────────────────────────
+  // One-shot deep-link (Follow-ups dashboard widget / nav badge click-through): open a
+  // specific message straight into the reading pane once this view matches its folder.
+  const openedTargetRef = useRef(false);
+  useEffect(() => {
+    if (openedTargetRef.current || !openTarget || openTarget.folder !== folder) return;
+    openedTargetRef.current = true;
+    open({ uid: openTarget.uid, accountId: openTarget.accountId });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openTarget, folder]);
+
+  // ── Message actions (Delete / Archive / Move / Junk / Star) ─────────────────
   // The optimistic pattern mirrors runWrite elsewhere: remove from the list now, fire
   // the server IMAP move, and revert on failure. `folder` (INBOX|Sent) is the mirror key.
-  const sameMsg = (a, b) => a.uid === b.uid && a.accountId === b.accountId;
   const removeFromList = useCallback((m) => {
     patchMessages((prev) => prev.filter((x) => !sameMsg(x, m)));
     setSelected((s) => (s && s.uid === m.uid && (s.accountId ?? m.accountId) === m.accountId ? null : s));
@@ -177,10 +204,10 @@ export default function InboxView({ folder = "INBOX", accountId = null, accounts
     mailApi.sync(acctId).then(() => refresh()).catch(() => {});
   }, [refresh]);
 
-  // Delete N messages (any mix of accounts — grouped so one call covers each account's
-  // batch). Undo re-moves every group's messages back from Trash using the per-account
-  // new-UID mapping the server returned.
-  const doDeleteMany = useCallback((msgs) => {
+  // Generic "move N messages out of the list via `mover`" — shared by Delete/Archive.
+  // `mover(acctId, uids, folder)` performs the server-side move; the toast/undo copy
+  // and the undo target folder differ per action.
+  const doMoveOutMany = useCallback((msgs, { mover, verb, targetLabel }) => {
     if (!msgs.length) return;
     msgs.forEach(removeFromList);
     const groups = groupByAccount(msgs);
@@ -188,40 +215,48 @@ export default function InboxView({ folder = "INBOX", accountId = null, accounts
     let pending = groups.size;
     let anyErr = false;
     groups.forEach((list, acctId) => {
-      mailApi
-        .deleteMessage(acctId, list.map((m) => m.uid), folder)
-        .then((r) => undoGroups.push({ accountId: acctId, trash: r.target, newUidByOld: r.newUidByOld || {}, msgs: list }))
+      mover(acctId, list.map((m) => m.uid), folder)
+        .then((r) => undoGroups.push({ accountId: acctId, target: r.target, newUidByOld: r.newUidByOld || {}, msgs: list }))
         .catch((e) => {
           anyErr = true;
           if (!(e?.message || "").includes("already_moved")) list.forEach(reinsertToList);
           else resync(acctId);
+          showToast(actionErrorText(e), "error");
         })
         .finally(() => {
           if (--pending > 0) return;
-          const label = msgs.length > 1 ? `Moved ${msgs.length} messages to Trash` : "Moved to Trash";
-          showToast(anyErr ? "Some messages could not be moved to Trash" : label, {
-            type: anyErr ? "error" : "success",
-            duration: 7000,
-            action: !anyErr
-              ? {
-                  label: "Undo",
-                  onClick: () => {
-                    undoGroups.forEach(({ accountId: acctId, trash, newUidByOld, msgs: gm }) => {
-                      const uids = gm.map((m) => newUidByOld[m.uid]).filter((u) => u != null);
-                      if (!uids.length) return;
-                      mailApi
-                        .moveMessage(acctId, uids, trash, folder === "INBOX" ? "INBOX" : folder)
-                        .then(() => { gm.forEach(reinsertToList); resync(acctId); })
-                        .catch((e) => showToast(actionErrorText(e), "error"));
-                    });
-                  },
-                }
-              : undefined,
-          });
+          const label = msgs.length > 1 ? `${verb} ${msgs.length} messages${targetLabel ? ` to ${targetLabel}` : ""}` : `${verb}${targetLabel ? ` to ${targetLabel}` : ""}`;
+          if (!anyErr) {
+            showToast(label, {
+              type: "success", duration: 7000,
+              action: {
+                label: "Undo",
+                onClick: () => {
+                  undoGroups.forEach(({ accountId: gAcctId, target, newUidByOld, msgs: gm }) => {
+                    const uids = gm.map((m) => newUidByOld[m.uid]).filter((u) => u != null);
+                    if (!uids.length) return;
+                    mailApi
+                      .moveMessage(gAcctId, uids, target, folder === "INBOX" ? "INBOX" : folder)
+                      .then(() => { gm.forEach(reinsertToList); resync(gAcctId); })
+                      .catch((e) => showToast(actionErrorText(e), "error"));
+                  });
+                },
+              },
+            });
+          }
         });
     });
   }, [folder, removeFromList, reinsertToList, resync, showToast]);
+
+  const doDeleteMany = useCallback((msgs) =>
+    doMoveOutMany(msgs, { mover: mailApi.deleteMessage, verb: "Moved", targetLabel: "Trash" }),
+    [doMoveOutMany]);
   const doDelete = useCallback((m) => doDeleteMany([m]), [doDeleteMany]);
+
+  const doArchiveMany = useCallback((msgs) =>
+    doMoveOutMany(msgs, { mover: mailApi.archiveMessage, verb: "Archived", targetLabel: "" }),
+    [doMoveOutMany]);
+  const doArchive = useCallback((m) => doArchiveMany([m]), [doArchiveMany]);
 
   // Mark N messages (any mix of accounts) as junk; one standing rule is created per
   // distinct sender within each account (server-side, in mark-junk).
@@ -272,9 +307,38 @@ export default function InboxView({ folder = "INBOX", accountId = null, accounts
       });
   }, [folder, removeFromList, reinsertToList, resync, showToast]);
 
+  // Star / unstar — optimistic, DB-only (IMAP catches up on the next sync pass, same
+  // lag as read/unread). No list removal; the row just re-renders with the new state.
+  const doStar = useCallback((m, flagged) => {
+    patchMessages((prev) => prev.map((x) => (sameMsg(x, m) ? { ...x, flagged } : x)));
+    setSelected((s) => (s && sameMsg(s, m) ? { ...s, flagged } : s));
+    mailApi.star(m.accountId, [m.uid], folder, flagged).catch((e) => {
+      patchMessages((prev) => prev.map((x) => (sameMsg(x, m) ? { ...x, flagged: !flagged } : x)));
+      setSelected((s) => (s && sameMsg(s, m) ? { ...s, flagged: !flagged } : s));
+      showToast(e.message || "Could not update star", "error");
+    });
+  }, [folder, patchMessages, showToast]);
+
+  // Forward needs the full message body — the list row shape lacks html/text/to, so
+  // fetch the thread first unless we already have it (forwarding from the open pane).
+  const doForward = useCallback((m) => {
+    if (m.html !== undefined || m.text !== undefined) { onForward?.(m); return; }
+    const threadAccountId = m.accountId || (isAll ? null : accountId);
+    mailApi.thread(m.uid, folder, threadAccountId).then((full) => onForward?.(full)).catch((e) => showToast(e.message, "error"));
+  }, [folder, accountId, isAll, onForward, showToast]);
+
   const filteredMessages = useMemo(() => {
     let list = messages;
+    // Snoozed threads are hidden from the default view until they come due, then
+    // resurface at the top with a badge (sorted first regardless of received_at).
+    const now = Date.now();
+    const isSnoozedHidden = (m) => {
+      const r = m.id && reminders.get(m.id);
+      return r && r.mode === "snooze" && new Date(r.remind_at).getTime() > now;
+    };
+    list = list.filter((m) => !isSnoozedHidden(m));
     if (filter === "unread") list = list.filter((m) => !m.seen);
+    if (filter === "starred") list = list.filter((m) => m.flagged);
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       list = list.filter((m) =>
@@ -283,8 +347,23 @@ export default function InboxView({ folder = "INBOX", accountId = null, accounts
         (m.from?.address || "").toLowerCase().includes(q)
       );
     }
+    // Resurfaced snoozes (now due) float to the top, newest-due first.
+    const resurfacedAt = (m) => {
+      const r = m.id && reminders.get(m.id);
+      return r && r.mode === "snooze" && new Date(r.remind_at).getTime() <= now ? new Date(r.remind_at).getTime() : null;
+    };
+    const withResurfaced = list.some((m) => resurfacedAt(m) != null);
+    if (withResurfaced) {
+      list = [...list].sort((a, b) => {
+        const ra = resurfacedAt(a), rb = resurfacedAt(b);
+        if (ra != null && rb != null) return rb - ra;
+        if (ra != null) return -1;
+        if (rb != null) return 1;
+        return 0;
+      });
+    }
     return list;
-  }, [messages, filter, search]);
+  }, [messages, filter, search, reminders]);
 
   const selectedMessages = useMemo(
     () => filteredMessages.filter((m) => selectedKeys.has(rowKey(m))),
@@ -300,27 +379,26 @@ export default function InboxView({ folder = "INBOX", accountId = null, accounts
   const showPane = !isMobile || !!selected || loadingBody;
 
   return (
-    <div style={{ display: "flex", height: "100%", fontFamily: MF.body }}>
+    <div style={{ display: "flex", height: "100%", fontFamily: F.mono }}>
       {/* Message list panel */}
       <div style={{
         width: isMobile ? "100%" : 340, flexShrink: 0,
-        borderRight: isMobile ? "none" : `1px solid ${MC.border}`,
+        borderRight: isMobile ? "none" : `1px solid ${C.border}`,
         overflowY: "auto", display: showList ? "flex" : "none",
         flexDirection: "column",
-        background: "linear-gradient(180deg, #f5f8ff 0%, #eef3ff 100%)",
+        background: "rgba(10,16,32,0.35)",
       }}>
         {/* List header */}
         <div ref={headerRef} style={{
-          display: "flex", flexDirection: "column", gap: MSP.sm,
-          padding: `${MSP.md}px ${MSP.lg}px ${MSP.sm}px`,
-          background: MG.header,
-          borderBottom: `1px solid ${MC.border}`,
+          display: "flex", flexDirection: "column", gap: SP.sm,
+          padding: `${SP.md}px ${SP.lg}px ${SP.sm}px`,
+          background: C.surface,
+          borderBottom: `1px solid ${C.border}`,
           position: "sticky", top: 0, zIndex: 2,
-          boxShadow: "0 2px 8px rgba(30,60,180,0.05)",
         }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontFamily: MF.body, fontWeight: 700, fontSize: 17, color: MC.ink }}>
-              {folder === "Sent" ? "Sent" : "Inbox"}
+            <span style={{ fontFamily: F.head, fontWeight: 700, fontSize: 17, color: C.ink, letterSpacing: "0.01em" }}>
+              {FOLDER_TITLE[folder] || folder}
             </span>
             <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
               <SelectToggleButton
@@ -338,7 +416,10 @@ export default function InboxView({ folder = "INBOX", accountId = null, accounts
               onToggleAll={toggleSelectAll}
               onCancel={() => { setSelectMode(false); setSelectedKeys(new Set()); }}
               onDelete={() => doDeleteMany(selectedMessages)}
-              onJunk={() => doJunkMany(selectedMessages)}
+              onArchive={isArchiveView ? undefined : () => doArchiveMany(selectedMessages)}
+              onJunk={isJunkView ? () => doMove(selectedMessages, "INBOX", "Inbox") : () => doJunkMany(selectedMessages)}
+              junkLabel={isJunkView ? "Move to Inbox" : "Junk"}
+              junkIcon={isJunkView ? <InboxIcon size={13} /> : <Ban size={13} />}
               onMove={() => setMovePicker({ msgs: selectedMessages })}
               canMove={canBulkMove}
             />
@@ -346,21 +427,21 @@ export default function InboxView({ folder = "INBOX", accountId = null, accounts
             <>
               {/* Search */}
               <div style={{ position: "relative" }}>
-                <Search size={14} color={MC.inkFaint} style={{ position: "absolute", left: MSP.md, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
+                <Search size={14} color={C.inkFaint} style={{ position: "absolute", left: SP.md, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }} />
                 <input value={search} onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search messages…"
-                  style={{ width: "100%", boxSizing: "border-box", background: "linear-gradient(135deg,#f8faff,#f0f4ff)", border: `1px solid ${MC.border}`, borderRadius: MR.pill, padding: `${MSP.sm}px ${MSP.xl}px ${MSP.sm}px 34px`, fontFamily: MF.body, fontSize: 13, color: MC.ink, outline: "none" }}
+                  style={{ width: "100%", boxSizing: "border-box", background: "rgba(255,255,255,0.04)", border: `1px solid ${C.hair}`, borderRadius: R.pill, padding: `${SP.sm}px ${SP.xl}px ${SP.sm}px 34px`, fontFamily: F.mono, fontSize: 13, color: C.ink, outline: "none" }}
                 />
                 {search && (
-                  <button onClick={() => setSearch("")} style={{ position: "absolute", right: MSP.sm, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: MC.inkFaint, padding: 2 }}>
+                  <button onClick={() => setSearch("")} style={{ position: "absolute", right: SP.sm, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: C.inkFaint, padding: 2 }}>
                     <X size={12} />
                   </button>
                 )}
               </div>
 
-              {/* All / Unread filter tabs */}
-              <div style={{ display: "flex", gap: MSP.sm }}>
-                {["all", "unread"].map((f) => (
+              {/* All / Unread / Starred filter tabs */}
+              <div style={{ display: "flex", gap: SP.sm }}>
+                {["all", "unread", "starred"].map((f) => (
                   <FilterTab key={f} label={f} active={filter === f} onClick={() => setFilter(f)} />
                 ))}
               </div>
@@ -376,9 +457,9 @@ export default function InboxView({ folder = "INBOX", accountId = null, accounts
           const name = acc?.email_address || acc?.display_name || "an account";
           return (
             <button key={`err-${id}`} onClick={() => onFixAccount?.()}
-              style={{ display: "flex", alignItems: "center", gap: MSP.sm, width: "100%", textAlign: "left", background: "#fff0f0", border: "none", borderBottom: `1px solid ${MC.border}`, padding: `${MSP.sm}px ${MSP.lg}px`, cursor: "pointer" }}>
-              <AlertTriangle size={13} color={MC.danger} style={{ flexShrink: 0 }} />
-              <span style={{ fontFamily: MF.body, fontSize: 12, color: MC.inkDim }}>{name} {ERR_LABEL[code] || "couldn't sync"} — check settings</span>
+              style={{ display: "flex", alignItems: "center", gap: SP.sm, width: "100%", textAlign: "left", background: "rgba(255,77,77,0.08)", border: "none", borderBottom: `1px solid ${C.border}`, padding: `${SP.sm}px ${SP.lg}px`, cursor: "pointer" }}>
+              <AlertTriangle size={13} color={C.critical} style={{ flexShrink: 0 }} />
+              <span style={{ fontFamily: F.mono, fontSize: 12, color: C.inkDim }}>{name} {ERR_LABEL[code] || "couldn't sync"} — check settings</span>
             </button>
           );
         })}
@@ -391,15 +472,20 @@ export default function InboxView({ folder = "INBOX", accountId = null, accounts
           {filteredMessages.map((m) => {
             const active = selected?.uid === m.uid && selected?.accountId === m.accountId;
             const acc = isAll ? accountMap[m.accountId] : null;
-            const accent = acc?.color || MC.blue;
+            const accent = acc?.color || C.minor;
             const hasAttachments = m.attachments?.length > 0;
             return (
               <MessageRow key={rowKey(m)}
                 message={m} active={active} acc={acc} accent={accent}
                 hasAttachments={hasAttachments} isAll={isAll}
                 onClick={() => open(m)} openRef={openRef}
-                onDelete={() => doDelete(m)} onMove={() => setMovePicker({ msgs: [m] })} onJunk={() => doJunk(m)}
+                onDelete={() => doDelete(m)} onArchive={isArchiveView ? undefined : () => doArchive(m)} onMove={() => setMovePicker({ msgs: [m] })}
+                onJunk={isJunkView ? () => doMove([m], "INBOX", "Inbox") : () => doJunk(m)}
+                junkLabel={isJunkView ? "Move to Inbox" : "Mark as junk"}
+                junkIcon={isJunkView ? <InboxIcon size={14} /> : <Ban size={14} />}
+                onForward={() => doForward(m)} onStar={(flagged) => doStar(m, flagged)}
                 selectMode={selectMode} checked={selectedKeys.has(rowKey(m))} onToggleSelect={() => toggleSelect(m)}
+                reminder={m.id ? reminders.get(m.id) : null} onReminderChanged={loadReminders}
               />
             );
           })}
@@ -407,11 +493,11 @@ export default function InboxView({ folder = "INBOX", accountId = null, accounts
       </div>
 
       {/* Reading pane */}
-      <div style={{ flex: 1, minWidth: 0, overflowY: "auto", background: MG.pane, display: showPane ? "block" : "none" }}>
+      <div style={{ flex: 1, minWidth: 0, overflowY: "auto", background: "rgba(6,12,24,0.5)", display: showPane ? "block" : "none" }}>
         {isMobile && selected && (
-          <div style={{ padding: `${MSP.md}px ${MSP.lg}px 0`, position: "sticky", top: 0, background: MG.pane, zIndex: 2 }}>
+          <div style={{ padding: `${SP.md}px ${SP.lg}px 0`, position: "sticky", top: 0, background: "rgba(6,12,24,0.9)", zIndex: 2 }}>
             <button onClick={() => setSelected(null)}
-              style={{ display: "inline-flex", alignItems: "center", gap: MSP.sm, background: "none", border: "none", color: MC.blue, fontFamily: MF.body, fontWeight: 600, fontSize: 14, cursor: "pointer", padding: "4px 0" }}>
+              style={{ display: "inline-flex", alignItems: "center", gap: SP.sm, background: "none", border: "none", color: C.minor, fontFamily: F.mono, fontWeight: 600, fontSize: 14, cursor: "pointer", padding: "4px 0" }}>
               <CornerUpLeft size={16} /> Back
             </button>
           </div>
@@ -420,17 +506,22 @@ export default function InboxView({ folder = "INBOX", accountId = null, accounts
         {loadingBody && <Note>Opening…</Note>}
         {!loadingBody && bodyError && <Note tone="danger">{bodyError}</Note>}
         {!loadingBody && !bodyError && !selected && !isMobile && (
-          <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: MSP.md }}>
-            <div style={{ width: 48, height: 48, borderRadius: "50%", background: MC.blueSoft, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: MSP.sm }}>
-              <Paperclip size={20} color={MC.blue} strokeWidth={1.5} />
+          <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: SP.md }}>
+            <div style={{ width: 48, height: 48, borderRadius: "50%", background: "rgba(59,163,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: SP.sm }}>
+              <Paperclip size={20} color={C.minor} strokeWidth={1.5} />
             </div>
-            <div style={{ fontFamily: MF.body, fontSize: 14, color: MC.inkFaint }}>Select a message to read</div>
+            <div style={{ fontFamily: F.mono, fontSize: 14, color: C.inkFaint }}>Select a message to read</div>
           </div>
         )}
         {!loadingBody && selected && (
           <div ref={paneRef}>
-            <ThreadView message={selected} onReply={onReply} openRef={openRef} onViewAttachment={setViewerDoc}
-              onDelete={() => doDelete(selected)} onMove={() => setMovePicker({ msgs: [selected] })} onJunk={() => doJunk(selected)} />
+            <ThreadView message={selected} onReply={onReply} onForward={() => doForward(selected)} openRef={openRef} onViewAttachment={setViewerDoc}
+              onDelete={() => doDelete(selected)} onArchive={isArchiveView ? undefined : () => doArchive(selected)} onMove={() => setMovePicker({ msgs: [selected] })}
+              onJunk={isJunkView ? () => doMove([selected], "INBOX", "Inbox") : () => doJunk(selected)}
+              junkLabel={isJunkView ? "Move to Inbox" : "Junk"}
+              junkIcon={isJunkView ? <InboxIcon size={15} /> : <Ban size={15} />}
+              onStar={(flagged) => doStar(selected, flagged)}
+              reminder={selected.id ? reminders.get(selected.id) : null} onReminderChanged={loadReminders} />
           </div>
         )}
       </div>
@@ -480,24 +571,24 @@ function MoveFolderPicker({ msgs, currentFolder, onClose, onPick }) {
   );
 
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(10,20,40,0.32)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-      <div ref={cardRef} onClick={(e) => e.stopPropagation()} style={{ ...mailCard(MR.card), width: "100%", maxWidth: 420, margin: MSP.md, maxHeight: "70vh", overflowY: "auto", padding: `${MSP.lg}px` }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: MSP.md }}>
-          <span style={{ fontFamily: MF.body, fontWeight: 700, fontSize: 16, color: MC.ink }}>
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(2,4,8,0.6)", backdropFilter: "blur(4px)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+      <div ref={cardRef} onClick={(e) => e.stopPropagation()} style={{ ...glass(R.card), width: "100%", maxWidth: 420, margin: SP.md, maxHeight: "70vh", overflowY: "auto", padding: `${SP.lg}px` }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: SP.md }}>
+          <span style={{ fontFamily: F.head, fontWeight: 700, fontSize: 16, color: C.ink }}>
             {msgs.length > 1 ? `Move ${msgs.length} messages to…` : "Move to…"}
           </span>
-          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: MC.inkFaint, padding: 4 }}><X size={16} /></button>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: C.inkFaint, padding: 4 }}><X size={16} /></button>
         </div>
-        {folders === null && !error && <div style={{ fontFamily: MF.body, fontSize: 13, color: MC.inkFaint, padding: `${MSP.md}px 0` }}>Loading folders…</div>}
-        {error && <div style={{ fontFamily: MF.body, fontSize: 13, color: MC.danger, padding: `${MSP.md}px 0` }}>{error}</div>}
-        {folders && !error && options.length === 0 && <div style={{ fontFamily: MF.body, fontSize: 13, color: MC.inkFaint, padding: `${MSP.md}px 0` }}>No other folders available.</div>}
+        {folders === null && !error && <div style={{ fontFamily: F.mono, fontSize: 13, color: C.inkFaint, padding: `${SP.md}px 0` }}>Loading folders…</div>}
+        {error && <div style={{ fontFamily: F.mono, fontSize: 13, color: C.critical, padding: `${SP.md}px 0` }}>{error}</div>}
+        {folders && !error && options.length === 0 && <div style={{ fontFamily: F.mono, fontSize: 13, color: C.inkFaint, padding: `${SP.md}px 0` }}>No other folders available.</div>}
         <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
           {options.map((f) => (
             <button key={f.path} onClick={() => onPick(f.path, f.name)}
-              style={{ display: "flex", alignItems: "center", gap: MSP.sm, width: "100%", textAlign: "left", background: "none", border: "none", borderRadius: MR.chip, padding: `${MSP.sm + 2}px ${MSP.md}px`, cursor: "pointer", fontFamily: MF.body, fontSize: 14, color: MC.ink }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = MG.activeRow)}
+              style={{ display: "flex", alignItems: "center", gap: SP.sm, width: "100%", textAlign: "left", background: "none", border: "none", borderRadius: R.chip, padding: `${SP.sm + 2}px ${SP.md}px`, cursor: "pointer", fontFamily: F.mono, fontSize: 14, color: C.ink }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(59,163,255,0.1)")}
               onMouseLeave={(e) => (e.currentTarget.style.background = "none")}>
-              <FolderInput size={15} color={MC.inkDim} style={{ flexShrink: 0 }} />
+              <FolderInput size={15} color={C.inkDim} style={{ flexShrink: 0 }} />
               <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name}</span>
             </button>
           ))}
@@ -509,16 +600,17 @@ function MoveFolderPicker({ msgs, currentFolder, onClose, onPick }) {
 
 // ─── Sub-components ────────────────────────────────────────────────────────────
 
-function MessageRow({ message: m, active, acc, accent, hasAttachments, isAll, onClick, openRef, onDelete, onMove, onJunk, selectMode, checked, onToggleSelect }) {
+function MessageRow({ message: m, active, acc, accent, hasAttachments, isAll, onClick, openRef, onDelete, onArchive, onMove, onJunk, junkLabel, junkIcon, onForward, onStar, selectMode, checked, onToggleSelect, reminder, onReminderChanged }) {
   const ref = useRef(null);
+  const reminderDue = reminder && new Date(reminder.remind_at) <= new Date();
 
   const handleEnter = () => {
     if (active || !ref.current) return;
-    gsap.to(ref.current, { x: 3, boxShadow: "2px 0 12px rgba(30,60,180,0.10)", duration: 0.18, ease: "power1.out" });
+    gsap.to(ref.current, { x: 3, duration: 0.18, ease: "power1.out" });
   };
   const handleLeave = () => {
     if (!ref.current) return;
-    gsap.to(ref.current, { x: 0, boxShadow: "none", duration: 0.18, ease: "power1.in" });
+    gsap.to(ref.current, { x: 0, duration: 0.18, ease: "power1.in" });
   };
 
   // In select mode, tapping anywhere on the row toggles its checkbox instead of
@@ -533,54 +625,99 @@ function MessageRow({ message: m, active, acc, accent, hasAttachments, isAll, on
       style={{
         display: selectMode ? "flex" : "block",
         alignItems: selectMode ? "flex-start" : undefined,
-        gap: selectMode ? MSP.sm : undefined,
+        gap: selectMode ? SP.sm : undefined,
         width: "100%", textAlign: "left",
-        background: active ? MG.activeRow : (checked ? MC.blueSoft : "transparent"),
-        border: "none", borderBottom: `1px solid ${MC.hair}`,
-        borderLeft: `3px solid ${active ? MC.blue : (isAll ? accent : "transparent")}`,
-        padding: `${MSP.md}px ${selectMode ? MSP.md : (MSP.xxl + MSP.sm)}px ${MSP.md}px ${MSP.lg}px`, cursor: "pointer",
+        background: active ? "rgba(59,163,255,0.1)" : (checked ? "rgba(59,163,255,0.08)" : "transparent"),
+        border: "none", borderBottom: `1px solid ${C.hair}`,
+        borderLeft: `3px solid ${active ? C.minor : (isAll ? accent : "transparent")}`,
+        padding: `${SP.md}px ${selectMode ? SP.md : (SP.xxl + SP.sm + 20)}px ${SP.md}px ${SP.lg}px`, cursor: "pointer",
         transition: "background 0.12s, border-color 0.15s",
         willChange: "transform",
       }}
     >
       {selectMode && (
-        <span style={{ flexShrink: 0, marginTop: 2, color: checked ? MC.blue : MC.inkFaint, display: "flex" }}>
+        <span style={{ flexShrink: 0, marginTop: 2, color: checked ? C.minor : C.inkFaint, display: "flex" }}>
           {checked ? <CheckSquare size={18} /> : <Square size={18} />}
         </span>
       )}
       <div style={selectMode ? { flex: 1, minWidth: 0 } : undefined}>
         {isAll && acc && (
-          <div style={{ display: "flex", alignItems: "center", gap: MSP.xs, marginBottom: 3 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: SP.xs, marginBottom: 3 }}>
             <span style={{ width: 6, height: 6, borderRadius: "50%", background: accent, flexShrink: 0 }} />
-            <span style={{ fontFamily: MF.mono, fontSize: 10, color: MC.inkFaint, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <span style={{ fontFamily: F.mono, fontSize: 10, color: C.inkFaint, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {acc.display_name || acc.email_address}
             </span>
           </div>
         )}
-        <div style={{ display: "flex", alignItems: "center", gap: MSP.sm, marginBottom: 3 }}>
-          {!m.seen && <span style={{ width: 7, height: 7, borderRadius: "50%", background: MC.blue, flexShrink: 0, boxShadow: `0 0 0 2px rgba(47,107,255,0.18)` }} />}
-          <span style={{ flex: 1, fontFamily: MF.body, fontSize: 14, fontWeight: m.seen ? 500 : 700, color: MC.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: SP.sm, marginBottom: 3 }}>
+          {!m.seen && <span style={{ width: 7, height: 7, borderRadius: "50%", background: C.minor, flexShrink: 0 }} />}
+          <span style={{ flex: 1, fontFamily: F.mono, fontSize: 14, fontWeight: m.seen ? 500 : 700, color: C.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
             {m.from?.name || m.from?.address || "Unknown"}
           </span>
-          <span style={{ fontFamily: MF.mono, fontSize: 11, color: MC.inkFaint, flexShrink: 0 }}>
+          <span style={{ fontFamily: F.mono, fontSize: 11, color: C.inkFaint, flexShrink: 0 }}>
             {formatRelative(m.date)}
           </span>
         </div>
-        <div style={{ fontFamily: MF.body, fontSize: 13, fontWeight: m.seen ? 400 : 600, color: m.seen ? MC.inkDim : MC.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginBottom: hasAttachments ? 4 : 0 }}>
+        <div style={{ fontFamily: F.mono, fontSize: 13, fontWeight: m.seen ? 400 : 600, color: m.seen ? C.inkDim : C.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginBottom: hasAttachments ? 4 : 0 }}>
           <RefText text={m.subject} onRef={openRef} />
         </div>
         {hasAttachments && (
           <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            <Paperclip size={11} color={MC.inkFaint} />
-            <span style={{ fontFamily: MF.mono, fontSize: 10, color: MC.inkFaint }}>
+            <Paperclip size={11} color={C.inkFaint} />
+            <span style={{ fontFamily: F.mono, fontSize: 10, color: C.inkFaint }}>
               {m.attachments.length} attachment{m.attachments.length !== 1 ? "s" : ""}
+            </span>
+          </div>
+        )}
+        {reminder && (
+          <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: hasAttachments ? 3 : 4 }}>
+            {reminder.mode === "snooze" ? <ClockIcon size={11} color={C.warning} /> : <BellRing size={11} color={reminderDue ? C.warning : C.inkFaint} />}
+            <span style={{ fontFamily: F.mono, fontSize: 10, color: reminderDue ? C.warning : C.inkFaint }}>
+              {reminder.mode === "snooze" ? "Snoozed — back" : reminderDue ? "Follow-up due" : `Follow-up ${formatRelative(reminder.remind_at)}`}
             </span>
           </div>
         )}
       </div>
     </button>
-      {!selectMode && <RowKebab onDelete={onDelete} onMove={onMove} onJunk={onJunk} />}
+      {!selectMode && (
+        <div style={{ position: "absolute", top: SP.sm, right: SP.sm, display: "flex", alignItems: "center", gap: 2 }}>
+          <StarButton flagged={!!m.flagged} onToggle={onStar} />
+          {m.id && <FollowUpButton messageId={m.id} active={!!reminder} onChanged={onReminderChanged} />}
+          <RowKebab onDelete={onDelete} onArchive={onArchive} onMove={onMove} onJunk={onJunk} junkLabel={junkLabel} junkIcon={junkIcon} onForward={onForward} />
+        </div>
+      )}
     </div>
+  );
+}
+
+// Icon button (parallel to Star) that opens the ReminderControl popover for one message.
+function FollowUpButton({ messageId, active, onChanged }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ position: "relative" }}>
+      <button
+        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
+        title="Follow-up reminder"
+        style={{ background: open || active ? "rgba(232,147,10,0.15)" : "none", border: "none", borderRadius: R.chip, cursor: "pointer", color: active ? C.warning : C.inkFaint, padding: 4, display: "flex" }}>
+        <BellRing size={14} />
+      </button>
+      {open && (
+        <div onClick={(e) => e.stopPropagation()}>
+          <ReminderControl messageId={messageId} onClose={() => setOpen(false)} onChanged={onChanged} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StarButton({ flagged, onToggle }) {
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); onToggle(!flagged); }}
+      title={flagged ? "Unstar" : "Star"}
+      style={{ background: "none", border: "none", borderRadius: R.chip, cursor: "pointer", color: flagged ? C.warning : C.inkFaint, padding: 4, display: "flex" }}>
+      <Star size={15} fill={flagged ? C.warning : "none"} />
+    </button>
   );
 }
 
@@ -589,28 +726,29 @@ function MessageRow({ message: m, active, acc, accent, hasAttachments, isAll, on
 function SelectToggleButton({ active, onClick }) {
   return (
     <button onClick={onClick} title={active ? "Cancel selection" : "Select messages"}
-      style={{ background: active ? MC.blueSoft : "none", border: "none", borderRadius: MR.chip, cursor: "pointer", color: active ? MC.blue : MC.inkFaint, padding: 4, display: "flex" }}>
+      style={{ background: active ? "rgba(59,163,255,0.15)" : "none", border: "none", borderRadius: R.chip, cursor: "pointer", color: active ? C.minor : C.inkFaint, padding: 4, display: "flex" }}>
       <CheckSquare size={15} />
     </button>
   );
 }
 
 // Bulk action bar shown in place of search/filter while select mode is active.
-function BulkToolbar({ count, allSelected, onToggleAll, onCancel, onDelete, onJunk, onMove, canMove }) {
+function BulkToolbar({ count, allSelected, onToggleAll, onCancel, onDelete, onArchive, onJunk, junkLabel, junkIcon, onMove, canMove }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: MSP.sm, flexWrap: "wrap" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: SP.sm, flexWrap: "wrap" }}>
       <button onClick={onToggleAll}
-        style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", color: MC.blue, fontFamily: MF.mono, fontSize: 11, padding: 2 }}>
+        style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", color: C.minor, fontFamily: F.mono, fontSize: 11, padding: 2 }}>
         {allSelected ? <CheckSquare size={15} /> : <Square size={15} />} All
       </button>
-      <span style={{ fontFamily: MF.body, fontSize: 13, fontWeight: 600, color: MC.ink, flex: 1 }}>
+      <span style={{ fontFamily: F.mono, fontSize: 13, fontWeight: 600, color: C.ink, flex: 1 }}>
         {count} selected
       </span>
       <BulkIconButton icon={<FolderInput size={13} />} label="Move" onClick={onMove} disabled={!count || !canMove} title={!canMove && count ? "Select messages from one account to move" : undefined} />
-      <BulkIconButton icon={<Ban size={13} />} label="Junk" onClick={onJunk} disabled={!count} />
+      {onArchive && <BulkIconButton icon={<Archive size={13} />} label="Archive" onClick={onArchive} disabled={!count} />}
+      <BulkIconButton icon={junkIcon || <Ban size={13} />} label={junkLabel || "Junk"} onClick={onJunk} disabled={!count} />
       <BulkIconButton icon={<Trash2 size={13} />} label="Delete" onClick={onDelete} disabled={!count} danger />
       <button onClick={onCancel} title="Cancel selection"
-        style={{ background: "none", border: "none", cursor: "pointer", color: MC.inkFaint, padding: 4, display: "flex" }}>
+        style={{ background: "none", border: "none", cursor: "pointer", color: C.inkFaint, padding: 4, display: "flex" }}>
         <X size={16} />
       </button>
     </div>
@@ -620,7 +758,7 @@ function BulkToolbar({ count, allSelected, onToggleAll, onCancel, onDelete, onJu
 function BulkIconButton({ icon, label, onClick, disabled, danger, title }) {
   return (
     <button onClick={onClick} disabled={disabled} title={title}
-      style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: `1px solid ${danger ? MC.danger : MC.border}`, borderRadius: MR.pill, padding: `4px ${MSP.sm}px`, fontFamily: MF.mono, fontSize: 11, color: disabled ? MC.inkFaint : (danger ? MC.danger : MC.inkDim), cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.5 : 1 }}>
+      style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: `1px solid ${danger ? C.critical : C.border}`, borderRadius: R.pill, padding: `4px ${SP.sm}px`, fontFamily: F.mono, fontSize: 11, color: disabled ? C.inkFaint : (danger ? C.critical : C.inkDim), cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.5 : 1 }}>
       {icon} {label}
     </button>
   );
@@ -628,22 +766,24 @@ function BulkIconButton({ icon, label, onClick, disabled, danger, title }) {
 
 // Three-dot menu overlaid on a message row (top-right). Rendered as a sibling of the
 // row button — never nested inside it — so it stays valid + independently clickable.
-function RowKebab({ onDelete, onMove, onJunk }) {
+function RowKebab({ onDelete, onArchive, onMove, onJunk, junkLabel, junkIcon, onForward }) {
   const [open, setOpen] = useState(false);
   return (
-    <div style={{ position: "absolute", top: MSP.sm, right: MSP.sm }}>
+    <div style={{ position: "relative" }}>
       <button
         onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
         title="Message actions"
-        style={{ background: open ? MC.blueSoft : "none", border: "none", borderRadius: MR.chip, cursor: "pointer", color: MC.inkFaint, padding: 4, display: "flex" }}>
+        style={{ background: open ? "rgba(59,163,255,0.15)" : "none", border: "none", borderRadius: R.chip, cursor: "pointer", color: C.inkFaint, padding: 4, display: "flex" }}>
         <MoreVertical size={16} />
       </button>
       {open && (
         <>
           <div onClick={(e) => { e.stopPropagation(); setOpen(false); }} style={{ position: "fixed", inset: 0, zIndex: 30 }} />
-          <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, minWidth: 170, zIndex: 31, ...mailCard(MR.chip), padding: 4 }}>
+          <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, minWidth: 170, zIndex: 31, ...glass(R.chip), padding: 4 }}>
+            <KebabItem icon={<CornerUpRight size={14} />} label="Forward" onClick={(e) => { e.stopPropagation(); setOpen(false); onForward(); }} />
             <KebabItem icon={<FolderInput size={14} />} label="Move to…" onClick={(e) => { e.stopPropagation(); setOpen(false); onMove(); }} />
-            <KebabItem icon={<Ban size={14} />} label="Mark as junk" onClick={(e) => { e.stopPropagation(); setOpen(false); onJunk(); }} />
+            {onArchive && <KebabItem icon={<Archive size={14} />} label="Archive" onClick={(e) => { e.stopPropagation(); setOpen(false); onArchive(); }} />}
+            <KebabItem icon={junkIcon || <Ban size={14} />} label={junkLabel || "Mark as junk"} onClick={(e) => { e.stopPropagation(); setOpen(false); onJunk(); }} />
             <KebabItem icon={<Trash2 size={14} />} label="Delete" danger onClick={(e) => { e.stopPropagation(); setOpen(false); onDelete(); }} />
           </div>
         </>
@@ -655,26 +795,23 @@ function RowKebab({ onDelete, onMove, onJunk }) {
 function KebabItem({ icon, label, onClick, danger }) {
   return (
     <button onClick={onClick}
-      onMouseEnter={(e) => (e.currentTarget.style.background = MG.activeRow)}
+      onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(59,163,255,0.1)")}
       onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
-      style={{ display: "flex", alignItems: "center", gap: MSP.sm, width: "100%", textAlign: "left", background: "none", border: "none", borderRadius: MR.chip - 2, padding: `${MSP.sm}px ${MSP.sm}px`, cursor: "pointer", fontFamily: MF.body, fontSize: 13, color: danger ? MC.danger : MC.ink }}>
-      <span style={{ color: danger ? MC.danger : MC.inkDim, display: "flex", flexShrink: 0 }}>{icon}</span>
+      style={{ display: "flex", alignItems: "center", gap: SP.sm, width: "100%", textAlign: "left", background: "none", border: "none", borderRadius: R.chip - 2, padding: `${SP.sm}px ${SP.sm}px`, cursor: "pointer", fontFamily: F.mono, fontSize: 13, color: danger ? C.critical : C.ink }}>
+      <span style={{ color: danger ? C.critical : C.inkDim, display: "flex", flexShrink: 0 }}>{icon}</span>
       {label}
     </button>
   );
 }
 
-function ThreadView({ message, onReply, openRef, onViewAttachment, onDelete, onMove, onJunk }) {
+function ThreadView({ message, onReply, onForward, openRef, onViewAttachment, onDelete, onArchive, onMove, onJunk, junkLabel, junkIcon, onStar, reminder, onReminderChanged }) {
   const isMobile = useIsMobile();
+  const [reminderOpen, setReminderOpen] = useState(false);
   const subjectRef = useRef(null);
   const metaRef = useRef(null);
   const bodyRef = useRef(null);
   const actionsRef = useRef(null);
-
-  const actions = MAIL_ACTIONS.map((a) => ({
-    ...a,
-    handler: a.key === "reply" ? () => onReply?.(message) : null,
-  })).filter((a) => a.handler);
+  const reminderDue = reminder && new Date(reminder.remind_at) <= new Date();
 
   useEffect(() => {
     const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -687,33 +824,50 @@ function ThreadView({ message, onReply, openRef, onViewAttachment, onDelete, onM
   }, [message.uid]);
 
   return (
-    <div style={{ padding: isMobile ? `${MSP.md}px ${MSP.lg}px` : `${MSP.xl}px ${MSP.xxl}px`, maxWidth: 860, margin: "0 auto" }}>
-      <h1 ref={subjectRef} style={{ fontFamily: MF.body, fontWeight: 700, fontSize: isMobile ? 20 : 26, color: MC.ink, margin: `0 0 ${MSP.lg}px`, lineHeight: 1.2, letterSpacing: "-0.02em" }}>
-        <RefText text={message.subject} onRef={openRef} />
-      </h1>
+    <div style={{ padding: isMobile ? `${SP.md}px ${SP.lg}px` : `${SP.xl}px ${SP.xxl}px`, maxWidth: 860, margin: "0 auto" }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: SP.md, marginBottom: SP.lg }}>
+        <h1 ref={subjectRef} style={{ flex: 1, fontFamily: F.head, fontWeight: 700, fontSize: isMobile ? 20 : 26, color: C.ink, margin: 0, lineHeight: 1.2, letterSpacing: "0.005em" }}>
+          <RefText text={message.subject} onRef={openRef} />
+        </h1>
+        {onStar && (
+          <button onClick={() => onStar(!message.flagged)} title={message.flagged ? "Unstar" : "Star"}
+            style={{ background: "none", border: "none", cursor: "pointer", color: message.flagged ? C.warning : C.inkFaint, padding: 4, flexShrink: 0, marginTop: 4 }}>
+            <Star size={20} fill={message.flagged ? C.warning : "none"} />
+          </button>
+        )}
+      </div>
+
+      {reminder && (
+        <div style={{ display: "flex", alignItems: "center", gap: SP.sm, background: reminderDue ? "rgba(232,147,10,0.1)" : "rgba(255,255,255,0.03)", border: `1px solid ${reminderDue ? "rgba(232,147,10,0.3)" : C.hair}`, borderRadius: R.chip, padding: `${SP.sm}px ${SP.md}px`, marginBottom: SP.lg }}>
+          {reminder.mode === "snooze" ? <ClockIcon size={13} color={C.warning} /> : <BellRing size={13} color={reminderDue ? C.warning : C.inkFaint} />}
+          <span style={{ fontFamily: F.mono, fontSize: 12, color: reminderDue ? C.warning : C.inkDim, flex: 1 }}>
+            {reminder.mode === "snooze" ? "Snoozed until" : "Follow-up"} {formatAbsolute(reminder.remind_at)}{reminderDue ? " — due" : ""}
+          </span>
+        </div>
+      )}
 
       {/* Sender meta card */}
-      <div ref={metaRef} style={{ ...mailCard(MR.card), padding: `${MSP.md}px ${MSP.lg}px`, marginBottom: MSP.lg, display: "flex", flexDirection: "column", gap: MSP.sm }}>
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: MSP.md }}>
+      <div ref={metaRef} style={{ ...glass(R.card), padding: `${SP.md}px ${SP.lg}px`, marginBottom: SP.lg, display: "flex", flexDirection: "column", gap: SP.sm }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: SP.md }}>
           <div>
-            <div style={{ fontFamily: MF.body, fontWeight: 600, fontSize: 14, color: MC.ink }}>
+            <div style={{ fontFamily: F.mono, fontWeight: 600, fontSize: 14, color: C.ink }}>
               {message.from?.name || message.from?.address || "Unknown"}
             </div>
             {message.from?.name && (
-              <div style={{ fontFamily: MF.mono, fontSize: 11, color: MC.inkFaint }}>{message.from.address}</div>
+              <div style={{ fontFamily: F.mono, fontSize: 11, color: C.inkFaint }}>{message.from.address}</div>
             )}
             {message.to?.length > 0 && (
-              <div style={{ fontFamily: MF.body, fontSize: 12, color: MC.inkDim, marginTop: 2 }}>
+              <div style={{ fontFamily: F.mono, fontSize: 12, color: C.inkDim, marginTop: 2 }}>
                 To: {message.to.map((t) => t.name || t.address).join(", ")}
               </div>
             )}
             {message.cc?.length > 0 && (
-              <div style={{ fontFamily: MF.body, fontSize: 12, color: MC.inkDim }}>
+              <div style={{ fontFamily: F.mono, fontSize: 12, color: C.inkDim }}>
                 CC: {message.cc.map((t) => t.name || t.address).join(", ")}
               </div>
             )}
           </div>
-          <span style={{ fontFamily: MF.mono, fontSize: 11, color: MC.inkFaint, flexShrink: 0, textAlign: "right" }}>
+          <span style={{ fontFamily: F.mono, fontSize: 11, color: C.inkFaint, flexShrink: 0, textAlign: "right" }}>
             {formatAbsolute(message.date)}
           </span>
         </div>
@@ -725,19 +879,27 @@ function ThreadView({ message, onReply, openRef, onViewAttachment, onDelete, onM
       )}
 
       {/* Body */}
-      <div ref={bodyRef} style={{ ...mailCard(MR.card), padding: `${MSP.xl}px`, marginBottom: MSP.xl, fontFamily: MF.body, fontSize: 15, color: MC.ink, lineHeight: 1.7, whiteSpace: message.html ? "normal" : "pre-wrap", wordBreak: "break-word", overflowX: "auto" }}
+      <div ref={bodyRef} style={{ ...glass(R.card), padding: `${SP.xl}px`, marginBottom: SP.xl, fontFamily: F.mono, fontSize: 15, color: C.ink, lineHeight: 1.7, whiteSpace: message.html ? "normal" : "pre-wrap", wordBreak: "break-word", overflowX: "auto" }}
         {...(message.html
           ? { dangerouslySetInnerHTML: { __html: message.html } }
           : { children: <RefText text={message.text} onRef={openRef} /> })}
       />
 
       {/* Actions */}
-      <div ref={actionsRef} style={{ display: "flex", gap: MSP.sm, flexWrap: "wrap" }}>
-        {actions.map((a) => (
-          <ActionButton key={a.key} icon={<CornerUpLeft size={15} />} label={a.label} onClick={a.handler} primary />
-        ))}
+      <div ref={actionsRef} style={{ display: "flex", gap: SP.sm, flexWrap: "wrap" }}>
+        {onReply && <ActionButton icon={<CornerUpLeft size={15} />} label="Reply" onClick={() => onReply(message)} primary />}
+        {onForward && <ActionButton icon={<CornerUpRight size={15} />} label="Forward" onClick={onForward} />}
         {onMove && <ActionButton icon={<FolderInput size={15} />} label="Move" onClick={onMove} />}
-        {onJunk && <ActionButton icon={<Ban size={15} />} label="Junk" onClick={onJunk} />}
+        {onArchive && <ActionButton icon={<Archive size={15} />} label="Archive" onClick={onArchive} />}
+        {onJunk && <ActionButton icon={junkIcon || <Ban size={15} />} label={junkLabel || "Junk"} onClick={onJunk} />}
+        {message.id && (
+          <div style={{ position: "relative" }}>
+            <ActionButton icon={<BellRing size={15} />} label={reminder ? "Follow-up" : "Remind me"} onClick={() => setReminderOpen((v) => !v)} />
+            {reminderOpen && (
+              <ReminderControl messageId={message.id} onClose={() => setReminderOpen(false)} onChanged={onReminderChanged} />
+            )}
+          </div>
+        )}
         {onDelete && <ActionButton icon={<Trash2 size={15} />} label="Delete" onClick={onDelete} danger />}
       </div>
     </div>
@@ -746,8 +908,8 @@ function ThreadView({ message, onReply, openRef, onViewAttachment, onDelete, onM
 
 function AttachmentChips({ attachments, onView }) {
   return (
-    <div style={{ ...mailCard(MR.card), padding: `${MSP.md}px ${MSP.lg}px`, marginBottom: MSP.lg, display: "flex", flexWrap: "wrap", gap: MSP.sm, alignItems: "center" }}>
-      <Paperclip size={14} color={MC.inkDim} style={{ flexShrink: 0 }} />
+    <div style={{ ...glass(R.card), padding: `${SP.md}px ${SP.lg}px`, marginBottom: SP.lg, display: "flex", flexWrap: "wrap", gap: SP.sm, alignItems: "center" }}>
+      <Paperclip size={14} color={C.inkDim} style={{ flexShrink: 0 }} />
       {attachments.map((att, i) => (
         <AttachChip key={i} att={att} onView={onView} />
       ))}
@@ -760,12 +922,12 @@ function AttachChip({ att, onView }) {
   return (
     <button ref={ref}
       onClick={() => { if (att.url) onView({ url: att.url, fileName: att.filename || att.name, mimeType: att.contentType || att.mimeType }); }}
-      onMouseEnter={() => { if (ref.current) gsap.to(ref.current, { y: -2, boxShadow: "0 4px 12px rgba(47,107,255,0.18)", duration: 0.18, ease: "power1.out" }); }}
-      onMouseLeave={() => { if (ref.current) gsap.to(ref.current, { y: 0, boxShadow: "none", duration: 0.18, ease: "power1.in" }); }}
-      style={{ display: "inline-flex", alignItems: "center", gap: MSP.xs, background: "linear-gradient(135deg,#f5f8ff,#eaf0ff)", border: `1px solid ${MC.border}`, borderRadius: MR.chip, padding: `${MSP.xs}px ${MSP.md}px`, fontFamily: MF.body, fontSize: 12, color: MC.ink, cursor: att.url ? "pointer" : "default", willChange: "transform" }}
+      onMouseEnter={() => { if (ref.current) gsap.to(ref.current, { y: -2, duration: 0.18, ease: "power1.out" }); }}
+      onMouseLeave={() => { if (ref.current) gsap.to(ref.current, { y: 0, duration: 0.18, ease: "power1.in" }); }}
+      style={{ display: "inline-flex", alignItems: "center", gap: SP.xs, background: "rgba(255,255,255,0.05)", border: `1px solid ${C.hair}`, borderRadius: R.chip, padding: `${SP.xs}px ${SP.md}px`, fontFamily: F.mono, fontSize: 12, color: C.ink, cursor: att.url ? "pointer" : "default", willChange: "transform" }}
       title={att.url ? "View attachment" : "Preview unavailable"}
     >
-      <Paperclip size={11} color={MC.blue} />
+      <Paperclip size={11} color={C.minor} />
       {att.filename || att.name || "attachment"}
     </button>
   );
@@ -779,7 +941,7 @@ function ActionButton({ icon, label, onClick, primary, danger }) {
   };
   return (
     <button ref={ref} onClick={() => { handlePress(); onClick(); }}
-      style={{ display: "inline-flex", alignItems: "center", gap: MSP.sm, background: primary ? MG.cta : MG.card, border: primary ? "none" : `1px solid ${danger ? MC.danger : MC.border}`, borderRadius: MR.pill, padding: `${MSP.sm + 2}px ${MSP.xl}px`, fontFamily: MF.body, fontWeight: 600, fontSize: 14, color: primary ? "#fff" : (danger ? MC.danger : MC.inkDim), cursor: "pointer", minHeight: 40, boxShadow: primary ? "0 4px 16px rgba(47,107,255,0.30)" : "none", willChange: "transform" }}>
+      style={{ display: "inline-flex", alignItems: "center", gap: SP.sm, background: primary ? C.minor : "rgba(255,255,255,0.05)", border: primary ? "none" : `1px solid ${danger ? C.critical : C.border}`, borderRadius: R.pill, padding: `${SP.sm + 2}px ${SP.xl}px`, fontFamily: F.mono, fontWeight: 600, fontSize: 14, color: primary ? C.void : (danger ? C.critical : C.inkDim), cursor: "pointer", minHeight: 40, willChange: "transform" }}>
       {icon}{label}
     </button>
   );
@@ -793,7 +955,7 @@ function FilterTab({ label, active, onClick }) {
   };
   return (
     <button ref={ref} onClick={handleClick}
-      style={{ background: active ? MG.cta : "none", border: active ? "none" : `1px solid ${MC.border}`, borderRadius: MR.pill, padding: `3px ${MSP.md}px`, fontFamily: MF.body, fontWeight: active ? 600 : 500, fontSize: 12, color: active ? "#fff" : MC.inkDim, cursor: "pointer", textTransform: "capitalize", boxShadow: active ? "0 2px 8px rgba(47,107,255,0.28)" : "none", willChange: "transform" }}>
+      style={{ background: active ? C.minor : "none", border: active ? "none" : `1px solid ${C.border}`, borderRadius: R.pill, padding: `3px ${SP.md}px`, fontFamily: F.mono, fontWeight: active ? 600 : 500, fontSize: 12, color: active ? C.void : C.inkDim, cursor: "pointer", textTransform: "capitalize", willChange: "transform" }}>
       {label}
     </button>
   );
@@ -807,7 +969,7 @@ function RefreshButton({ onClick }) {
     onClick();
   };
   return (
-    <button onClick={spin} style={{ background: "none", border: "none", cursor: "pointer", color: MC.inkFaint, padding: 4 }}>
+    <button onClick={spin} style={{ background: "none", border: "none", cursor: "pointer", color: C.inkFaint, padding: 4 }}>
       <RefreshCw ref={ref} size={15} />
     </button>
   );
@@ -820,11 +982,11 @@ function EmptyState({ search }) {
     gsap.fromTo(ref.current, { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.4, ease: "power2.out" });
   }, [search]);
   return (
-    <div ref={ref} style={{ padding: `${MSP.xxl}px ${MSP.lg}px`, display: "flex", flexDirection: "column", alignItems: "center", gap: MSP.md, textAlign: "center" }}>
-      <div style={{ width: 56, height: 56, borderRadius: "50%", background: "linear-gradient(135deg,#eaf0ff,#dde8ff)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <Search size={22} color={MC.blue} strokeWidth={1.5} />
+    <div ref={ref} style={{ padding: `${SP.xxl}px ${SP.lg}px`, display: "flex", flexDirection: "column", alignItems: "center", gap: SP.md, textAlign: "center" }}>
+      <div style={{ width: 56, height: 56, borderRadius: "50%", background: "rgba(59,163,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <Search size={22} color={C.minor} strokeWidth={1.5} />
       </div>
-      <div style={{ fontFamily: MF.body, fontSize: 14, color: MC.inkFaint }}>
+      <div style={{ fontFamily: F.mono, fontSize: 14, color: C.inkFaint }}>
         {search ? `No results for "${search}"` : "No messages."}
       </div>
     </div>
@@ -845,11 +1007,11 @@ function SkeletonList() {
     return () => tl.kill();
   }, []);
   return (
-    <div ref={rowRef} style={{ padding: `${MSP.sm}px 0` }}>
+    <div ref={rowRef} style={{ padding: `${SP.sm}px 0` }}>
       {Array.from({ length: 7 }).map((_, i) => (
-        <div key={i} style={{ padding: `${MSP.md}px ${MSP.lg}px`, borderBottom: `1px solid ${MC.hair}`, display: "flex", flexDirection: "column", gap: 6 }}>
-          <div className="sk-bar" style={{ width: `${55 + (i % 3) * 12}%`, height: 11, borderRadius: 4, background: MC.blueSoft }} />
-          <div className="sk-bar" style={{ width: `${72 - (i % 4) * 9}%`, height: 9, borderRadius: 4, background: MC.hair }} />
+        <div key={i} style={{ padding: `${SP.md}px ${SP.lg}px`, borderBottom: `1px solid ${C.hair}`, display: "flex", flexDirection: "column", gap: 6 }}>
+          <div className="sk-bar" style={{ width: `${55 + (i % 3) * 12}%`, height: 11, borderRadius: 4, background: "rgba(59,163,255,0.15)" }} />
+          <div className="sk-bar" style={{ width: `${72 - (i % 4) * 9}%`, height: 9, borderRadius: 4, background: C.hair }} />
         </div>
       ))}
     </div>
@@ -858,7 +1020,7 @@ function SkeletonList() {
 
 function Note({ children, tone }) {
   return (
-    <div style={{ padding: `${MSP.xl}px ${MSP.lg}px`, fontFamily: MF.body, fontSize: 13, color: tone === "danger" ? MC.danger : MC.inkFaint }}>
+    <div style={{ padding: `${SP.xl}px ${SP.lg}px`, fontFamily: F.mono, fontSize: 13, color: tone === "danger" ? C.critical : C.inkFaint }}>
       {children}
     </div>
   );

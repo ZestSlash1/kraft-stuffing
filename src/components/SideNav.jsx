@@ -216,7 +216,8 @@ const COLLAPSE_KEY = "kraft-sidenav-collapsed";
 
 export default function SideNav({ app }) {
   const { route, navigate, goPortal } = useRouter();
-  const { dirty, mailUnread } = useLive();
+  const { dirty, mailUnread: mailUnreadCount, mailFollowups } = useLive();
+  const mailUnread = mailUnreadCount + mailFollowups; // one badge on Inbox: unread + due follow-ups
   const [collapsed, setCollapsed] = useState(() => {
     try {
       return localStorage.getItem(COLLAPSE_KEY) === "1";
@@ -342,7 +343,8 @@ export default function SideNav({ app }) {
 // ── Mobile full-screen drawer (triggered by BottomNav's "More"). ─────────────
 export function MobileNavDrawer({ open, onClose }) {
   const { route, navigate, goPortal } = useRouter();
-  const { dirty, mailUnread } = useLive();
+  const { dirty, mailUnread: mailUnreadCount, mailFollowups } = useLive();
+  const mailUnread = mailUnreadCount + mailFollowups;
   if (!open) return null;
 
   const activeKey = activeKeyFor(route);

@@ -404,6 +404,24 @@ export default function App() {
     };
   }, [user]);
 
+  // ── Mail follow-ups badge: due reminders/snoozes, same polling cadence as unread ──
+  const [mailFollowups, setMailFollowups] = useState(0);
+  useEffect(() => {
+    if (!user) return;
+    let alive = true;
+    const poll = () =>
+      mailApi
+        .dueReminders()
+        .then((r) => alive && setMailFollowups((r.reminders || []).length))
+        .catch(() => alive && setMailFollowups(0));
+    poll();
+    const id = setInterval(() => document.visibilityState === "visible" && poll(), 60000);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, [user]);
+
   // ── Discovery dots: Manifest (bookings + vessel_movements) + Expenses ────────
   // A separate realtime channel purely for nav notification dots. Self-writes
   // are suppressed by comparing the row actor to the signed-in user.
@@ -447,7 +465,7 @@ export default function App() {
   }, [user]);
 
   // Opening Mail clears its dot; track unread separately so the badge reflects IMAP.
-  const live = { dirty, online: Object.keys(presence).length, mailUnread };
+  const live = { dirty, online: Object.keys(presence).length, mailUnread, mailFollowups };
 
   // Resolve which voyage a container belongs to (handlers don't rely on active).
   const voyageIdForContainer = (cid) =>

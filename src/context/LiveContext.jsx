@@ -7,6 +7,7 @@ export const LiveContext = createContext({
   dirty: {}, // { [section]: true } — sections with unseen live changes
   online: 0, // number of users currently present on the active voyage
   mailUnread: 0, // unread inbox count
+  mailFollowups: 0, // due mail reminders/snoozes
 });
 
 export const useLive = () => useContext(LiveContext);

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Bold, Italic, Link as LinkIcon, Plus, Star, Trash2, SlidersHorizontal, Image as ImageIcon, Stamp } from "lucide-react";
+import { Bold, Italic, Link as LinkIcon, Plus, Star, Trash2, SlidersHorizontal, Image as ImageIcon, Stamp, ChevronDown } from "lucide-react";
+import gsap from "gsap";
 import { theme } from "../../theme";
 import { mailApi, uploadSignatureImage } from "../../lib/mailApi";
 import ConfirmDialog from "../../components/ConfirmDialog";
@@ -431,6 +432,14 @@ function FolderRulesSettings({ accountId }) {
 // cursor is (typically between the name and company line).
 const KRAFT_SIGNATURE_HTML = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1a1a1a;line-height:1.5;">Best Regards,<br><b>Shahzeb Tanweer</b><br><br><b>KRAFT SHIPPING AND LOGISTICS PVT LTD</b><br>15 Lu Shun Sarani 3rd Floor<br>Kolkata &#8211; 700073<br>West Bengal, India<br><br>Cell No: +91 9051055017<br>Email id: <a href="mailto:shahzeb@kraftshipping.com">shahzeb@kraftshipping.com</a>, <a href="mailto:shahzeb@shafrina.com">shahzeb@shafrina.com</a><br><a href="https://www.kraftshipping.com">www.kraftshipping.com</a></div>`;
 
+const SHAFRINA_SIGNATURE_HTML = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1a1a1a;line-height:1.5;">Best Regards,<br><b>Shahzeb Tanweer</b><br><br><b>SHAFRINA IMPEX LLP</b><br>15 Lu Shun Sarani 3rd Floor<br>Kolkata &#8211; 700073<br>West Bengal, India<br><br>Cell No: +91 9051055017<br>Email id: <a href="mailto:shahzeb@shafrina.com">shahzeb@shafrina.com</a><br><a href="https://www.shafrina.com">www.shafrina.com</a></div>`;
+
+// Built-in, non-deletable templates — always shown first in the picker.
+const BUILTIN_SIGNATURE_TEMPLATES = [
+  { id: "kraft", name: "Kraft template", html: KRAFT_SIGNATURE_HTML, builtin: true },
+  { id: "shafrina", name: "Shafrina template", html: SHAFRINA_SIGNATURE_HTML, builtin: true },
+];
+
 // Per-account signature — a lightweight contenteditable with bold/italic/link, plus
 // logo upload (hosted in the public mail-assets bucket) and a live width slider to
 // rescale the selected image so it fits perfectly.
@@ -487,9 +496,9 @@ function SignatureEditor({ accountId }) {
     ref.current?.focus();
   };
 
-  const insertTemplate = () => {
+  const insertTemplate = (html) => {
     restoreCaret();
-    document.execCommand("insertHTML", false, KRAFT_SIGNATURE_HTML + "<br>");
+    document.execCommand("insertHTML", false, html + "<br>");
     rememberCaret();
   };
 
@@ -586,16 +595,15 @@ function SignatureEditor({ accountId }) {
         >
           <ImageIcon size={15} /> {uploading ? "Uploading…" : "Logo"}
         </button>
-        {/* One-click Kraft signature template. */}
-        <button
-          onMouseDown={(e) => { e.preventDefault(); rememberCaret(); }}
-          onClick={insertTemplate}
+        {/* Signature template picker — built-in Kraft/Shafrina letterheads, plus any
+            custom ones saved from the current editor content. */}
+        <SignatureTemplatesMenu
+          accountId={accountId}
           disabled={loading}
-          title="Insert Kraft signature template"
-          style={{ ...toolBtn, width: "auto", padding: "0 10px", gap: 6, fontFamily: theme.font.mono, fontSize: 11 }}
-        >
-          <Stamp size={15} /> Kraft template
-        </button>
+          onPick={(html) => insertTemplate(html)}
+          getCurrentHtml={() => ref.current?.innerHTML || ""}
+          onBeforeOpen={rememberCaret}
+        />
         <input ref={fileRef} type="file" accept="image/*" onChange={onPickImage} style={{ display: "none" }} />
       </div>
 
@@ -666,6 +674,147 @@ function SignatureEditor({ accountId }) {
       >
         {saved ? "Saved" : saving ? "Saving…" : "Save signature"}
       </button>
+    </div>
+  );
+}
+
+// Signature template picker: built-in Kraft/Shafrina letterheads (always first,
+// non-deletable) + any custom templates saved from the current editor content
+// (kind: 'signature' — separate from compose's saved templates, see 0026).
+function SignatureTemplatesMenu({ accountId, disabled, onPick, getCurrentHtml, onBeforeOpen }) {
+  const [open, setOpen] = useState(false);
+  const [custom, setCustom] = useState(null);
+  const [name, setName] = useState("");
+  const [saving, setSaving] = useState(false);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    let alive = true;
+    mailApi.templates(accountId, "signature").then((r) => alive && setCustom(r.templates || [])).catch(() => alive && setCustom([]));
+    return () => { alive = false; };
+  }, [open, accountId]);
+
+  useEffect(() => {
+    if (open && menuRef.current) {
+      gsap.fromTo(menuRef.current, { opacity: 0, y: -6, scale: 0.97 }, { opacity: 1, y: 0, scale: 1, duration: 0.18, ease: "power2.out" });
+    }
+  }, [open]);
+
+  const toggle = () => {
+    if (!open) onBeforeOpen?.();
+    setOpen((v) => !v);
+  };
+
+  const pick = (html) => {
+    onPick(html);
+    setOpen(false);
+  };
+
+  const save = async () => {
+    if (!name.trim()) return;
+    setSaving(true);
+    try {
+      const { template } = await mailApi.createTemplate({ account_id: accountId, name: name.trim(), body_html: getCurrentHtml(), kind: "signature" });
+      setCustom((c) => [template, ...(c || [])]);
+      setName("");
+    } catch {
+      /* best-effort */
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const remove = (id) => {
+    setCustom((c) => c.filter((t) => t.id !== id));
+    mailApi.deleteTemplate(id).catch(() => {});
+  };
+
+  const itemStyle = {
+    display: "flex", alignItems: "center", gap: 8, width: "100%", textAlign: "left",
+    background: "none", border: "none", borderRadius: theme.radius.sm, padding: "7px 8px",
+    cursor: "pointer", fontFamily: theme.font.mono, fontSize: 12, color: theme.color.ink,
+  };
+
+  return (
+    <div style={{ position: "relative" }}>
+      <button
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={toggle}
+        disabled={disabled}
+        title="Insert or manage signature templates"
+        style={{
+          display: "flex", alignItems: "center", justifyContent: "center", width: "auto", height: 32,
+          background: theme.color.surface, border: `1px solid ${theme.color.borderStrong}`, borderRadius: theme.radius.sm,
+          color: theme.color.inkSoft, padding: "0 10px", gap: 6, fontFamily: theme.font.mono, fontSize: 11, cursor: "pointer",
+        }}
+      >
+        <Stamp size={15} /> Templates <ChevronDown size={12} style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
+      </button>
+
+      {open && (
+        <>
+          <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} />
+          <div
+            ref={menuRef}
+            style={{
+              position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 41, width: 260,
+              background: theme.color.surface, border: `1px solid ${theme.color.border}`, borderRadius: theme.radius.input,
+              boxShadow: theme.shadow.raised, padding: 10,
+            }}
+          >
+            <div style={{ fontFamily: theme.font.mono, fontSize: 9, letterSpacing: "0.14em", color: theme.color.slate, textTransform: "uppercase", marginBottom: 6 }}>
+              Built-in
+            </div>
+            {BUILTIN_SIGNATURE_TEMPLATES.map((t) => (
+              <button key={t.id} onClick={() => pick(t.html)} style={itemStyle}>
+                <Stamp size={13} color={theme.color.slate} />
+                <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.name}</span>
+              </button>
+            ))}
+
+            <div style={{ fontFamily: theme.font.mono, fontSize: 9, letterSpacing: "0.14em", color: theme.color.slate, textTransform: "uppercase", margin: "10px 0 6px" }}>
+              Custom
+            </div>
+            {custom === null && <div style={{ fontFamily: theme.font.mono, fontSize: 11, color: theme.color.slate, padding: "4px 8px" }}>Loading…</div>}
+            {custom && custom.length === 0 && <div style={{ fontFamily: theme.font.mono, fontSize: 11, color: theme.color.slate, padding: "4px 8px" }}>None yet.</div>}
+            {(custom || []).map((t) => (
+              <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <button onClick={() => pick(t.body_html)} style={{ ...itemStyle, flex: 1 }}>
+                  <span style={{ width: 13, flexShrink: 0 }} />
+                  <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.name}</span>
+                </button>
+                <button onClick={() => remove(t.id)} title="Delete"
+                  style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 22, height: 22, flexShrink: 0, background: "none", border: "none", borderRadius: 6, color: theme.color.slateFaint, cursor: "pointer" }}>
+                  <Trash2 size={12} />
+                </button>
+              </div>
+            ))}
+
+            <div style={{ display: "flex", gap: 6, marginTop: 10, paddingTop: 10, borderTop: `1px solid ${theme.color.border}` }}>
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Save current as…"
+                onKeyDown={(e) => e.key === "Enter" && save()}
+                style={{ flex: 1, background: theme.color.surfaceMuted, border: `1px solid ${theme.color.border}`, borderRadius: theme.radius.sm, color: theme.color.ink, fontFamily: theme.font.mono, fontSize: 11, padding: "6px 8px", outline: "none" }}
+              />
+              <button
+                onClick={save}
+                disabled={saving || !name.trim()}
+                title="Save current signature as a new template"
+                style={{
+                  display: "flex", alignItems: "center", justifyContent: "center", width: 28, height: 28,
+                  background: name.trim() ? theme.color.amberSoft : "none", border: "none", borderRadius: theme.radius.sm,
+                  color: name.trim() ? theme.color.amberText : theme.color.slateFaint, cursor: name.trim() ? "pointer" : "default",
+                }}
+              >
+                <Plus size={14} />
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

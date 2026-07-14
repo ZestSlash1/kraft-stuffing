@@ -13,6 +13,7 @@ export const config = { maxDuration: 45 };
 
 function rowToPayload(row) {
   return {
+    id: row.id,
     accountId: row.account_id,
     uid: Number(row.uid),
     subject: row.subject || "(no subject)",
@@ -20,6 +21,8 @@ function rowToPayload(row) {
     to: Array.isArray(row.to_recipients) ? row.to_recipients : [],
     cc: Array.isArray(row.cc_recipients) ? row.cc_recipients : [],
     date: row.received_at || null,
+    seen: !!row.seen,
+    flagged: !!row.flagged,
     html: row.html || null,
     text: row.body_text || "",
     attachments: Array.isArray(row.attachments) ? row.attachments : [],

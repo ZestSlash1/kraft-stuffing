@@ -1,19 +1,22 @@
-// GET  /api/team — admin only. All profiles + whether each has a connected mailbox.
+// GET  /api/team — any logged-in org member. All profiles + whether each has a
+//   connected mailbox. Read-only team-roster info (name/title/role) isn't sensitive,
+//   and mail compose's @mention picker (any user) needs it — only mutations below
+//   stay admin-gated.
 // POST /api/team — admin only. Invite a new staff member via Supabase Auth.
 //   body: { email, full_name?, title?, role? }
 // Credentials are NEVER exposed here — only a boolean "connected" flag.
-import { requireUser, requireAdmin, adminClient, httpError, withErrors, readJsonBody } from "../_lib/auth.js";
+import { requireUser, requireAdmin, requireProfile, adminClient, httpError, withErrors, readJsonBody } from "../_lib/auth.js";
 
 export default withErrors(async (req, res) => {
   const user = await requireUser(req);
-  const adminProfile = await requireAdmin(user);
   const supabase = adminClient();
 
   if (req.method === "GET") {
+    const profile = await requireProfile(user.id);
     const { data: profiles, error } = await supabase
       .from("profiles")
       .select("id, display_name, title, role")
-      .eq("org_id", adminProfile.org_id);
+      .eq("org_id", profile.org_id);
     if (error) throw httpError(500, "Could not load team");
 
     const { data: accounts } = await supabase.from("mail_accounts").select("user_id");
@@ -31,6 +34,7 @@ export default withErrors(async (req, res) => {
   }
 
   if (req.method === "POST") {
+    const adminProfile = await requireAdmin(user);
     const { email, full_name, title, role } = readJsonBody(req);
     if (!email) throw httpError(400, "email is required");
 
@@ -53,6 +57,7 @@ export default withErrors(async (req, res) => {
   }
 
   if (req.method === "PUT") {
+    const adminProfile = await requireAdmin(user);
     // Update a member's name/title/role. Member id comes in as ?id= (avoids a
     // dynamic /api/team/[id] route, which is fragile behind the SPA rewrite).
     const id = (req.query.id || "").toString();

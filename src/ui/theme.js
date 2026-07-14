@@ -164,6 +164,12 @@ export const theme = {
   breakpoints: { mobile: 640, tablet: 900 },
 };
 
+// Fixed palette for deterministic recipient-avatar colors (hash email → index).
+// See src/lib/avatarColor.js.
+export const AVATAR_PALETTE = [
+  '#e8930a', '#3ba3ff', '#12b886', '#f0567a', '#a06bff', '#e0b341', '#ff7a59', '#4fd1c5',
+];
+
 export const statusTone = (status) => theme.status[status] || theme.status.EMPTY;
 
 export const reduceMotion = () =>
