@@ -62,6 +62,11 @@ export const mailApi = {
     ),
   send: (payload) => req("/api/mail/send", { method: "POST", body: payload }),
 
+  // Pull IMAP → Supabase for this account (or all when omitted/'all'). The read path is
+  // DB-only; this is fired in the background to keep the mirror fresh. Best-effort.
+  sync: (accountId) =>
+    req(`/api/mail/sync${accountId ? `?accountId=${encodeURIComponent(accountId)}` : ""}`, { method: "POST" }),
+
   // Account metadata + per-account settings (no secrets ever returned).
   listAccounts: () => req("/api/mail/settings"),
   getAccountSettings: (accountId) => req(`/api/mail/settings?accountId=${encodeURIComponent(accountId)}`),

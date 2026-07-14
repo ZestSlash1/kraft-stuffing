@@ -89,6 +89,25 @@ export async function listAccountsMeta(userId) {
   return data || [];
 }
 
+// Resolve the account a READ targets, WITHOUT decrypting credentials — the DB read
+// path (list/thread) never needs the IMAP password. Explicit id is ownership-checked;
+// null falls back to the caller's default (is_default, then earliest). Returns metadata
+// only. Throws 404 when the caller has no matching account.
+export async function resolveAccountMeta(userId, accountId) {
+  const supabase = adminClient();
+  let q = supabase
+    .from("mail_accounts")
+    .select("id, user_id, email_address, display_name, color, is_default, status")
+    .eq("user_id", userId);
+  q = accountId
+    ? q.eq("id", accountId)
+    : q.order("is_default", { ascending: false }).order("sort_order", { ascending: true }).order("created_at", { ascending: true });
+  const { data, error } = await q.limit(1).maybeSingle();
+  if (error) throw httpError(500, "Could not load mail account");
+  if (!data) throw httpError(404, accountId ? "Mail account not found" : "No mailbox connected");
+  return data;
+}
+
 // Best-effort status flip (active <-> error) after a fetch. Never throws — a status
 // bookkeeping failure must not fail the mail request itself.
 export async function markAccountStatus(userId, accountId, status) {

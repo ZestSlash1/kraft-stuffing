@@ -3,6 +3,7 @@ import { RefreshCw, CornerUpLeft, AlertTriangle, Paperclip, Search, X } from "lu
 import gsap from "gsap";
 import { MC, MF, MG, MSP, MR, mailCard, MAIL_ACTIONS } from "../../ui/mailTheme";
 import { mailApi } from "../../lib/mailApi";
+import { useMailList } from "../../lib/mailCache";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import { formatRelative, formatAbsolute } from "../../lib/format";
 import { useRouter } from "../../context/RouterContext";
@@ -34,13 +35,15 @@ function RefText({ text, onRef, style }) {
 const ERR_LABEL = { auth_failed: "sign-in failed", timeout: "timed out", sync_failed: "couldn't sync" };
 
 export default function InboxView({ folder = "INBOX", accountId = null, accounts = [], onReply, onFixAccount }) {
-  const [messages, setMessages] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [errors, setErrors] = useState({});
-  const [respAccounts, setRespAccounts] = useState(null);
+  // Stale-while-revalidate: cached list paints instantly on account/folder switch,
+  // a background refresh updates it silently. `loading` is true only on a cold read.
+  const { data, loading, error, refresh, patchMessages } = useMailList(folder, accountId);
+  const messages = data?.messages || [];
+  const errors = data?.errors || {};
+  const respAccounts = data?.accounts || null;
   const [selected, setSelected] = useState(null);
   const [loadingBody, setLoadingBody] = useState(false);
+  const [bodyError, setBodyError] = useState("");
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [viewerDoc, setViewerDoc] = useState(null);
@@ -66,33 +69,9 @@ export default function InboxView({ folder = "INBOX", accountId = null, accounts
     navigate(target.page, target.param ? { [target.param]: hit.id } : {});
   };
 
-  const load = (background = false) => {
-    if (!background) setLoading(true);
-    setError("");
-    return mailApi
-      .list(folder, accountId)
-      .then((r) => {
-        setMessages(r.messages || []);
-        setErrors(r.errors || {});
-        if (r.accounts) setRespAccounts(r.accounts);
-      })
-      .catch((e) => !background && setError(e.message))
-      .finally(() => !background && setLoading(false));
-  };
-
+  // Clear the open message when switching folder/account (cache handles the list).
   useEffect(() => {
     setSelected(null);
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [folder, accountId]);
-
-  useEffect(() => {
-    const tick = () => document.visibilityState === "visible" && load(true);
-    const interval = setInterval(tick, 30000);
-    window.addEventListener("focus", tick);
-    document.addEventListener("visibilitychange", tick);
-    return () => { clearInterval(interval); window.removeEventListener("focus", tick); document.removeEventListener("visibilitychange", tick); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [folder, accountId]);
 
   // Stagger-animate message rows when list loads
@@ -116,11 +95,12 @@ export default function InboxView({ folder = "INBOX", accountId = null, accounts
 
   const open = (m) => {
     setLoadingBody(true);
+    setBodyError("");
     const threadAccountId = m.accountId || (isAll ? null : accountId);
     mailApi.thread(m.uid, folder, threadAccountId)
       .then((msg) => {
         setSelected(msg);
-        setMessages((prev) => prev.map((x) => (x.uid === m.uid && x.accountId === m.accountId ? { ...x, seen: true } : x)));
+        patchMessages((prev) => prev.map((x) => (x.uid === m.uid && x.accountId === m.accountId ? { ...x, seen: true } : x)));
         // Animate reading pane in
         if (paneRef.current) {
           const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -129,7 +109,7 @@ export default function InboxView({ folder = "INBOX", accountId = null, accounts
           }
         }
       })
-      .catch((e) => setError(e.message))
+      .catch((e) => setBodyError(e.message))
       .finally(() => setLoadingBody(false));
   };
 
@@ -173,7 +153,7 @@ export default function InboxView({ folder = "INBOX", accountId = null, accounts
             <span style={{ fontFamily: MF.body, fontWeight: 700, fontSize: 17, color: MC.ink }}>
               {folder === "Sent" ? "Sent" : "Inbox"}
             </span>
-            <RefreshButton onClick={() => load()} />
+            <RefreshButton onClick={refresh} />
           </div>
 
           {/* Search */}
@@ -198,7 +178,7 @@ export default function InboxView({ folder = "INBOX", accountId = null, accounts
           </div>
         </div>
 
-        {loading && <Note>Loading messages…</Note>}
+        {loading && <SkeletonList />}
         {error && <Note tone="danger">{error}</Note>}
 
         {isAll && Object.entries(errors).map(([id, code]) => {
@@ -246,7 +226,8 @@ export default function InboxView({ folder = "INBOX", accountId = null, accounts
         )}
 
         {loadingBody && <Note>Opening…</Note>}
-        {!loadingBody && !selected && !isMobile && (
+        {!loadingBody && bodyError && <Note tone="danger">{bodyError}</Note>}
+        {!loadingBody && !bodyError && !selected && !isMobile && (
           <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: MSP.md }}>
             <div style={{ width: 48, height: 48, borderRadius: "50%", background: MC.blueSoft, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: MSP.sm }}>
               <Paperclip size={20} color={MC.blue} strokeWidth={1.5} />
@@ -485,6 +466,31 @@ function EmptyState({ search }) {
       <div style={{ fontFamily: MF.body, fontSize: 14, color: MC.inkFaint }}>
         {search ? `No results for "${search}"` : "No messages."}
       </div>
+    </div>
+  );
+}
+
+// Skeleton placeholder rows — shown only on a cold read (no cache). Keeps the list
+// structure visible so a first load doesn't feel like a blocking spinner. Switching
+// to an already-loaded account skips this entirely (cache paints immediately).
+function SkeletonList() {
+  const rowRef = useRef(null);
+  useEffect(() => {
+    if (!rowRef.current) return;
+    const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (prefersReduced) return;
+    const bars = rowRef.current.querySelectorAll(".sk-bar");
+    const tl = gsap.to(bars, { opacity: 0.35, duration: 0.7, ease: "sine.inOut", stagger: 0.05, yoyo: true, repeat: -1 });
+    return () => tl.kill();
+  }, []);
+  return (
+    <div ref={rowRef} style={{ padding: `${MSP.sm}px 0` }}>
+      {Array.from({ length: 7 }).map((_, i) => (
+        <div key={i} style={{ padding: `${MSP.md}px ${MSP.lg}px`, borderBottom: `1px solid ${MC.hair}`, display: "flex", flexDirection: "column", gap: 6 }}>
+          <div className="sk-bar" style={{ width: `${55 + (i % 3) * 12}%`, height: 11, borderRadius: 4, background: MC.blueSoft }} />
+          <div className="sk-bar" style={{ width: `${72 - (i % 4) * 9}%`, height: 9, borderRadius: 4, background: MC.hair }} />
+        </div>
+      ))}
     </div>
   );
 }
