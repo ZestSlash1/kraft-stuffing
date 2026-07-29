@@ -239,7 +239,12 @@ export default function App() {
   const routeRef = useRef(route);
   routeRef.current = route;
   const groupOf = (page) =>
-    ({ "voyage-detail": "voyages", "container-log": "voyages" })[page] || page;
+    ({
+      "voyage-detail": "voyages",
+      "container-log": "voyages",
+      "igm-voyage": "igm",
+      "igm-bl": "igm",
+    })[page] || page;
 
   // Dirty-form guard: forms flag unsaved edits via setDirty(true); navigation
   // then asks for confirmation. Ref (not state) — no re-render needed.

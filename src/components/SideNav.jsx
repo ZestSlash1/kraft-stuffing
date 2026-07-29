@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  BookText,
   LayoutDashboard,
   Ship,
   Anchor,
@@ -48,6 +49,7 @@ export const NAV_SECTIONS = [
     items: [
       { key: "documents", label: "Documents", Icon: FileCheck2, page: "documents" },
       { key: "carting", label: "Carting Orders", Icon: ScrollText, page: "carting" },
+      { key: "igm", label: "IGM / BL Entry", Icon: BookText, page: "igm" },
     ],
   },
   {
@@ -93,6 +95,9 @@ export function activeKeyFor(route) {
     documents: "documents",
     carting: "carting",
     "carting-detail": "carting",
+    igm: "igm",
+    "igm-voyage": "igm",
+    "igm-bl": "igm",
     activity: "activity",
     masters: "masters",
     settings: "settings",

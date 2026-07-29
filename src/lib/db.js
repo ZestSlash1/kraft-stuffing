@@ -536,10 +536,19 @@ const executors = {
       .single(),
 };
 
+// Modules that own their own tables (e.g. lib/igm.js) register executors here
+// instead of growing a section inside this file. They then get runWrite's
+// offline queueing and flushQueue's replay for free. Registration must happen at
+// module load (the IGM lib is imported by its views, which AppShell imports
+// statically) so a queued op always finds its executor on replay.
+export const registerExecutors = (map) => {
+  Object.assign(executors, map);
+};
+
 // Run a write, queueing it for later if we are offline. Returns {data, error}.
 // `optimistic` is what we hand back as `data` when the write was queued so the
 // caller (reducer) already has the row it needs for instant UI.
-async function runWrite(kind, payload, optimistic) {
+export async function runWrite(kind, payload, optimistic) {
   try {
     const { data, error } = await executors[kind](payload);
     if (error) {

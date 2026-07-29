@@ -108,6 +108,22 @@ src/
     ShipperConsigneeSelect.jsx ← master data dropdown with search
     ExportMenu.jsx         ← XLSX + PDF options
     VGMAlert.jsx           ← weight limit warning
+  views/igm/                ← IGM / BL manifest module (PHASE_IGM_MANIFEST_MODULE.md)
+    IgmVoyagesView.jsx       ← voyage list (search, status filter, void)
+    IgmVoyageDetailView.jsx  ← vessel/voyage record + BL list + export panel
+    IgmBlEntryView.jsx       ← single-scroll BL entry, sticky section rail
+  components/igm/
+    igmChrome.jsx            ← Section/Field/SaveState/inputs built on ui/theme tokens
+    Typeahead.jsx            ← vessel / port picker (free text + suggestions)
+    PartyCards.jsx           ← one collapsible card per BL party role
+    CargoLinesGrid.jsx       ← HSN cargo lines (add/edit/remove)
+    ContainerLinesGrid.jsx   ← container lines + ISO 6346 check-digit validation
+    IgmExportPanel.jsx       ← preview + "Generate ICEGATE JSON" download
+  lib/igm.js                ← IGM data layer (mappers, reads, offline-aware writes)
+  lib/igmExport.js          ← generateIgmJson() — the ONLY file that knows the
+                              ICEGATE wire format (placeholder mapping for now)
+  data/igmHelpers.js        ← validators (ISO 6346, PAN, PIN), roll-ups, pick lists
+  hooks/useAutosave.js      ← debounced field autosave + honest save status
   styles/
     global.css
 vercel.json

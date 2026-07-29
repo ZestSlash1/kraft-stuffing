@@ -17,6 +17,9 @@ import ActivityFeedView from "../views/ActivityFeedView";
 import DocumentsView from "../views/DocumentsView";
 import CartingOrdersView from "../views/CartingOrdersView";
 import CartingOrderDetailView from "../views/CartingOrderDetailView";
+import IgmVoyagesView from "../views/igm/IgmVoyagesView";
+import IgmVoyageDetailView from "../views/igm/IgmVoyageDetailView";
+import IgmBlEntryView from "../views/igm/IgmBlEntryView";
 import CommandPalette from "./CommandPalette";
 
 // Part 6E — persistent offline banner, dismissable, re-appears on next drop.
@@ -136,6 +139,21 @@ export default function AppShell({ app }) {
           app={app}
           orderId={route.params.orderId}
           voyageId={route.params.voyageId}
+        />
+      );
+      break;
+    case "igm":
+      content = <IgmVoyagesView app={app} />;
+      break;
+    case "igm-voyage":
+      content = <IgmVoyageDetailView app={app} igmVoyageId={route.params.igmVoyageId} />;
+      break;
+    case "igm-bl":
+      content = (
+        <IgmBlEntryView
+          app={app}
+          blId={route.params.blId}
+          igmVoyageId={route.params.igmVoyageId}
         />
       );
       break;
