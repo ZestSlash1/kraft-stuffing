@@ -98,6 +98,9 @@ export default function InboxView({ folder = "INBOX", accountId = null, accounts
     (respAccounts || []).forEach((a) => { map[a.id] = { ...map[a.id], ...a }; });
     return map;
   }, [accounts, respAccounts]);
+  // POP3 has no server folders or persistent flags — Move/Archive/Junk/Star stay
+  // disabled for these accounts (only read + send + permanent Delete are available).
+  const isPop3Row = useCallback((m) => accountMap[m.accountId]?.incoming_protocol === "pop3", [accountMap]);
 
   const openRef = async (ref) => {
     const { rows } = await globalSearch(ref, { voyages: [], shippers: [], consignees: [], expenses: [] });
@@ -374,6 +377,9 @@ export default function InboxView({ folder = "INBOX", accountId = null, accounts
   // Bulk Move needs one shared IMAP folder namespace — only offer it when every
   // selected message belongs to the same account (always true outside "All Inboxes").
   const canBulkMove = selectedMessages.length > 0 && selectedMessages.every((m) => m.accountId === selectedMessages[0].accountId);
+  // POP3 has no folders/persistent flags — Move/Archive/Junk stay off when the bulk
+  // selection includes any POP3 account (possible in "All Inboxes").
+  const selectionHasPop3 = selectedMessages.some(isPop3Row);
 
   const showList = !isMobile || !selected;
   const showPane = !isMobile || !!selected || loadingBody;
@@ -416,12 +422,12 @@ export default function InboxView({ folder = "INBOX", accountId = null, accounts
               onToggleAll={toggleSelectAll}
               onCancel={() => { setSelectMode(false); setSelectedKeys(new Set()); }}
               onDelete={() => doDeleteMany(selectedMessages)}
-              onArchive={isArchiveView ? undefined : () => doArchiveMany(selectedMessages)}
-              onJunk={isJunkView ? () => doMove(selectedMessages, "INBOX", "Inbox") : () => doJunkMany(selectedMessages)}
+              onArchive={isArchiveView || selectionHasPop3 ? undefined : () => doArchiveMany(selectedMessages)}
+              onJunk={selectionHasPop3 ? undefined : (isJunkView ? () => doMove(selectedMessages, "INBOX", "Inbox") : () => doJunkMany(selectedMessages))}
               junkLabel={isJunkView ? "Move to Inbox" : "Junk"}
               junkIcon={isJunkView ? <InboxIcon size={13} /> : <Ban size={13} />}
               onMove={() => setMovePicker({ msgs: selectedMessages })}
-              canMove={canBulkMove}
+              canMove={canBulkMove && !selectionHasPop3}
             />
           ) : (
             <>
@@ -474,16 +480,19 @@ export default function InboxView({ folder = "INBOX", accountId = null, accounts
             const acc = isAll ? accountMap[m.accountId] : null;
             const accent = acc?.color || C.minor;
             const hasAttachments = m.attachments?.length > 0;
+            const pop3 = isPop3Row(m);
             return (
               <MessageRow key={rowKey(m)}
                 message={m} active={active} acc={acc} accent={accent}
                 hasAttachments={hasAttachments} isAll={isAll}
                 onClick={() => open(m)} openRef={openRef}
-                onDelete={() => doDelete(m)} onArchive={isArchiveView ? undefined : () => doArchive(m)} onMove={() => setMovePicker({ msgs: [m] })}
-                onJunk={isJunkView ? () => doMove([m], "INBOX", "Inbox") : () => doJunk(m)}
+                onDelete={() => doDelete(m)}
+                onArchive={isArchiveView || pop3 ? undefined : () => doArchive(m)}
+                onMove={pop3 ? undefined : () => setMovePicker({ msgs: [m] })}
+                onJunk={pop3 ? undefined : (isJunkView ? () => doMove([m], "INBOX", "Inbox") : () => doJunk(m))}
                 junkLabel={isJunkView ? "Move to Inbox" : "Mark as junk"}
                 junkIcon={isJunkView ? <InboxIcon size={14} /> : <Ban size={14} />}
-                onForward={() => doForward(m)} onStar={(flagged) => doStar(m, flagged)}
+                onForward={() => doForward(m)} onStar={pop3 ? undefined : (flagged) => doStar(m, flagged)}
                 selectMode={selectMode} checked={selectedKeys.has(rowKey(m))} onToggleSelect={() => toggleSelect(m)}
                 reminder={m.id ? reminders.get(m.id) : null} onReminderChanged={loadReminders}
               />
@@ -513,17 +522,22 @@ export default function InboxView({ folder = "INBOX", accountId = null, accounts
             <div style={{ fontFamily: F.mono, fontSize: 14, color: C.inkFaint }}>Select a message to read</div>
           </div>
         )}
-        {!loadingBody && selected && (
-          <div ref={paneRef}>
-            <ThreadView message={selected} onReply={onReply} onForward={() => doForward(selected)} openRef={openRef} onViewAttachment={setViewerDoc}
-              onDelete={() => doDelete(selected)} onArchive={isArchiveView ? undefined : () => doArchive(selected)} onMove={() => setMovePicker({ msgs: [selected] })}
-              onJunk={isJunkView ? () => doMove([selected], "INBOX", "Inbox") : () => doJunk(selected)}
-              junkLabel={isJunkView ? "Move to Inbox" : "Junk"}
-              junkIcon={isJunkView ? <InboxIcon size={15} /> : <Ban size={15} />}
-              onStar={(flagged) => doStar(selected, flagged)}
-              reminder={selected.id ? reminders.get(selected.id) : null} onReminderChanged={loadReminders} />
-          </div>
-        )}
+        {!loadingBody && selected && (() => {
+          const pop3 = isPop3Row(selected);
+          return (
+            <div ref={paneRef}>
+              <ThreadView message={selected} onReply={onReply} onForward={() => doForward(selected)} openRef={openRef} onViewAttachment={setViewerDoc}
+                onDelete={() => doDelete(selected)}
+                onArchive={isArchiveView || pop3 ? undefined : () => doArchive(selected)}
+                onMove={pop3 ? undefined : () => setMovePicker({ msgs: [selected] })}
+                onJunk={pop3 ? undefined : (isJunkView ? () => doMove([selected], "INBOX", "Inbox") : () => doJunk(selected))}
+                junkLabel={isJunkView ? "Move to Inbox" : "Junk"}
+                junkIcon={isJunkView ? <InboxIcon size={15} /> : <Ban size={15} />}
+                onStar={pop3 ? undefined : (flagged) => doStar(selected, flagged)}
+                reminder={selected.id ? reminders.get(selected.id) : null} onReminderChanged={loadReminders} />
+            </div>
+          );
+        })()}
       </div>
 
       <DocViewer open={!!viewerDoc} doc={viewerDoc} onClose={() => setViewerDoc(null)} />
@@ -681,7 +695,7 @@ function MessageRow({ message: m, active, acc, accent, hasAttachments, isAll, on
     </button>
       {!selectMode && (
         <div style={{ position: "absolute", top: SP.sm, right: SP.sm, display: "flex", alignItems: "center", gap: 2 }}>
-          <StarButton flagged={!!m.flagged} onToggle={onStar} />
+          {onStar && <StarButton flagged={!!m.flagged} onToggle={onStar} />}
           {m.id && <FollowUpButton messageId={m.id} active={!!reminder} onChanged={onReminderChanged} />}
           <RowKebab onDelete={onDelete} onArchive={onArchive} onMove={onMove} onJunk={onJunk} junkLabel={junkLabel} junkIcon={junkIcon} onForward={onForward} />
         </div>
@@ -745,7 +759,7 @@ function BulkToolbar({ count, allSelected, onToggleAll, onCancel, onDelete, onAr
       </span>
       <BulkIconButton icon={<FolderInput size={13} />} label="Move" onClick={onMove} disabled={!count || !canMove} title={!canMove && count ? "Select messages from one account to move" : undefined} />
       {onArchive && <BulkIconButton icon={<Archive size={13} />} label="Archive" onClick={onArchive} disabled={!count} />}
-      <BulkIconButton icon={junkIcon || <Ban size={13} />} label={junkLabel || "Junk"} onClick={onJunk} disabled={!count} />
+      {onJunk && <BulkIconButton icon={junkIcon || <Ban size={13} />} label={junkLabel || "Junk"} onClick={onJunk} disabled={!count} />}
       <BulkIconButton icon={<Trash2 size={13} />} label="Delete" onClick={onDelete} disabled={!count} danger />
       <button onClick={onCancel} title="Cancel selection"
         style={{ background: "none", border: "none", cursor: "pointer", color: C.inkFaint, padding: 4, display: "flex" }}>
@@ -781,9 +795,9 @@ function RowKebab({ onDelete, onArchive, onMove, onJunk, junkLabel, junkIcon, on
           <div onClick={(e) => { e.stopPropagation(); setOpen(false); }} style={{ position: "fixed", inset: 0, zIndex: 30 }} />
           <div style={{ position: "absolute", top: "calc(100% + 4px)", right: 0, minWidth: 170, zIndex: 31, ...glass(R.chip), padding: 4 }}>
             <KebabItem icon={<CornerUpRight size={14} />} label="Forward" onClick={(e) => { e.stopPropagation(); setOpen(false); onForward(); }} />
-            <KebabItem icon={<FolderInput size={14} />} label="Move to…" onClick={(e) => { e.stopPropagation(); setOpen(false); onMove(); }} />
+            {onMove && <KebabItem icon={<FolderInput size={14} />} label="Move to…" onClick={(e) => { e.stopPropagation(); setOpen(false); onMove(); }} />}
             {onArchive && <KebabItem icon={<Archive size={14} />} label="Archive" onClick={(e) => { e.stopPropagation(); setOpen(false); onArchive(); }} />}
-            <KebabItem icon={junkIcon || <Ban size={14} />} label={junkLabel || "Mark as junk"} onClick={(e) => { e.stopPropagation(); setOpen(false); onJunk(); }} />
+            {onJunk && <KebabItem icon={junkIcon || <Ban size={14} />} label={junkLabel || "Mark as junk"} onClick={(e) => { e.stopPropagation(); setOpen(false); onJunk(); }} />}
             <KebabItem icon={<Trash2 size={14} />} label="Delete" danger onClick={(e) => { e.stopPropagation(); setOpen(false); onDelete(); }} />
           </div>
         </>

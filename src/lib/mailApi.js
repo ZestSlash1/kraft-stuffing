@@ -54,6 +54,12 @@ const acctParam = (accountId) => (accountId ? `&accountId=${encodeURIComponent(a
 
 export const mailApi = {
   connect: (payload) => req("/api/mail/connect", { method: "POST", body: payload }),
+
+  // Outlook/M365 OAuth2 consent flow — start() returns the Microsoft consent URL to
+  // redirect to (+ the anti-CSRF state to stash and compare on return); complete()
+  // exchanges the returned authorization code for tokens and saves the account.
+  oauthMicrosoftStart: () => req("/api/mail/oauth-microsoft"),
+  oauthMicrosoftComplete: (code) => req("/api/mail/oauth-microsoft", { method: "POST", body: { code } }),
   list: (folder = "INBOX", accountId) =>
     req(`/api/mail/list?folder=${encodeURIComponent(folder)}${acctParam(accountId)}`),
   thread: (uid, folder = "INBOX", accountId) =>

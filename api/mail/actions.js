@@ -39,7 +39,15 @@ import { requireUser, httpError, withErrors, adminClient, readJsonBody } from ".
 import { getAccountById, resolveAccountMeta, makeTransport } from "../_lib/mailAccount.js";
 import { requireSpecialFolder, listFolders, syncFolders } from "../_lib/mailFolders.js";
 import { performMove, readUids } from "../_lib/mailActions.js";
+import { deletePop3Message } from "../_lib/mailPop3.js";
 import { resolveAttachments } from "./send.js";
+
+// Move/Archive/Junk/filter-rules/folder-mapping are IMAP-only — POP3 has no server
+// folders or persistent flags for any of them to operate on. Called right after the
+// account is resolved in every op that needs an IMAP mailbox.
+function requireImap(account) {
+  if (account.incoming_protocol === "pop3") throw httpError(400, "not_available_pop3");
+}
 
 // IMAP handshakes (+ scheduled-send batches) can be slow — match the other mail
 // functions' raised budget.
@@ -57,20 +65,32 @@ async function opMove(req, res, user) {
 
   const db = adminClient();
   const account = await getAccountById(user.id, accountId); // ownership-checked + decrypted
+  requireImap(account);
   const { newUidByOld, moved } = await performMove(db, account, sourceFolder, target, uids);
   res.status(200).json({ ok: true, moved, target, newUidByOld });
 }
 
-// ── op: delete (→ Trash) ──────────────────────────────────────────────────────
+// ── op: delete (→ Trash for IMAP; permanent server delete for POP3 — no Trash concept) ──
 async function opDelete(req, res, user) {
   const body = readJsonBody(req);
   const accountId = (body?.account_id || "").toString();
   if (!accountId) throw httpError(400, "account_id is required");
   const sourceFolder = (body?.source_folder || "INBOX").toString();
-  const uids = readUids(body);
 
   const db = adminClient();
   const account = await getAccountById(user.id, accountId);
+
+  if (account.incoming_protocol === "pop3") {
+    // POP3 UIDLs are opaque strings (often not numeric) — readUids' Number() cast
+    // (built for IMAP UIDs) would corrupt them, so read the raw values here instead.
+    const raw = body?.message_uids ?? body?.uids ?? [];
+    const uids = (Array.isArray(raw) ? raw : [raw]).map((u) => u.toString());
+    if (!uids.length) throw httpError(400, "message_uids is required");
+    for (const uid of uids) await deletePop3Message(account, uid);
+    return res.status(200).json({ ok: true, moved: uids.length, target: null, permanent: true });
+  }
+
+  const uids = readUids(body);
   const trash = await requireSpecialFolder(db, account, "trash");
   const { newUidByOld, moved } = await performMove(db, account, sourceFolder, trash, uids);
   res.status(200).json({ ok: true, moved, target: trash, newUidByOld });
@@ -86,6 +106,7 @@ async function opArchive(req, res, user) {
 
   const db = adminClient();
   const account = await getAccountById(user.id, accountId);
+  requireImap(account);
   const archive = await requireSpecialFolder(db, account, "archive");
   const { newUidByOld, moved } = await performMove(db, account, sourceFolder, archive, uids);
   res.status(200).json({ ok: true, moved, target: archive, newUidByOld });
@@ -101,7 +122,8 @@ async function opStar(req, res, user) {
   const flagged = !!body?.flagged;
 
   const db = adminClient();
-  await resolveAccountMeta(user.id, accountId); // ownership check
+  const account = await resolveAccountMeta(user.id, accountId); // ownership check
+  requireImap(account); // POP3 has no mail_messages mirror to flag
   const { error } = await db
     .from("mail_messages")
     .update({ flagged, flagged_synced: false })
@@ -123,6 +145,7 @@ async function opJunk(req, res, user) {
 
   const db = adminClient();
   const account = await getAccountById(user.id, accountId);
+  requireImap(account);
   const junk = await requireSpecialFolder(db, account, "junk");
 
   // Senders (for the rule) read BEFORE the move removes these mirror rows.
@@ -168,6 +191,7 @@ async function opNotJunk(req, res, user) {
 
   const db = adminClient();
   const account = await getAccountById(user.id, accountId);
+  requireImap(account);
 
   const ruleId = (body?.rule_id || "").toString();
   const matchValue = (body?.match_value || "").toString().trim().toLowerCase();
@@ -193,6 +217,7 @@ async function opFolders(req, res, user) {
   if (req.method === "POST") {
     const db = adminClient();
     const account = await getAccountById(user.id, accountId); // decrypted + owned
+    requireImap(account);
     await syncFolders(db, account);
     return res.status(200).json({ ok: true, folders: await listFolders(user.id, accountId) });
   }

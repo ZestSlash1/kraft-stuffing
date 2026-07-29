@@ -11,14 +11,31 @@ import { requireUser, adminClient, httpError, withErrors, readJsonBody } from ".
 import { listAccountsMeta, MAX_ACCOUNTS, getAccountById, testConnect } from "../_lib/mailAccount.js";
 
 const SECURITY_MODES = new Set(["ssl", "starttls", "none"]);
-const CONNECTION_FIELDS = ["imap_host", "imap_port", "imap_security", "smtp_host", "smtp_port", "smtp_security"];
+// node-pop3 (the POP3 client) has no STLS support — POP3 accounts can only use
+// implicit TLS or plaintext, never a STARTTLS upgrade.
+const POP3_SECURITY_MODES = new Set(["ssl", "none"]);
+const INCOMING_PROTOCOLS = new Set(["imap", "pop3"]);
+const CONNECTION_FIELDS = ["incoming_protocol", "imap_host", "imap_port", "imap_security", "smtp_host", "smtp_port", "smtp_security"];
 
-// Validate a single connection field from a PATCH body. Returns the normalized value.
-function normConnField(name, v) {
+// Validate a single connection field from a PATCH body. `resolvedProtocol` is the
+// incoming_protocol the FULL merged patch will end up with (imap_security's allowed
+// set depends on it, and incoming_protocol may itself be one of the changed fields).
+function normConnField(name, v, resolvedProtocol) {
+  if (name === "incoming_protocol") {
+    const s = (v || "").toString().trim().toLowerCase();
+    if (!INCOMING_PROTOCOLS.has(s)) throw httpError(400, "incoming_protocol must be imap or pop3");
+    return s;
+  }
   if (name.endsWith("_port")) {
     const n = Number(v);
     if (!Number.isInteger(n) || n < 1 || n > 65535) throw httpError(400, `${name} must be a valid port`);
     return n;
+  }
+  if (name === "imap_security") {
+    const s = (v || "").toString().trim().toLowerCase();
+    const allowed = resolvedProtocol === "pop3" ? POP3_SECURITY_MODES : SECURITY_MODES;
+    if (!allowed.has(s)) throw httpError(400, `imap_security must be ${[...allowed].join(", ")}`);
+    return s;
   }
   if (name.endsWith("_security")) {
     const s = (v || "").toString().trim().toLowerCase();
@@ -77,7 +94,7 @@ export default withErrors(async (req, res) => {
   if (req.method === "GET") {
     const { data } = await supabase
       .from("mail_accounts")
-      .select("id, email_address, display_name, color, is_default, status, signature_html, imap_host, imap_port, imap_security, smtp_host, smtp_port, smtp_security, trash_folder_path, junk_folder_path")
+      .select("id, email_address, display_name, color, is_default, status, signature_html, incoming_protocol, auth_type, provider_preset, imap_host, imap_port, imap_security, smtp_host, smtp_port, smtp_security, trash_folder_path, junk_folder_path")
       .eq("id", accountId)
       .eq("user_id", user.id)
       .maybeSingle();
@@ -90,6 +107,9 @@ export default withErrors(async (req, res) => {
       is_default: data.is_default,
       status: data.status,
       signature_html: data.signature_html || "",
+      incoming_protocol: data.incoming_protocol,
+      auth_type: data.auth_type,
+      provider_preset: data.provider_preset || null,
       // Non-secret connection settings (host/port/security), for the advanced editor.
       imap_host: data.imap_host,
       imap_port: data.imap_port,
@@ -135,7 +155,10 @@ export default withErrors(async (req, res) => {
     const connKeys = CONNECTION_FIELDS.filter((k) => body[k] !== undefined);
     if (connKeys.length > 0) {
       const current = await getAccountById(user.id, accountId); // full row + decrypted password
-      for (const k of connKeys) patch[k] = normConnField(k, body[k]);
+      // imap_security's allowed set depends on the RESULTING incoming_protocol —
+      // resolve that first in case both are being changed in the same request.
+      const resolvedProtocol = (body.incoming_protocol ?? current.incoming_protocol).toString().trim().toLowerCase();
+      for (const k of connKeys) patch[k] = normConnField(k, body[k], resolvedProtocol);
       try {
         await testConnect({ ...current, ...patch });
       } catch (err) {

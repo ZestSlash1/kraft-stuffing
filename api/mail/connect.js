@@ -12,8 +12,12 @@ import { MAX_ACCOUNTS, ACCOUNT_COLORS, testConnect } from "../_lib/mailAccount.j
 import { syncFolders } from "../_lib/mailFolders.js";
 
 const SECURITY_MODES = new Set(["ssl", "starttls", "none"]);
+// node-pop3 (the POP3 client) has no STLS support — POP3 accounts can only use
+// implicit TLS or plaintext, never a STARTTLS upgrade.
+const POP3_SECURITY_MODES = new Set(["ssl", "none"]);
+const INCOMING_PROTOCOLS = new Set(["imap", "pop3"]);
 
-// Validate + normalize the six connection fields from the client. Throws 400 on
+// Validate + normalize the seven connection fields from the client. Throws 400 on
 // anything missing/invalid so we never persist a half-configured account.
 function readConnection(body) {
   const host = (v, name) => {
@@ -26,18 +30,21 @@ function readConnection(body) {
     if (!Number.isInteger(n) || n < 1 || n > 65535) throw httpError(400, `${name} must be a valid port`);
     return n;
   };
-  const sec = (v, name) => {
+  const sec = (v, name, allowed) => {
     const s = (v || "").toString().trim().toLowerCase();
-    if (!SECURITY_MODES.has(s)) throw httpError(400, `${name} must be ssl, starttls, or none`);
+    if (!allowed.has(s)) throw httpError(400, `${name} must be ${[...allowed].join(", ")}`);
     return s;
   };
+  const incoming_protocol = (body.incoming_protocol || "imap").toString().trim().toLowerCase();
+  if (!INCOMING_PROTOCOLS.has(incoming_protocol)) throw httpError(400, "incoming_protocol must be imap or pop3");
   return {
+    incoming_protocol,
     imap_host: host(body.imap_host, "imap_host"),
     imap_port: port(body.imap_port, "imap_port"),
-    imap_security: sec(body.imap_security, "imap_security"),
+    imap_security: sec(body.imap_security, "imap_security", incoming_protocol === "pop3" ? POP3_SECURITY_MODES : SECURITY_MODES),
     smtp_host: host(body.smtp_host, "smtp_host"),
     smtp_port: port(body.smtp_port, "smtp_port"),
-    smtp_security: sec(body.smtp_security, "smtp_security"),
+    smtp_security: sec(body.smtp_security, "smtp_security", SECURITY_MODES),
   };
 }
 
@@ -108,11 +115,15 @@ export default withErrors(async (req, res) => {
 
   // Populate the account's mailbox list now so the Move-to picker and trash/junk
   // targets are available immediately (and refreshed on every later sync). Best-effort
-  // — a LIST hiccup must not fail an otherwise-successful connect.
-  try {
-    await syncFolders(supabase, { id: saved.id, user_id: user.id, email_address: email, password, ...conn });
-  } catch {
-    /* folders will be populated on the next sync pass */
+  // — a LIST hiccup must not fail an otherwise-successful connect. POP3 has no server
+  // folders to list — Move/Archive/Junk/filter-rules are IMAP-only and stay disabled
+  // for these accounts (see mail/actions.js).
+  if (conn.incoming_protocol !== "pop3") {
+    try {
+      await syncFolders(supabase, { id: saved.id, user_id: user.id, email_address: email, password, ...conn });
+    } catch {
+      /* folders will be populated on the next sync pass */
+    }
   }
 
   res.status(200).json({ ok: true, account: saved });

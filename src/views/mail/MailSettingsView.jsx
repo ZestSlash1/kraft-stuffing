@@ -4,13 +4,22 @@ import gsap from "gsap";
 import { theme } from "../../theme";
 import { mailApi, uploadSignatureImage } from "../../lib/mailApi";
 import ConfirmDialog from "../../components/ConfirmDialog";
-import { ConnGroup, CONN_CODE_LABELS } from "./ConnectView";
+import { ConnGroup, CONN_CODE_LABELS, MS_OAUTH_STATE_KEY } from "./ConnectView";
 
 const STATUS_TONE = {
   active: { label: "Active", color: theme.color.green },
   error: { label: "Sign-in failed", color: theme.color.red },
   disabled: { label: "Disabled", color: theme.color.slate },
 };
+
+// Kick off (or re-run) the Microsoft consent redirect. Reused by ConnectView's first
+// connect and here for "Reconnect" — oauth-microsoft.js upserts by email address, so
+// reconnecting the same mailbox just refreshes its tokens in place.
+async function connectMicrosoft(mailApi) {
+  const { url, state } = await mailApi.oauthMicrosoftStart();
+  sessionStorage.setItem(MS_OAUTH_STATE_KEY, state);
+  window.location.href = url;
+}
 
 // Manage every connected mailbox: default toggle, disconnect, and per-account
 // signature. Accounts/limit come from MailShell; onChanged re-loads them after edits.
@@ -100,6 +109,16 @@ export default function MailSettingsView({ accounts = [], limit = 4, onChanged, 
                         Default
                       </span>
                     )}
+                    {a.incoming_protocol === "pop3" && (
+                      <span style={{ marginLeft: 8, fontFamily: theme.font.mono, fontSize: 9, letterSpacing: "0.1em", color: theme.color.slate, textTransform: "uppercase", border: `1px solid ${theme.color.borderStrong}`, borderRadius: theme.radius.sm, padding: "1px 5px" }}>
+                        POP3
+                      </span>
+                    )}
+                    {a.auth_type === "oauth2" && (
+                      <span style={{ marginLeft: 8, fontFamily: theme.font.mono, fontSize: 9, letterSpacing: "0.1em", color: theme.color.slate, textTransform: "uppercase", border: `1px solid ${theme.color.borderStrong}`, borderRadius: theme.radius.sm, padding: "1px 5px" }}>
+                        Outlook
+                      </span>
+                    )}
                   </div>
                   <div style={{ fontFamily: theme.font.mono, fontSize: 11, color: theme.color.slate, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {a.email_address}
@@ -175,7 +194,9 @@ export default function MailSettingsView({ accounts = [], limit = 4, onChanged, 
               {expandedId === a.id && (
                 <>
                   <AdvancedSettings key={a.id} accountId={a.id} onSaved={onChanged} />
-                  <FolderRulesSettings key={`fr-${a.id}`} accountId={a.id} />
+                  {/* POP3 has no server folders/persistent flags — nothing for trash/junk
+                      mapping or filter rules to operate on. */}
+                  {a.incoming_protocol !== "pop3" && <FolderRulesSettings key={`fr-${a.id}`} accountId={a.id} />}
                 </>
               )}
 
@@ -226,11 +247,18 @@ export default function MailSettingsView({ accounts = [], limit = 4, onChanged, 
   );
 }
 
-// Per-account connection editor: IMAP/SMTP host/port/security, prefilled from the
-// account's current values. Save re-runs the server test-connect (settings.js) and
-// surfaces the specific failure side (imap_failed / smtp_failed / auth_failed).
+// Which security modes are valid for a given incoming protocol — the POP3 client here
+// has no STARTTLS support, so it's SSL/TLS or plaintext only.
+const incomingSecurityOptions = (protocol) => (protocol === "pop3" ? ["ssl", "none"] : ["ssl", "starttls", "none"]);
+
+// Per-account connection editor. Password accounts get the full IMAP/POP3 + SMTP
+// host/port/security editor (save re-runs the server test-connect and surfaces the
+// specific failure side). OAuth2 (Outlook) accounts have fixed, non-editable servers —
+// this just offers a "Reconnect with Microsoft" for when the stored refresh token has
+// been revoked (account status flips to "error").
 function AdvancedSettings({ accountId, onSaved }) {
   const [conn, setConn] = useState(null);
+  const [authType, setAuthType] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
@@ -239,7 +267,9 @@ function AdvancedSettings({ accountId, onSaved }) {
     let alive = true;
     mailApi.getAccountSettings(accountId).then((s) => {
       if (!alive) return;
+      setAuthType(s.auth_type || "password");
       setConn({
+        incoming_protocol: s.incoming_protocol || "imap",
         imap_host: s.imap_host || "",
         imap_port: s.imap_port || 993,
         imap_security: s.imap_security || "ssl",
@@ -251,16 +281,25 @@ function AdvancedSettings({ accountId, onSaved }) {
     return () => { alive = false; };
   }, [accountId]);
 
+  const setIncomingProtocol = (p) => {
+    setConn((c) => ({
+      ...c,
+      incoming_protocol: p,
+      imap_security: p === "pop3" && c.imap_security === "starttls" ? "ssl" : c.imap_security,
+    }));
+  };
+
   const save = async () => {
     setError("");
     setSaved(false);
     if (!conn.imap_host || !conn.smtp_host) {
-      setError("Enter both the incoming (IMAP) and outgoing (SMTP) hosts.");
+      setError("Enter both the incoming and outgoing hosts.");
       return;
     }
     setSaving(true);
     try {
       await mailApi.updateAccountSettings(accountId, {
+        incoming_protocol: conn.incoming_protocol,
         imap_host: conn.imap_host,
         imap_port: Number(conn.imap_port),
         imap_security: conn.imap_security,
@@ -286,9 +325,53 @@ function AdvancedSettings({ accountId, onSaved }) {
     );
   }
 
+  if (authType === "oauth2") {
+    return (
+      <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ fontFamily: theme.font.mono, fontSize: 11, color: theme.color.slate, lineHeight: 1.6 }}>
+          Signed in with Microsoft — {conn.imap_host}:{conn.imap_port} / {conn.smtp_host}:{conn.smtp_port}
+          (fixed, not editable). If sign-in has expired or been revoked, reconnect below.
+        </div>
+        <button
+          onClick={() => connectMicrosoft(mailApi).catch((e) => setError(CONN_CODE_LABELS[e.message] || e.message))}
+          style={{
+            alignSelf: "flex-start", border: "none", borderRadius: theme.radius.sm,
+            background: "#2564cf", color: "#ffffff", fontFamily: theme.font.condensed,
+            fontWeight: 700, fontSize: 13, letterSpacing: "0.04em", padding: "9px 18px", cursor: "pointer",
+          }}
+        >
+          Reconnect with Microsoft
+        </button>
+        {error && <div style={{ fontFamily: theme.font.mono, fontSize: 11, color: theme.color.red }}>{error}</div>}
+      </div>
+    );
+  }
+
+  const isPop3 = conn.incoming_protocol === "pop3";
+
   return (
     <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
-      <ConnGroup title="Incoming (IMAP)" prefix="imap" conn={conn} setConn={setConn} />
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <span style={{ fontFamily: theme.font.mono, fontSize: 10, letterSpacing: "0.14em", color: theme.color.slate, textTransform: "uppercase" }}>Incoming</span>
+        <div style={{ display: "flex", gap: 6 }}>
+          {["imap", "pop3"].map((p) => (
+            <button key={p} onClick={() => setIncomingProtocol(p)} style={{
+              border: `1px solid ${conn.incoming_protocol === p ? theme.color.amber : theme.color.border}`,
+              background: conn.incoming_protocol === p ? theme.color.amberSoft : "none",
+              borderRadius: theme.radius.sm, color: conn.incoming_protocol === p ? theme.color.amberText : theme.color.inkSoft,
+              fontFamily: theme.font.mono, fontSize: 12, fontWeight: 600, textTransform: "uppercase", padding: "6px 14px", cursor: "pointer",
+            }}>
+              {p}
+            </button>
+          ))}
+        </div>
+      </div>
+      {isPop3 && (
+        <div style={{ fontFamily: theme.font.mono, fontSize: 11, color: theme.color.slate, lineHeight: 1.5 }}>
+          Switching to POP3 disables Move, Archive, Junk (with filter rules), and folder mapping for this account.
+        </div>
+      )}
+      <ConnGroup title={`Incoming (${isPop3 ? "POP3" : "IMAP"})`} prefix="imap" conn={conn} setConn={setConn} securityOptions={incomingSecurityOptions(conn.incoming_protocol)} />
       <ConnGroup title="Outgoing (SMTP)" prefix="smtp" conn={conn} setConn={setConn} />
       {error && (
         <div style={{ fontFamily: theme.font.mono, fontSize: 11, color: theme.color.red }}>{error}</div>

@@ -33,7 +33,10 @@ function classify(err) {
 }
 
 // Sync a list of decrypted accounts concurrently; return { [accountId]: errorCode }.
-async function syncMany(db, accounts) {
+// POP3 accounts have no mail_messages mirror (see list.js/thread.js — they're fetched
+// live instead), so there is nothing here for them to sync; skip silently.
+async function syncMany(db, allAccounts) {
+  const accounts = allAccounts.filter((a) => a.incoming_protocol !== "pop3");
   const errors = {};
   const settled = await Promise.allSettled(accounts.map((a) => syncAccount(db, a)));
   await Promise.all(

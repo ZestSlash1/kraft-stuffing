@@ -8,6 +8,7 @@
 import { simpleParser } from "mailparser";
 import { requireUser, httpError, withErrors, adminClient } from "../_lib/auth.js";
 import { resolveAccountMeta, getAccountById, openImap } from "../_lib/mailAccount.js";
+import { fetchPop3Message } from "../_lib/mailPop3.js";
 
 export const config = { maxDuration: 45 };
 
@@ -30,6 +31,32 @@ function rowToPayload(row) {
 }
 
 const addrList = (v) => (v || []).map((a) => ({ name: a.name || "", address: a.address || "" }));
+
+// POP3 has no mail_messages mirror (see list.js) — fetch the full message live and
+// shape it the same as rowToPayload. There is no persistent \Seen to set.
+async function pop3Payload(userId, accountId, uid) {
+  const account = await getAccountById(userId, accountId);
+  const parsed = await fetchPop3Message(account, uid);
+  return {
+    id: `pop3:${accountId}:${uid}`,
+    accountId,
+    uid,
+    subject: parsed.subject || "(no subject)",
+    from: parsed.from?.value?.[0] ? { name: parsed.from.value[0].name || "", address: parsed.from.value[0].address || "" } : null,
+    to: parsed.to?.value ? addrList(parsed.to.value) : [],
+    cc: parsed.cc?.value ? addrList(parsed.cc.value) : [],
+    date: parsed.date || null,
+    seen: true,
+    flagged: false,
+    html: parsed.html || null,
+    text: parsed.text || "",
+    attachments: (parsed.attachments || []).map((a) => ({
+      filename: a.filename || "attachment",
+      contentType: a.contentType || "",
+      size: a.size || 0,
+    })),
+  };
+}
 
 // One-time IMAP back-fill for a message whose body hasn't synced yet. Persists the
 // parsed body so future opens are DB-only. Requires the decrypted account.
@@ -78,6 +105,11 @@ export default withErrors(async (req, res) => {
   if (!uid) throw httpError(400, "uid is required");
 
   const account = await resolveAccountMeta(user.id, accountId);
+
+  if (account.incoming_protocol === "pop3") {
+    return res.status(200).json(await pop3Payload(user.id, account.id, uid));
+  }
+
   const { data: row, error } = await db
     .from("mail_messages")
     .select("*")
