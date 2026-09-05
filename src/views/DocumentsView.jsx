@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
-import { Download, Send, Ban } from "lucide-react";
+import { Eye, Send, Ban } from "lucide-react";
 import { theme } from "../theme";
 import { Card, Pill, StatusBadge } from "../components/ui";
 import { useToast } from "../components/Toast";
+import DocViewer from "../components/DocViewer";
 import { fetchDocuments, getSignedDocumentUrl, voidDocument } from "../lib/documents";
 import { supabase } from "../lib/supabase";
+import { mailApi } from "../lib/mailApi";
 import { fmtIST } from "../lib/pdf/shared";
 import { useRouter } from "../context/RouterContext";
 
@@ -17,6 +19,7 @@ export default function DocumentsView({ app, voyageId }) {
   const [documents, setDocuments] = useState(null);
   const [typeFilter, setTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState(route?.params?.status || "all");
+  const [viewerDoc, setViewerDoc] = useState(null);
 
   const reload = () => {
     fetchDocuments({
@@ -35,14 +38,20 @@ export default function DocumentsView({ app, voyageId }) {
 
   useEffect(reload, [typeFilter, statusFilter, voyageId]);
 
-  const download = async (doc) => {
+  // Primary action: open the generated PDF in-app (new tab stays available as a
+  // secondary action inside the DocViewer toolbar).
+  const view = async (doc) => {
     if (!doc.pdfPath) return;
     const { url, error } = await getSignedDocumentUrl(doc.pdfPath);
     if (error || !url) {
-      showToast("Could not create download link", "error");
+      showToast("Could not open document", "error");
       return;
     }
-    window.open(url, "_blank", "noopener");
+    setViewerDoc({
+      url,
+      fileName: `${TYPE_LABELS[doc.type] || "Document"} ${doc.number || "draft"}.pdf`,
+      mimeType: "application/pdf",
+    });
   };
 
   const onVoid = async (doc) => {
@@ -58,6 +67,7 @@ export default function DocumentsView({ app, voyageId }) {
 
   const resend = async (doc) => {
     const { error } = await supabase.functions.invoke("notify-document", { body: { documentId: doc.id } });
+    if (!error) mailApi.flushNotifications().catch(() => {}); // flush queued email deliveries now
     showToast(error ? `Send failed: ${error.message}` : "Sent via WhatsApp", error ? "error" : "success");
   };
 
@@ -121,8 +131,8 @@ export default function DocumentsView({ app, voyageId }) {
                   </div>
                   <div style={{ display: "flex", gap: 6 }}>
                     {doc.pdfPath && (
-                      <button onClick={() => download(doc)} title="Download" style={iconBtn}>
-                        <Download size={14} />
+                      <button onClick={() => view(doc)} title="View" style={iconBtn}>
+                        <Eye size={14} />
                       </button>
                     )}
                     {doc.status === "issued" && (
@@ -142,6 +152,8 @@ export default function DocumentsView({ app, voyageId }) {
           </div>
         )}
       </div>
+
+      <DocViewer open={!!viewerDoc} doc={viewerDoc} onClose={() => setViewerDoc(null)} />
     </div>
   );
 }

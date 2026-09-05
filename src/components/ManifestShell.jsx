@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ClipboardList, FileText, Ship, Globe2 } from "lucide-react";
 import { theme } from "../theme";
+import { useRouter } from "../context/RouterContext";
 import BookingsView from "../views/BookingsView";
 import ManifestDocumentView from "../views/ManifestDocumentView";
 import VesselMovementsView from "../views/VesselMovementsView";
@@ -15,7 +16,13 @@ const TABS = [
 
 export default function ManifestShell({ app }) {
   const { state, setActiveVoyage } = app;
-  const [tab, setTab] = useState("bookings");
+  const { route } = useRouter();
+  // Deep-link from the sidebar: navigate("manifest", { tab }) picks the tab.
+  const [tab, setTab] = useState(() => route?.params?.tab || "bookings");
+  const paramTab = route?.params?.tab;
+  useEffect(() => {
+    if (paramTab && TABS.some((t) => t.id === paramTab)) setTab(paramTab);
+  }, [paramTab]);
 
   const voyages = state.voyages.filter((v) => !v.archived);
   const voyage = state.voyages.find((v) => v.id === state.activeVoyageId);

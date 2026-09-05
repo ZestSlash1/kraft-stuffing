@@ -62,12 +62,20 @@ export default function CreateBookingModal({
     freightStatus: booking?.freightStatus || "to_pay",
     paymentStatus: booking?.paymentStatus || "pending",
     notes: booking?.notes || "",
+    shipperEmail: booking?.shipperEmail || "",
+    consigneeEmail: booking?.consigneeEmail || "",
+    notifyShipper: booking?.notifyShipper || false,
+    notifyConsignee: booking?.notifyConsignee || false,
   });
 
   const { markDirty, markClean } = useDirtyGuard();
   const set = (k) => (e) => {
     markDirty();
     setForm((f) => ({ ...f, [k]: e.target.value }));
+  };
+  const setBool = (k) => (e) => {
+    markDirty();
+    setForm((f) => ({ ...f, [k]: e.target.checked }));
   };
 
   const submit = () => {
@@ -82,6 +90,10 @@ export default function CreateBookingModal({
       freightStatus: form.freightStatus,
       paymentStatus: form.paymentStatus,
       notes: form.notes,
+      shipperEmail: form.shipperEmail.trim(),
+      consigneeEmail: form.consigneeEmail.trim(),
+      notifyShipper: form.notifyShipper,
+      notifyConsignee: form.notifyConsignee,
     });
   };
 
@@ -182,6 +194,35 @@ export default function CreateBookingModal({
             <Field label="Notes">
               <input {...fProps("notes")} />
             </Field>
+          </div>
+        </div>
+
+        {/* Customer notifications (§B.3) — external email is opt-in, default OFF. */}
+        <div
+          style={{
+            marginTop: 18,
+            paddingTop: 16,
+            borderTop: `1px solid ${theme.color.border}`,
+          }}
+        >
+          <div style={{ fontFamily: theme.font.mono, fontSize: 9, letterSpacing: "0.16em", color: theme.color.slate, marginBottom: 10 }}>
+            CUSTOMER NOTIFICATIONS (OPT-IN)
+          </div>
+          <div className="form-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <Field label="Shipper email">
+              <input type="email" {...fProps("shipperEmail")} placeholder="shipper@example.com" />
+            </Field>
+            <Field label="Consignee email">
+              <input type="email" {...fProps("consigneeEmail")} placeholder="consignee@example.com" />
+            </Field>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: theme.font.mono, fontSize: 12, color: theme.color.inkSoft, cursor: "pointer" }}>
+              <input type="checkbox" checked={form.notifyShipper} onChange={setBool("notifyShipper")} />
+              Notify shipper on document issue
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: theme.font.mono, fontSize: 12, color: theme.color.inkSoft, cursor: "pointer" }}>
+              <input type="checkbox" checked={form.notifyConsignee} onChange={setBool("notifyConsignee")} />
+              Notify consignee on departure/arrival
+            </label>
           </div>
         </div>
 

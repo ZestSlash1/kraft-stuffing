@@ -1,30 +1,196 @@
-// GET/PUT /api/mail/settings — read or update the caller's own signature_html.
+// /api/mail/settings — account metadata list, per-account settings, and disconnect.
+//
+//   GET    /api/mail/settings               → { accounts: [meta…], limit }   (no secrets)
+//   GET    /api/mail/settings?accountId=X    → { email, signature_html, … }   (one account)
+//   PUT    /api/mail/settings?accountId=X    → update { signature_html?, display_name?,
+//                                                       color?, is_default? }
+//   DELETE /api/mail/settings?accountId=X    → disconnect (hard-delete credentials)
+//
+// Every accountId is ownership-checked (`.eq("user_id", user.id)`) before any write.
 import { requireUser, adminClient, httpError, withErrors, readJsonBody } from "../_lib/auth.js";
+import { listAccountsMeta, MAX_ACCOUNTS, getAccountById, testConnect } from "../_lib/mailAccount.js";
+
+const SECURITY_MODES = new Set(["ssl", "starttls", "none"]);
+// node-pop3 (the POP3 client) has no STLS support — POP3 accounts can only use
+// implicit TLS or plaintext, never a STARTTLS upgrade.
+const POP3_SECURITY_MODES = new Set(["ssl", "none"]);
+const INCOMING_PROTOCOLS = new Set(["imap", "pop3"]);
+const CONNECTION_FIELDS = ["incoming_protocol", "imap_host", "imap_port", "imap_security", "smtp_host", "smtp_port", "smtp_security"];
+
+// Validate a single connection field from a PATCH body. `resolvedProtocol` is the
+// incoming_protocol the FULL merged patch will end up with (imap_security's allowed
+// set depends on it, and incoming_protocol may itself be one of the changed fields).
+function normConnField(name, v, resolvedProtocol) {
+  if (name === "incoming_protocol") {
+    const s = (v || "").toString().trim().toLowerCase();
+    if (!INCOMING_PROTOCOLS.has(s)) throw httpError(400, "incoming_protocol must be imap or pop3");
+    return s;
+  }
+  if (name.endsWith("_port")) {
+    const n = Number(v);
+    if (!Number.isInteger(n) || n < 1 || n > 65535) throw httpError(400, `${name} must be a valid port`);
+    return n;
+  }
+  if (name === "imap_security") {
+    const s = (v || "").toString().trim().toLowerCase();
+    const allowed = resolvedProtocol === "pop3" ? POP3_SECURITY_MODES : SECURITY_MODES;
+    if (!allowed.has(s)) throw httpError(400, `imap_security must be ${[...allowed].join(", ")}`);
+    return s;
+  }
+  if (name.endsWith("_security")) {
+    const s = (v || "").toString().trim().toLowerCase();
+    if (!SECURITY_MODES.has(s)) throw httpError(400, `${name} must be ssl, starttls, or none`);
+    return s;
+  }
+  const s = (v || "").toString().trim();
+  if (!s) throw httpError(400, `${name} is required`);
+  return s;
+}
+
+// Confirm the account exists and belongs to the caller; returns its current row.
+async function ownedAccount(supabase, userId, accountId) {
+  const { data, error } = await supabase
+    .from("mail_accounts")
+    .select("id, email_address, is_default")
+    .eq("id", accountId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) throw httpError(500, "Could not load mail account");
+  if (!data) throw httpError(404, "Mail account not found");
+  return data;
+}
+
+// Ensure exactly one default remains for this user, preferring `preferId`.
+async function ensureOneDefault(supabase, userId, preferId) {
+  const { data } = await supabase
+    .from("mail_accounts")
+    .select("id, is_default")
+    .eq("user_id", userId)
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true });
+  const rows = data || [];
+  if (rows.length === 0) return;
+  if (rows.some((r) => r.is_default)) return;
+  const target = preferId && rows.find((r) => r.id === preferId) ? preferId : rows[0].id;
+  await supabase.from("mail_accounts").update({ is_default: true }).eq("id", target).eq("user_id", userId);
+}
+
+// Updating connection settings re-runs the IMAP + SMTP test-connect, which can be
+// slow on some providers — raise the budget above Vercel's short default.
+export const config = { maxDuration: 45 };
 
 export default withErrors(async (req, res) => {
   const user = await requireUser(req);
   const supabase = adminClient();
+  const accountId = req.query.accountId ? req.query.accountId.toString() : null;
 
+  // ── List all accounts (metadata only) — powers switcher + settings + connected check.
+  if (req.method === "GET" && !accountId) {
+    const accounts = await listAccountsMeta(user.id);
+    return res.status(200).json({ accounts, limit: MAX_ACCOUNTS });
+  }
+
+  // ── One account's settings (signature editor / compose prefill).
   if (req.method === "GET") {
     const { data } = await supabase
       .from("mail_accounts")
-      .select("email_address, signature_html")
+      .select("id, email_address, display_name, color, is_default, status, signature_html, incoming_protocol, auth_type, provider_preset, imap_host, imap_port, imap_security, smtp_host, smtp_port, smtp_security, trash_folder_path, junk_folder_path")
+      .eq("id", accountId)
       .eq("user_id", user.id)
       .maybeSingle();
+    if (!data) throw httpError(404, "Mail account not found");
     return res.status(200).json({
-      connected: !!data,
-      email: data?.email_address || null,
-      signature_html: data?.signature_html || "",
+      id: data.id,
+      email: data.email_address,
+      display_name: data.display_name || data.email_address,
+      color: data.color || null,
+      is_default: data.is_default,
+      status: data.status,
+      signature_html: data.signature_html || "",
+      incoming_protocol: data.incoming_protocol,
+      auth_type: data.auth_type,
+      provider_preset: data.provider_preset || null,
+      // Non-secret connection settings (host/port/security), for the advanced editor.
+      imap_host: data.imap_host,
+      imap_port: data.imap_port,
+      imap_security: data.imap_security,
+      smtp_host: data.smtp_host,
+      smtp_port: data.smtp_port,
+      smtp_security: data.smtp_security,
+      // Manual trash/junk folder overrides (null → auto-detected special-use folder).
+      trash_folder_path: data.trash_folder_path || null,
+      junk_folder_path: data.junk_folder_path || null,
     });
   }
 
   if (req.method === "PUT") {
-    const { signature_html } = readJsonBody(req);
+    if (!accountId) throw httpError(400, "accountId is required");
+    await ownedAccount(supabase, user.id, accountId);
+    const body = readJsonBody(req);
+
+    // Making this account the default first clears any other default (partial unique
+    // index allows only one is_default per user).
+    if (body.is_default === true) {
+      await supabase
+        .from("mail_accounts")
+        .update({ is_default: false })
+        .eq("user_id", user.id)
+        .neq("id", accountId);
+    }
+
+    const patch = {};
+    if (typeof body.signature_html === "string") patch.signature_html = body.signature_html;
+    if (typeof body.display_name === "string") patch.display_name = body.display_name;
+    if (typeof body.color === "string") patch.color = body.color;
+    if (body.is_default === true) patch.is_default = true;
+    // Manual trash/junk folder mapping override. "" clears it back to auto-detect.
+    if (typeof body.trash_folder_path === "string") patch.trash_folder_path = body.trash_folder_path.trim() || null;
+    if (typeof body.junk_folder_path === "string") patch.junk_folder_path = body.junk_folder_path.trim() || null;
+
+    // Connection settings: if ANY host/port/security field is present, validate the
+    // provided ones and test-connect the FULL resulting config (merged over the row's
+    // current values) before saving — never persist a broken account. On success the
+    // account is marked active again. Error message is the machine code (auth_failed |
+    // imap_failed | smtp_failed) for the UI to map to a specific status.
+    const connKeys = CONNECTION_FIELDS.filter((k) => body[k] !== undefined);
+    if (connKeys.length > 0) {
+      const current = await getAccountById(user.id, accountId); // full row + decrypted password
+      // imap_security's allowed set depends on the RESULTING incoming_protocol —
+      // resolve that first in case both are being changed in the same request.
+      const resolvedProtocol = (body.incoming_protocol ?? current.incoming_protocol).toString().trim().toLowerCase();
+      for (const k of connKeys) patch[k] = normConnField(k, body[k], resolvedProtocol);
+      try {
+        await testConnect({ ...current, ...patch });
+      } catch (err) {
+        if (err.code) throw httpError(422, err.code);
+        throw err;
+      }
+      patch.status = "active";
+    }
+
+    if (Object.keys(patch).length === 0) return res.status(200).json({ ok: true });
+
     const { error } = await supabase
       .from("mail_accounts")
-      .update({ signature_html: signature_html || "" })
+      .update(patch)
+      .eq("id", accountId)
       .eq("user_id", user.id);
-    if (error) throw httpError(500, "Could not save signature");
+    if (error) throw httpError(500, "Could not save mail settings");
+    return res.status(200).json({ ok: true });
+  }
+
+  if (req.method === "DELETE") {
+    if (!accountId) throw httpError(400, "accountId is required");
+    const acct = await ownedAccount(supabase, user.id, accountId);
+    // Hard-delete the row — retaining dead encrypted credentials has no value.
+    const { error } = await supabase
+      .from("mail_accounts")
+      .delete()
+      .eq("id", accountId)
+      .eq("user_id", user.id);
+    if (error) throw httpError(500, "Could not disconnect mail account");
+    // If we removed the default, promote another account so one default always exists.
+    if (acct.is_default) await ensureOneDefault(supabase, user.id, null);
     return res.status(200).json({ ok: true });
   }
 

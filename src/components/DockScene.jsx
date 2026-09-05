@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { containerStatus, containerFillPct, CONTAINER_COLORS } from "../data/statusHelpers";
 
 // Rich side-view dock scene: gantry cranes, a busy quay wall of background
@@ -89,7 +90,12 @@ function BackdropStacks() {
   return <g>{stacks}</g>;
 }
 
-export default function DockScene({ containers = [], onContainerClick, style }) {
+// The quay wall is fully static (no props) — build its ~650 nodes once at module
+// load instead of on every render, so parent re-renders (realtime, presence,
+// mail poll) don't rebuild it.
+const BACKDROP_STACKS = <BackdropStacks />;
+
+function DockScene({ containers = [], onContainerClick, style }) {
   const list = containers.slice(0, 12);
   const n = Math.max(list.length, 1);
   const totalW = n * BAY_W + (n - 1) * BAY_GAP;
@@ -130,7 +136,7 @@ export default function DockScene({ containers = [], onContainerClick, style }) 
       <Crane x={940} />
 
       {/* dim quay wall */}
-      <BackdropStacks />
+      {BACKDROP_STACKS}
 
       {/* status glows behind highlighted bays */}
       {list.map((c, i) => {
@@ -219,3 +225,7 @@ export default function DockScene({ containers = [], onContainerClick, style }) 
     </svg>
   );
 }
+
+// Memoized: the dashboard re-renders on every realtime/presence/mail tick, but
+// the scene only needs to rebuild when its container list actually changes.
+export default memo(DockScene);

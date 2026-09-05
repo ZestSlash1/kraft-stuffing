@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { formatCargoItems } from "../lib/cargoFormat";
 import { gsap } from "gsap";
 import { ChevronRight, Lock, Unlock } from "lucide-react";
 import { containerStatus } from "../data/statusHelpers";
@@ -126,7 +127,7 @@ export default function ManifestTable({
         const status = containerStatus(c);
         const bags = c.lines.reduce((a, l) => a + Number(l.qty || 0), 0);
         const kg = c.lines.reduce((a, l) => a + Number(l.qty || 0) * Number(l.unitWeightKg || 0), 0);
-        const cargoNames = [...new Set(c.lines.map((l) => l.cargo).filter(Boolean))];
+        const cargoDisplay = formatCargoItems(c.cargoItems);
         const selected = selectedContainerId === c.id;
 
         return (
@@ -157,7 +158,7 @@ export default function ManifestTable({
 
             <span className="manifest-cell" style={{ fontSize: 12, color: theme.color.slate }}>
               <span className="manifest-cell-label label-xs">CARGO&nbsp;</span>
-              {cargoNames.length ? cargoNames.join(", ") : "—"}
+              {cargoDisplay}
             </span>
 
             <span className="manifest-cell" style={{ textAlign: "right", justifyContent: "flex-end", fontSize: 13, color: theme.color.inkSoft }}>

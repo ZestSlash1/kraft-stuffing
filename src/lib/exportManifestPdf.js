@@ -1,4 +1,5 @@
 import { jsPDF } from "jspdf";
+import { formatCargoItems } from "./cargoFormat";
 
 const MARGIN = 40;
 const INK = [10, 16, 32];
@@ -77,6 +78,7 @@ const CONTAINER_COLS = [
   ["Size", 36],
   ["Seal", 70],
   ["Gross (kg)", 70],
+  ["Cargo", 150],
 ];
 
 const LINE_COLS = [
@@ -97,7 +99,7 @@ function drawContainerHeader(doc, c, y) {
 
   const netKg = c.lines.reduce((a, l) => a + Number(l.qty || 0) * Number(l.unitWeightKg || 0), 0);
   const grossKg = netKg + Number(c.tareWeightKg || 0);
-  const values = [c.number || "Unassigned", c.size, c.sealNo || "—", grossKg];
+  const values = [c.number || "Unassigned", c.size, c.sealNo || "—", grossKg, formatCargoItems(c.cargoItems)];
 
   doc.setFont("courier", "bold");
   doc.setFontSize(8);

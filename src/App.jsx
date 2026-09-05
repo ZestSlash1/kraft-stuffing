@@ -9,6 +9,7 @@ import {
   fetchVoyages,
   fetchContainers,
   fetchLines,
+  fetchCargoItems,
   fetchShippers,
   fetchConsignees,
   fetchProfiles,
@@ -36,6 +37,11 @@ import {
   fromDbVoyage,
   fromDbContainer,
   fromDbLine,
+  fromDbCargoItem,
+  toDbCargoItem,
+  createCargoItem as dbCreateCargoItem,
+  updateCargoItem as dbUpdateCargoItem,
+  deleteCargoItem as dbDeleteCargoItem,
   fromDbShipper,
   fromDbConsignee,
   fromDbProfile,
@@ -119,6 +125,8 @@ async function loadVoyageTree(orgId) {
       const { data: lRows, error: lErr } = await fetchLines(container.id);
       if (lErr) throw lErr;
       container.lines = (lRows || []).map(fromDbLine);
+      const { data: ciRows } = await fetchCargoItems(container.id);
+      container.cargoItems = (ciRows || []).map(fromDbCargoItem);
       voyage.containers.push(container);
     }
     const { data: bRows, error: bErr } = await fetchBookings(voyage.id);
@@ -231,7 +239,12 @@ export default function App() {
   const routeRef = useRef(route);
   routeRef.current = route;
   const groupOf = (page) =>
-    ({ "voyage-detail": "voyages", "container-log": "voyages" })[page] || page;
+    ({
+      "voyage-detail": "voyages",
+      "container-log": "voyages",
+      "igm-voyage": "igm",
+      "igm-bl": "igm",
+    })[page] || page;
 
   // Dirty-form guard: forms flag unsaved edits via setDirty(true); navigation
   // then asks for confirmation. Ref (not state) — no re-render needed.
@@ -396,6 +409,24 @@ export default function App() {
     };
   }, [user]);
 
+  // ── Mail follow-ups badge: due reminders/snoozes, same polling cadence as unread ──
+  const [mailFollowups, setMailFollowups] = useState(0);
+  useEffect(() => {
+    if (!user) return;
+    let alive = true;
+    const poll = () =>
+      mailApi
+        .dueReminders()
+        .then((r) => alive && setMailFollowups((r.reminders || []).length))
+        .catch(() => alive && setMailFollowups(0));
+    poll();
+    const id = setInterval(() => document.visibilityState === "visible" && poll(), 60000);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, [user]);
+
   // ── Discovery dots: Manifest (bookings + vessel_movements) + Expenses ────────
   // A separate realtime channel purely for nav notification dots. Self-writes
   // are suppressed by comparing the row actor to the signed-in user.
@@ -439,7 +470,7 @@ export default function App() {
   }, [user]);
 
   // Opening Mail clears its dot; track unread separately so the badge reflects IMAP.
-  const live = { dirty, online: Object.keys(presence).length, mailUnread };
+  const live = { dirty, online: Object.keys(presence).length, mailUnread, mailFollowups };
 
   // Resolve which voyage a container belongs to (handlers don't rely on active).
   const voyageIdForContainer = (cid) =>
@@ -465,6 +496,35 @@ export default function App() {
     sync(() => dbDeleteLine(lineId));
   };
 
+  const addCargoItem = (containerId, draft) => {
+    const voyageId = voyageIdForContainer(containerId);
+    const container = state.voyages
+      .flatMap((v) => v.containers)
+      .find((c) => c.id === containerId);
+    const nextSort = (container?.cargoItems?.length ?? 0);
+    const item = {
+      id: uid(),
+      containerId,
+      sortOrder: nextSort,
+      backfilled: false,
+      ...draft,
+    };
+    dispatch({ type: "ADD_CARGO_ITEM", voyageId, containerId, item });
+    sync(() => dbCreateCargoItem(toDbCargoItem(item)));
+  };
+
+  const updateCargoItem = (containerId, itemId, patch) => {
+    const voyageId = voyageIdForContainer(containerId);
+    dispatch({ type: "UPDATE_CARGO_ITEM", voyageId, containerId, itemId, patch });
+    sync(() => dbUpdateCargoItem(itemId, patch));
+  };
+
+  const removeCargoItem = (containerId, itemId) => {
+    const voyageId = voyageIdForContainer(containerId);
+    dispatch({ type: "DELETE_CARGO_ITEM", voyageId, containerId, itemId });
+    sync(() => dbDeleteCargoItem(itemId));
+  };
+
   const sealContainer = (containerId, { sealNo, sealNo2 }) => {
     patchContainer(containerId, {
       sealed: true,
@@ -475,7 +535,11 @@ export default function App() {
     });
     supabase.functions
       .invoke("notify-seal", { body: { containerId } })
-      .then(({ error }) => error && console.warn("[notify-seal] failed:", error.message));
+      .then(({ error }) => {
+        if (error) return console.warn("[notify-seal] failed:", error.message);
+        // Flush the freshly-queued email deliveries now (daily cron is only a net).
+        mailApi.flushNotifications().catch(() => {});
+      });
   };
 
   const addContainerEntry = (voyageId) => {
@@ -609,6 +673,22 @@ export default function App() {
     if (error || !data) return null;
     const movement = fromDbVesselMovement(data);
     dispatch({ type: "ADD_VESSEL_MOVEMENT", voyageId, movement });
+    // Fire voyage departure/arrival notifications off the honest movement signal.
+    // Non-blocking: a notify failure never affects the logged movement.
+    const notifyType =
+      movement.eventType === "sailed"
+        ? "voyage_departed"
+        : movement.eventType === "discharged"
+        ? "voyage_arrived"
+        : null;
+    if (notifyType) {
+      supabase.functions
+        .invoke("notify-voyage", { body: { voyageId, eventType: notifyType } })
+        .then(({ error: nErr }) => {
+          if (nErr) return console.warn("[notify-voyage] failed:", nErr.message);
+          mailApi.flushNotifications().catch(() => {});
+        });
+    }
     return movement;
   };
 
@@ -666,6 +746,9 @@ export default function App() {
     removeBookingEntry,
     createMovementEntry,
     removeMovementEntry,
+    addCargoItem,
+    updateCargoItem,
+    removeCargoItem,
     exportXlsx,
     exportPdf,
   };

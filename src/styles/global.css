@@ -127,11 +127,14 @@ canvas {
 }
 
 /* ── Navigation / shell ─────────────────────────────────────────────────── */
-/* Desktop: top nav only. !important beats the component's inline display:flex. */
+/* Desktop: sectioned sidebar + slim top bar, no bottom nav. !important beats
+   the components' inline display:flex. */
 .bottom-nav { display: none !important; }
+.side-nav { display: flex; }
 .app-main { padding-bottom: 0; }
 
 @media (max-width: 767px) {
+  .side-nav { display: none !important; }
   .topnav-links { display: none !important; }
   .topnav-username { display: none !important; }
   .portal-btn-label { display: none !important; }

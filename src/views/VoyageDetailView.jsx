@@ -10,6 +10,7 @@ import ConfirmDialog from "../components/ConfirmDialog";
 import VoyagePnlStrip from "../components/expenses/VoyagePnlStrip";
 import BookingsView from "./BookingsView";
 import DocumentsView from "./DocumentsView";
+import AttachmentsPanel from "../components/AttachmentsPanel";
 import ActivityFeedView from "./ActivityFeedView";
 import ExpenseListView from "./expenses/ExpenseListView";
 import { fetchExpensesByVoyage, fromDbExpense } from "../lib/db";
@@ -262,7 +263,14 @@ export default function VoyageDetailView({ app, voyageId }) {
       </div>
 
       {tab === "Bookings" && <BookingsView app={app} voyage={voyage} />}
-      {tab === "Documents" && <DocumentsView app={app} voyageId={voyage.id} />}
+      {tab === "Documents" && (
+        <>
+          <DocumentsView app={app} voyageId={voyage.id} />
+          <div style={{ maxWidth: 1100, margin: "0 auto", padding: "0 18px 40px" }}>
+            <AttachmentsPanel parentType="voyage" parentId={voyage.id} createdBy={app.user?.id} />
+          </div>
+        </>
+      )}
       {tab === "Activity" && <ActivityFeedView app={app} voyageId={voyage.id} embedded />}
       {tab === "P&L" && (
         <div style={{ marginTop: 16 }}>

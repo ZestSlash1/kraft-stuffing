@@ -1,6 +1,6 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { gsap } from "gsap";
-import { Ship, ChevronRight, ChevronDown, AlertTriangle, Loader, Lock, CircleDot } from "lucide-react";
+import { Ship, ChevronRight, ChevronDown, AlertTriangle, Loader, Lock, CircleDot, BellRing } from "lucide-react";
 import {
   BarChart,
   Bar,
@@ -22,6 +22,8 @@ import BayHero from "../ui/BayHero";
 import { ActivityPanel } from "./ActivityFeedView";
 import { useLive } from "../context/LiveContext";
 import { fetchDocuments } from "../lib/documents";
+import { mailApi } from "../lib/mailApi";
+import { formatRelative } from "../lib/format";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DashboardView — Loadex dark-marine composition (LOADEX_UI_PASS.md).
@@ -155,6 +157,64 @@ function ActionRequiredStrip({ navigate }) {
   );
 }
 
+// ── Follow-ups widget: due/overdue mail reminders across every account, each row
+// linking straight into the thread (deep-link via mail page params, see MailShell). ──
+function FollowUpsWidget({ navigate }) {
+  const { mailFollowups } = useLive();
+  const [items, setItems] = useState(null);
+
+  useEffect(() => {
+    let alive = true;
+    mailApi.dueReminders().then((r) => alive && setItems(r.reminders || [])).catch(() => alive && setItems([]));
+    return () => { alive = false; };
+  }, [mailFollowups]); // refetch whenever the polled due-count changes
+
+  if (items !== null && items.length === 0) return null;
+
+  return (
+    <div>
+      <div style={lbl()}>Follow-ups</div>
+      {items === null ? (
+        <div style={{ fontFamily: F.mono, fontSize: 11, color: C.inkFaint, padding: "4px 0" }}>Loading…</div>
+      ) : (
+        items.slice(0, 5).map((r) => {
+          const msg = r.mail_messages || {};
+          return (
+            <button
+              key={r.id}
+              onClick={() => navigate("mail", { folder: msg.folder || "INBOX", accountId: msg.account_id, openUid: msg.uid })}
+              style={issueButtonStyle}
+            >
+              <BellRing size={13} color={C.warning} style={{ flexShrink: 0 }} />
+              <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {msg.subject || "(no subject)"}
+              </span>
+              <span style={{ fontSize: 10, color: C.inkFaint, flexShrink: 0 }}>{formatRelative(r.remind_at)}</span>
+              <ChevronRight size={13} color={C.inkDim} style={{ flexShrink: 0 }} />
+            </button>
+          );
+        })
+      )}
+    </div>
+  );
+}
+
+const issueButtonStyle = {
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  width: "100%",
+  background: "none",
+  border: "none",
+  borderRadius: 8,
+  padding: "6px 4px",
+  cursor: "pointer",
+  fontFamily: F.mono,
+  fontSize: 12,
+  color: C.ink,
+  textAlign: "left",
+};
+
 // ── Left rail: vessel/container status card ─────────────────────────────────
 const STATUS_VIEW = {
   STUFFING: { text: "Loading", Icon: Loader, spin: true },
@@ -241,6 +301,13 @@ export default function DashboardView({ app }) {
 
   const voyages = state.voyages.filter((v) => !v.archived);
   const now = new Date();
+
+  // Stable so BayHero → DockScene's memo isn't defeated by a fresh closure
+  // on every realtime/presence/mail re-render of the dashboard.
+  const openContainer = useCallback(
+    (containerId) => navigate("container-log", { containerId }),
+    [navigate]
+  );
 
   // ── Aggregate cargo metrics across the tree ───────────────────────────────
   const allLines = [];
@@ -416,7 +483,7 @@ export default function DashboardView({ app }) {
 
           {/* Hero centerpiece */}
           <div className="ldx-hero" style={{ minWidth: 0 }}>
-            <BayHero voyage={activeVoyage} onContainerClick={(containerId) => navigate("container-log", { containerId })} />
+            <BayHero voyage={activeVoyage} onContainerClick={openContainer} />
           </div>
 
           {/* Right rail — stow monitor */}
@@ -449,6 +516,8 @@ export default function DashboardView({ app }) {
               </div>
 
               <ActionRequiredStrip navigate={navigate} />
+
+              <FollowUpsWidget navigate={navigate} />
 
               {overContainers.length > 0 && (
                 <div>

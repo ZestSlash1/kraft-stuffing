@@ -65,6 +65,29 @@ export const fromDbContainer = (r) => ({
   condition: r.condition || "Clean",
   sortOrder: r.sort_order ?? 0,
   lines: [],
+  cargoItems: [],
+});
+
+// ── Container cargo items ─────────────────────────────────────────────────────
+export const fromDbCargoItem = (r) => ({
+  id: r.id,
+  containerId: r.container_id,
+  sortOrder: r.sort_order ?? 0,
+  description: r.description || "",
+  qty: r.qty != null ? Number(r.qty) : null,
+  unit: r.unit || "PKG",
+  backfilled: !!r.backfilled,
+  createdAt: r.created_at,
+});
+
+export const toDbCargoItem = (item) => ({
+  id: item.id ?? undefined,
+  container_id: item.containerId,
+  sort_order: item.sortOrder ?? 0,
+  description: item.description,
+  qty: item.qty ?? null,
+  unit: item.unit ?? "PKG",
+  backfilled: item.backfilled ?? false,
 });
 
 export const toDbContainer = (c) => ({
@@ -151,6 +174,12 @@ export const fromDbBooking = (r) => ({
   createdBy: r.created_by,
   createdAt: r.created_at,
   updatedAt: r.updated_at,
+  trackingToken: r.tracking_token || null,
+  trackingEnabledAt: r.tracking_enabled_at || null,
+  shipperEmail: r.shipper_email || "",
+  consigneeEmail: r.consignee_email || "",
+  notifyShipper: !!r.notify_shipper,
+  notifyConsignee: !!r.notify_consignee,
 });
 
 export const toDbBooking = (b) => ({
@@ -166,6 +195,10 @@ export const toDbBooking = (b) => ({
   payment_status: b.paymentStatus ?? undefined,
   notes: b.notes ?? null,
   created_by: b.createdBy ?? null,
+  shipper_email: b.shipperEmail ?? null,
+  consignee_email: b.consigneeEmail ?? null,
+  notify_shipper: b.notifyShipper ?? false,
+  notify_consignee: b.notifyConsignee ?? false,
 });
 
 const BOOKING_KEYMAP = {
@@ -177,7 +210,24 @@ const BOOKING_KEYMAP = {
   freightStatus: "freight_status",
   paymentStatus: "payment_status",
   notes: "notes",
+  trackingToken: "tracking_token",
+  trackingEnabledAt: "tracking_enabled_at",
+  shipperEmail: "shipper_email",
+  consigneeEmail: "consignee_email",
+  notifyShipper: "notify_shipper",
+  notifyConsignee: "notify_consignee",
 };
+
+// Mint a ≥128-bit URL-safe tracking token (22 base62 chars ≈ 131 bits). Never
+// sequential, never derived from booking id/number (§A.1).
+export function mintTrackingToken() {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  const bytes = new Uint8Array(22);
+  crypto.getRandomValues(bytes);
+  let out = "";
+  for (let i = 0; i < bytes.length; i++) out += alphabet[bytes[i] % alphabet.length];
+  return out;
+}
 export const toDbBookingPatch = (patch) => mapKeys(patch, BOOKING_KEYMAP);
 
 export async function fetchBookings(voyageId) {
@@ -472,6 +522,12 @@ const executors = {
   updateExpense: ({ id, patch }) =>
     supabase.from("expenses").update(patch).eq("id", id).select().single(),
   deleteExpense: ({ id }) => supabase.from("expenses").delete().eq("id", id),
+  createCargoItem: (p) =>
+    supabase.from("container_cargo_items").insert(p).select().single(),
+  updateCargoItem: ({ id, patch }) =>
+    supabase.from("container_cargo_items").update(patch).eq("id", id).select().single(),
+  deleteCargoItem: ({ id }) =>
+    supabase.from("container_cargo_items").delete().eq("id", id),
   upsertPushSubscription: (p) =>
     supabase
       .from("push_subscriptions")
@@ -480,10 +536,19 @@ const executors = {
       .single(),
 };
 
+// Modules that own their own tables (e.g. lib/igm.js) register executors here
+// instead of growing a section inside this file. They then get runWrite's
+// offline queueing and flushQueue's replay for free. Registration must happen at
+// module load (the IGM lib is imported by its views, which AppShell imports
+// statically) so a queued op always finds its executor on replay.
+export const registerExecutors = (map) => {
+  Object.assign(executors, map);
+};
+
 // Run a write, queueing it for later if we are offline. Returns {data, error}.
 // `optimistic` is what we hand back as `data` when the write was queued so the
 // caller (reducer) already has the row it needs for instant UI.
-async function runWrite(kind, payload, optimistic) {
+export async function runWrite(kind, payload, optimistic) {
   try {
     const { data, error } = await executors[kind](payload);
     if (error) {
@@ -597,6 +662,15 @@ export async function fetchContainers(voyageId) {
 export async function fetchLines(containerId) {
   const { data, error } = await supabase
     .from("stuffing_lines")
+    .select("*")
+    .eq("container_id", containerId)
+    .order("sort_order", { ascending: true });
+  return { data, error };
+}
+
+export async function fetchCargoItems(containerId) {
+  const { data, error } = await supabase
+    .from("container_cargo_items")
     .select("*")
     .eq("container_id", containerId)
     .order("sort_order", { ascending: true });
@@ -739,6 +813,20 @@ export function deleteExpense(id) {
 export function upsertPushSubscription(subscription) {
   const p = clean(subscription);
   return runWrite("upsertPushSubscription", p, p);
+}
+
+export function createCargoItem(item) {
+  const p = clean(item);
+  return runWrite("createCargoItem", p, p);
+}
+
+export function updateCargoItem(id, patch) {
+  const p = clean(patch);
+  return runWrite("updateCargoItem", { id, patch: p }, { id, ...p });
+}
+
+export function deleteCargoItem(id) {
+  return runWrite("deleteCargoItem", { id }, { id });
 }
 
 // How many stuffing lines reference this shipper/consignee (for the archive guard).

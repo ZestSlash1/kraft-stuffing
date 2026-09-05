@@ -42,10 +42,14 @@ export default function BayHero({ voyage, onContainerClick }) {
     if (reduceMotion()) return;
     const ctx = gsap.context(() => {
       if (scanRef.current) {
+        // Animate transform (compositor-only) rather than `top` — animating a
+        // layout property here forced a full layout + repaint of the ~700-node
+        // dock SVG every frame. Sweep is expressed in px from the panel height.
+        const h = rootRef.current?.offsetHeight || 420;
         gsap.fromTo(
           scanRef.current,
-          { top: "18%" },
-          { top: "88%", duration: 7, ease: "sine.inOut", repeat: -1, yoyo: true }
+          { y: 0 },
+          { y: h * 0.66, duration: 7, ease: "sine.inOut", repeat: -1, yoyo: true }
         );
       }
       if (sceneRef.current) {
@@ -150,6 +154,7 @@ export default function BayHero({ voyage, onContainerClick }) {
           background: `linear-gradient(90deg, transparent, ${C.optimized}55 30%, ${C.optimized}88 50%, ${C.optimized}55 70%, transparent)`,
           zIndex: 4,
           pointerEvents: "none",
+          willChange: "transform",
         }}
       />
     </div>
